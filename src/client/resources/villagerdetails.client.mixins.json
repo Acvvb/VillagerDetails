@@ -1,0 +1,16 @@
+{
+	"required": true,
+	"package": "com.villagerdetails.client.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	},
+	"mixins": [
+		"MinecraftGlowMixin"
+	]
+}
