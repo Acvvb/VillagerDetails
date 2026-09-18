@@ -32,12 +32,12 @@ public class VillagerBedHelper {
     /**
      * 客户端收到服务端发来的床位置时调用，更新缓存
      */
-    public static void updateBedPosition(int villagerId, BlockPos bedPos) {
-        if (bedPos == null) {
-            CLIENT_BED_CACHE.remove(villagerId);  // null 表示解绑，移除缓存
-        } else {
-            CLIENT_BED_CACHE.put(villagerId, bedPos);
-        }
+    public static void updateBedPosition(int villagerId, Optional<BlockPos> bedPos) {
+        // 有值就 put，没值就 remove
+        bedPos.ifPresentOrElse(
+                pos -> CLIENT_BED_CACHE.put(villagerId, pos),
+                () -> CLIENT_BED_CACHE.remove(villagerId)
+        );
     }
 
     /**

@@ -9,13 +9,15 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.villager.Villager;
 
+import java.util.Optional;
+
 public class VillagerBedClientReceiver {
 
     public static void register() {
         ClientPlayNetworking.registerGlobalReceiver(VillagerBedPayload.TYPE, (payload, context) -> {
             VillagerPacket data = payload.data();
             int villagerId = data.villagerId();
-            BlockPos bedPos = data.bedPos();
+            Optional<BlockPos> bedPos = data.bedPos();
 
             // 切换到客户端主线程执行（网络包回调在工作线程，操作实体必须在主线程）
             context.client().execute(() -> {
