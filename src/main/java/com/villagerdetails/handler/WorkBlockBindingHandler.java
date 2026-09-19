@@ -3,7 +3,7 @@ package com.villagerdetails.handler;
 import com.villagerdetails.cache.SelectionState;
 import com.villagerdetails.util.BindingToolUtils;
 import com.villagerdetails.util.SendMessengerUtils;
-import com.villagerdetails.util.VillagerBedUtils;
+import com.villagerdetails.util.VillagerWorkBlockUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -15,18 +15,17 @@ import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.BlockHitResult;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import net.minecraft.world.phys.EntityHitResult;
+
 
 import java.util.UUID;
 
-public class BedBindingHandler {
-    private static final Logger log = LogManager.getLogger(BedBindingHandler.class);
-    private static final String TOOL_NAME = "bed";
-    private static final String PREFIX = "msg.villager_bed";
+public class WorkBlockBindingHandler {
+    private static final String TOOL_NAME = "workblock";
+    private static final String PREFIX = "msg.villager_bed.work_block";
 
     // ==================== 右键村民：选中村民 ====================
-    public static InteractionResult onUseEntity(Player player, Level level, InteractionHand hand, Entity entity) {
+    public static InteractionResult onUseEntity(Player player, Level level, InteractionHand hand, Entity entity,EntityHitResult hitResult) {
         if (level.isClientSide()) return InteractionResult.PASS;
         if (!(entity instanceof Villager villager)) return InteractionResult.PASS;
         if (BindingToolUtils.isNotHoldingTool(player, hand, TOOL_NAME)) return InteractionResult.PASS;
@@ -39,11 +38,10 @@ public class BedBindingHandler {
                 (ServerPlayer) player,
                 Component.translatable(PREFIX + ".select.success", villagerUuid.toString().substring(0, 8))
         );
-        log.info("玩家 {} 选中了村民 {}（准备绑定床）", playerUuid, villagerUuid);
         return InteractionResult.SUCCESS;
     }
 
-    // ==================== 右键方块：绑定床 ====================
+    // ==================== 右键方块：绑定工作方块 ====================
     public static InteractionResult onUseBlock(Player player, Level level, InteractionHand hand, BlockHitResult hitResult) {
         if (level.isClientSide()) return InteractionResult.PASS;
         if (BindingToolUtils.isNotHoldingTool(player, hand, TOOL_NAME)) return InteractionResult.PASS;
@@ -57,7 +55,7 @@ public class BedBindingHandler {
 
         ServerLevel serverLevel = (ServerLevel) level;
         ServerPlayer operator = (ServerPlayer) player;
-        boolean success = VillagerBedUtils.changeVillagerBed(serverLevel, operator, villagerUuid, clickedPos);
+        boolean success = VillagerWorkBlockUtils.bindVillagerWorkBlock(serverLevel, operator, villagerUuid, clickedPos);
 
         if (success) {
             SendMessengerUtils.sendOrBroadcastActionBar(operator,

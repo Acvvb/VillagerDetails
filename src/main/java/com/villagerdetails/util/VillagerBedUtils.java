@@ -83,7 +83,7 @@ public class VillagerBedUtils {
 
         // Poi
         if (releaseOldPoiAndRegisterNew(villager, level, bedHeadPos).isEmpty()) {
-            SendMessengerUtils.sendOrBroadcastActionBar(operator, Component.translatable("msg.villager_bed.bind.fail"));
+            SendMessengerUtils.sendOrBroadcastActionBar(operator, Component.translatable("msg.villager.bed.bind.fail"));
             return false;
         }
 
@@ -91,7 +91,7 @@ public class VillagerBedUtils {
         villager.getBrain().setMemory(MemoryModuleType.HOME, GlobalPos.of(level.dimension(), bedHeadPos));
 
         // 发送成功消息
-        SendMessengerUtils.sendOrBroadcastActionBar(operator, Component.translatable("msg.villager_bed.bind.success",
+        SendMessengerUtils.sendOrBroadcastActionBar(operator, Component.translatable("msg.villager.bed.bind.success",
                 villagerUuid.toString(), bedHeadPos.toShortString()));
 
         return true;
@@ -124,7 +124,7 @@ public class VillagerBedUtils {
 
         if (!state.is(BlockTags.BEDS)) {
             SendMessengerUtils.sendOrBroadcastActionBar(operator,
-                    Component.translatable("msg.villager_bed.not_a_bed",state.getBlock().getName().getString()));
+                    Component.translatable("msg.villager.bed.not_a_bed",state.getBlock().getName().getString()));
             return null;
         }
 
@@ -143,7 +143,7 @@ public class VillagerBedUtils {
             GlobalPos currentHome = currentHomeOpt.get();
             // 维度相同 且 坐标相同 = 真正重复绑定
             if (currentHome.dimension().equals(level.dimension()) && currentHome.pos().equals(bedHeadPos)) {
-                SendMessengerUtils.sendOrBroadcastActionBar(operator, Component.translatable("msg.villager_bed.already_bound",
+                SendMessengerUtils.sendOrBroadcastActionBar(operator, Component.translatable("msg.villager.bed.already_bound",
                         villagerUuid.toString()));
                 return true;
             }
@@ -158,7 +158,7 @@ public class VillagerBedUtils {
         ResourceKey<Level> villagerDimension = villager.level().dimension();
         ResourceKey<Level> targetDimension = targetLevel.dimension();
         if (villagerDimension.equals(targetDimension)) return true;
-        SendMessengerUtils.sendOrBroadcastActionBar(operator, Component.translatable("msg.villager_bed.cross_dimension"));
+        SendMessengerUtils.sendOrBroadcastActionBar(operator, Component.translatable("msg.villager.bed.cross_dimension"));
         return false;
     }
 

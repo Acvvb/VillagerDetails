@@ -1,8 +1,14 @@
 {
-  "msg.villager_bed.select.success": "已选中村民 %s，请右键点击要绑定的床。",
-  "msg.villager_bed.not_a_bed": "%s 不是床，请重新选择！",
-  "msg.villager_bed.bind.success": "已将村民 %s 的绑定床设置为 %s",
-  "msg.villager_bed.bind.fail": "绑定失败，请检查床的位置是否正确。",
-  "msg.villager_bed.already_bound": "该村民已经绑定过这个床了！",
-  "msg.villager_bed.cross_dimension": "无法跨维度绑定床，村民和目标床必须在同一维度！"
+  "msg.villager.bed.select.success": "已选中村民 %s，请右键点击要绑定的床。",
+  "msg.villager.bed.not_a_bed": "%s 不是床，请重新选择！",
+  "msg.villager.bed.bind.success": "已将村民 %s 的绑定床设置为 %s",
+  "msg.villager.bed.bind.fail": "绑定失败，请检查床的位置是否正确。",
+  "msg.villager.bed.already_bound": "该村民已经绑定过这个床了！",
+  "msg.villager.bed.cross_dimension": "无法跨维度绑定床，村民和目标床必须在同一维度！",
+  "msg.villager_bed.work_block.select.success": "已选中村民 %s，请右键点击要绑定的工作方块。",
+  "msg.villager_bed.work_block.bind.success": "已将村民 %s 的工作方块绑定设置为 %s",
+  "msg.villager_bed.work_block.bind.fail": "绑定失败，请检查工作方块的位置是否正确。",
+  "msg.villager_bed.work_block.not_work_block": "%s 不是工作方块，请重新选择！",
+  "msg.villager_bed.work_block.cross_dimension": "无法跨维度绑定工作方块，村民和目标方块必须在同一维度！",
+  "msg.villager_bed.work_block.traded": "已经交易过的村民无法修改职业"
 }

@@ -2,6 +2,7 @@ package com.villagerdetails;
 
 import com.villagerdetails.command.VillageCommand;
 import com.villagerdetails.handler.BedBindingHandler;
+import com.villagerdetails.handler.WorkBlockBindingHandler;
 import com.villagerdetails.network.VillagerBedPayload;
 import com.villagerdetails.network.VillagerTrackingHandler;
 import net.fabricmc.api.ModInitializer;
@@ -40,6 +41,12 @@ public class VillagerDetails implements ModInitializer {
 
 		// 注册右键方块事件
 		UseBlockCallback.EVENT.register(BedBindingHandler::onUseBlock);
+
+		// 注册右键实体事件（右键村民）
+		UseEntityCallback.EVENT.register(WorkBlockBindingHandler::onUseEntity);
+
+		// 注册右键方块事件（右键工作方块）
+		UseBlockCallback.EVENT.register(WorkBlockBindingHandler::onUseBlock);
 
 	}
 
