@@ -15,7 +15,7 @@ public class SelectionState {
     private static final java.util.Map<UUID, UUID> selectedVillagers = new java.util.HashMap<>();
     private static final Map<UUID, BlockPos> selectedWorkBlocks = new HashMap<>();
 
-    public static void setSelectedVillager(UUID playerUuid, UUID villagerUuid) {
+    public static void setSelectedEntity(UUID playerUuid, UUID villagerUuid) {
         selectedVillagers.put(playerUuid, villagerUuid);
     }
 

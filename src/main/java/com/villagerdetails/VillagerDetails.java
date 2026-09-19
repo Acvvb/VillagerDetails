@@ -1,8 +1,7 @@
 package com.villagerdetails;
 
 import com.villagerdetails.command.VillageCommand;
-import com.villagerdetails.handler.BedBindingHandler;
-import com.villagerdetails.handler.WorkBlockBindingHandler;
+import com.villagerdetails.handler.BaseBindingHandler;
 import com.villagerdetails.network.VillagerBedPayload;
 import com.villagerdetails.network.VillagerTrackingHandler;
 import net.fabricmc.api.ModInitializer;
@@ -36,17 +35,23 @@ public class VillagerDetails implements ModInitializer {
 
 		CommandRegistrationCallback.EVENT.register((dispatcher, _, _) -> VillageCommand.register(dispatcher));
 
-		// 注册右键村民事件
-		UseEntityCallback.EVENT.register((player, level, hand, entity, _) -> BedBindingHandler.onUseEntity(player, level, hand, entity));
-
-		// 注册右键方块事件
-		UseBlockCallback.EVENT.register(BedBindingHandler::onUseBlock);
+//		// 注册右键村民事件
+//		UseEntityCallback.EVENT.register((player, level, hand, entity, _) -> BedBindingHandler.onUseEntity(player, level, hand, entity));
+//
+//		// 注册右键方块事件
+//		UseBlockCallback.EVENT.register(BedBindingHandler::onUseBlock);
+//
+//		// 注册右键实体事件（右键村民）
+//		UseEntityCallback.EVENT.register(WorkBlockBindingHandler::onUseEntity);
+//
+//		// 注册右键方块事件（右键工作方块）
+//		UseBlockCallback.EVENT.register(WorkBlockBindingHandler::onUseBlock);
 
 		// 注册右键实体事件（右键村民）
-		UseEntityCallback.EVENT.register(WorkBlockBindingHandler::onUseEntity);
+		UseEntityCallback.EVENT.register(BaseBindingHandler::onUseEntity);
 
 		// 注册右键方块事件（右键工作方块）
-		UseBlockCallback.EVENT.register(WorkBlockBindingHandler::onUseBlock);
+		UseBlockCallback.EVENT.register(BaseBindingHandler::onUseBlock);
 
 	}
 

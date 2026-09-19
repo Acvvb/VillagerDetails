@@ -2,7 +2,8 @@ package com.villagerdetails.command;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
-import com.villagerdetails.util.VillagerBedUtils;
+import com.villagerdetails.handler.BindingType;
+import com.villagerdetails.util.entity.VillagerBindingUtils;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.UuidArgument;
@@ -98,7 +99,7 @@ public class VillageCommand {
 
         BlockPos bedPos = new BlockPos(x, y, z);
 
-        return VillagerBedUtils.changeVillagerBed(villagerLevel, source.getPlayer(), foundVillager, bedPos) ? 1 :0;
+        return VillagerBindingUtils.changeVillagerBed(villagerLevel, source.getPlayer(), foundVillager, bedPos, BindingType.BED) ? 1 :0;
     }
 
     // ==================== 公共方法 ====================

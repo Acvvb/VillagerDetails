@@ -1,14 +1,17 @@
 {
-  "msg.villager.bed.select.success": "Selected villager %s, please right-click on a bed to bind.",
-  "msg.villager.bed.not_a_bed": "%s is not a bed, please select again!",
-  "msg.villager.bed.bind.success": "Successfully set bed for villager %s to %s",
-  "msg.villager.bed.bind.fail": "Binding failed. Please check the bed position.",
-  "msg.villager.bed.already_bound": "This villager is already bound to this bed!",
+  "msg.villager.select.success": "Selected %s %s",
+  "msg.villager.bind.success": "Successfully set work block for villager %s to %s",
+  "msg.villager.bed": "bed",
+  "msg.villager.work_block": "work block",
   "msg.villager.bed.cross_dimension": "Cannot bind beds across dimensions! The villager and target bed must be in the same dimension.",
-  "msg.villager_bed.work_block.select.success": "Selected villager %s, please right-click on a work block to bind.",
-  "msg.villager_bed.work_block.bind.success": "Successfully set work block for villager %s to %s",
-  "msg.villager_bed.work_block.bind.fail": "Binding failed. Please check the work block position.",
-  "msg.villager_bed.work_block.not_work_block": "%s is not a work block, please select again!",
-  "msg.villager_bed.work_block.cross_dimension": "Cannot bind work blocks across dimensions! The villager and target block must be in the same dimension.",
-  "msg.villager_bed.work_block.traded": "Cannot change profession of traded villagers."
+  "msg.villager.bed.bind.fail": "Binding failed. Please check the bed position.",
+  "msg.villager.bed.bind.success": "Successfully set bed for villager %s to %s",
+  "msg.villager.bed.not_a_bed": "%s is not a bed, please select again!",
+  "msg.villager.bed.already_bound": "This villager is already bound to this bed!",
+  "msg.villager.work_block.cross_dimension": "Cannot bind work blocks across dimensions! The villager and target block must be in the same dimension.",
+  "msg.villager.work_block.bind.fail": "Binding failed. Please check the work block position.",
+  "msg.villager.work_block.bind.success": "Successfully set work block for villager %s to %s",
+  "msg.villager.work_block.not_work_block": "%s is not a work block, please select again!",
+  "msg.villager.work_block.traded": "Cannot change profession of traded villagers.",
+  "msg.villager.work_block.owner_traded": "The villager bound to this work block has already traded, cannot change profession."
 }
