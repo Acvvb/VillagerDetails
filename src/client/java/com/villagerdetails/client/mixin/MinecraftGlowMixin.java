@@ -1,4 +1,3 @@
-
 package com.villagerdetails.client.mixin;
 
 import com.villagerdetails.client.helper.VillagerBedHelper;

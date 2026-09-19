@@ -1,9 +1,14 @@
 package com.villagerdetails;
 
+import com.villagerdetails.command.VillageCommand;
+import com.villagerdetails.handler.BedBindingHandler;
 import com.villagerdetails.network.VillagerBedPayload;
 import com.villagerdetails.network.VillagerTrackingHandler;
 import net.fabricmc.api.ModInitializer;
 
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.resources.Identifier;
 
@@ -27,6 +32,14 @@ public class VillagerDetails implements ModInitializer {
 
 		// 注册追踪事件
 		VillagerTrackingHandler.register();
+
+		CommandRegistrationCallback.EVENT.register((dispatcher, _, _) -> VillageCommand.register(dispatcher));
+
+		// 注册右键村民事件
+		UseEntityCallback.EVENT.register((player, level, hand, entity, _) -> BedBindingHandler.onUseEntity(player, level, hand, entity));
+
+		// 注册右键方块事件
+		UseBlockCallback.EVENT.register(BedBindingHandler::onUseBlock);
 
 	}
 

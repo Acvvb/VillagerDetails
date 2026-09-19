@@ -1,0 +1,8 @@
+{
+  "msg.villager_bed.select.success": "Selected villager %s, please right-click on a bed to bind.",
+  "msg.villager_bed.not_a_bed": "%s is not a bed, please select again!",
+  "msg.villager_bed.bind.success": "Successfully set bed for villager %s to %s",
+  "msg.villager_bed.bind.fail": "Binding failed. Please check the bed position.",
+  "msg.villager_bed.already_bound": "This villager is already bound to this bed!",
+  "msg.villager_bed.cross_dimension": "Cannot bind beds across dimensions! The villager and target bed must be in the same dimension."
+}
