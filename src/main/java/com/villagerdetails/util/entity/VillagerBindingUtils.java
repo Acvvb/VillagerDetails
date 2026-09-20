@@ -2,7 +2,7 @@
 package com.villagerdetails.util.entity;
 
 import com.villagerdetails.cache.SelectionState;
-import com.villagerdetails.handler.BindingType;
+import com.villagerdetails.event.type.BindingType;
 import com.villagerdetails.util.BindingToolUtils;
 import com.villagerdetails.util.SendMessengerUtils;
 import net.minecraft.core.BlockPos;
