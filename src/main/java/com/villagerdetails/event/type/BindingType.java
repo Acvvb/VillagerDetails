@@ -73,9 +73,9 @@ public enum BindingType {
 
     public static BindingType isHoldingAnyTool(Player player, InteractionHand hand, Entity entity) {
         for (BindingType type : BindingType.values()) {
-            if (type.entityClass.isInstance(entity)) {
-                if (BindingToolUtils.isNotHoldingTool(player, hand, type.getRequiredItem(), type.getRequiredToolName())) {
-                    if (BindingTypeSwitch.isEnabled(type)) return type;
+            if (BindingTypeSwitch.isEnabled(type)){
+                if (BindingToolUtils.isNotHoldingTool(player, hand, type.getRequiredItem(), type.getRequiredToolName())){
+                    if (entity ==null || type.entityClass.isInstance(entity)) return type;
                 }
             }
         }
