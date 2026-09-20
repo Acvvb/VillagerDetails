@@ -24,7 +24,7 @@ public class VillagerTrackingHandler {
             }
 
             BlockPos bedPos = getBedPos(villager);
-            log.info("UUID:{},bedPos:{}",villager.getUUID(),bedPos);
+            log.debug("UUID:{},bedPos:{}",villager.getUUID(),bedPos);
             if (bedPos != null) {
                 ServerPlayNetworking.send(
                         player,

@@ -67,7 +67,7 @@ public class VillagerMemoryMixin {
     private void sendUpdate(Villager villager, BlockPos bedPos) {
         Set<ServerPlayer> viewers = (Set<ServerPlayer>) PlayerLookup.tracking(villager);
         for (ServerPlayer viewer : viewers) {
-            log.info("UUID:{},bedPos:{}", villager.getUUID(), bedPos);
+            log.debug("UUID:{},bedPos:{}", villager.getUUID(), bedPos);
             ServerPlayNetworking.send(
                     viewer,
                     new VillagerBedPayload(new VillagerPacket(villager.getId(), Optional.ofNullable(bedPos)))

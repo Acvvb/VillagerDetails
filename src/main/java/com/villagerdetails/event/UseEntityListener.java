@@ -33,7 +33,7 @@ public class UseEntityListener {
                     (ServerPlayer) player,
                     Component.translatable("msg.entity.select.success", entityName,entityUUID.toString())
             );
-            LogManager.getLogger(UseEntityListener.class).info("玩家 {} 选中了实体({}): {}", playerUuid, entityName, entityUUID);
+            LogManager.getLogger(UseEntityListener.class).debug("玩家 {} 选中了实体({}): {}", playerUuid, entityName, entityUUID);
         }
         return InteractionResult.SUCCESS;
     }
