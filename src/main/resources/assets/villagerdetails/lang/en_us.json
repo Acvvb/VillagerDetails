@@ -1,4 +1,15 @@
 {
+
+  "msg.villager.bind_area.no_villagers_or_beds": "No villagers or beds found in the area (found %s villagers, %s beds)",
+  "msg.villager.bind_area.no_match": "Found %s villagers and %s beds in the area, but no bindings could be made",
+  "msg.villager.bind_area.success": "Successfully bound %s beds (found %s villagers, %s beds, area: %s ~ %s)",
+
+  "message.selection.pos1_set": "§a[Selection] pos1: [%d, %d, %d]",
+  "message.selection.pos2_set": "§a[Selection] pos2: [%d, %d, %d]",
+  "message.selection.pos1_not_set": "§7Pos1: Not set",
+  "message.selection.pos2_not_set": "§7Pos2: Not set",
+
+
   "msg.entity.select.success": "Selected %s %s",
   "msg.block.select.success": "Selected %s (%s)",
   "msg.system.bind.success": "Bound %s (%s) to %s (%s)",

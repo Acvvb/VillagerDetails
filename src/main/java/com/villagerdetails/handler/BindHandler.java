@@ -1,8 +1,9 @@
-package com.villagerdetails.util;
+package com.villagerdetails.handler;
 
 import com.villagerdetails.cache.SelectionState;
 import com.villagerdetails.event.type.BindingType;
-import com.villagerdetails.util.entity.VillagerBindingUtils;
+import com.villagerdetails.util.SendMessengerUtils;
+import com.villagerdetails.handler.entity.villager.VillagerBindHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
@@ -18,7 +19,7 @@ import net.minecraft.world.level.Level;
 
 import java.util.UUID;
 
-public class BindingToolUtils {
+public class BindHandler {
 
     /**
      * 通用工具检测：蹲着 + 手持改名为指定名称的拴绳
@@ -37,12 +38,18 @@ public class BindingToolUtils {
     }
 
     /**
-     * 校验村民和目标方块是否在同一维度
+     * 校验实体和目标方块是否在同一维度
+     *
+     * @param entity       实体
+     * @param targetLevel  目标方块所在维度
+     * @param operator     操作玩家
+     * @param message      提示消息
+     * @return 是否不在同一维度（true=维度不同，发送提示；false=同一维度）
      */
-    public static boolean checkSameDimension(Villager villager, ServerLevel targetLevel, ServerPlayer operator, Component message) {
-        ResourceKey<Level> villagerDimension = villager.level().dimension();
+    public static boolean checkSameDimension(Entity entity, ServerLevel targetLevel, ServerPlayer operator, Component message) {
+        ResourceKey<Level> entityDimension = entity.level().dimension();
         ResourceKey<Level> targetDimension = targetLevel.dimension();
-        if (villagerDimension.equals(targetDimension)) return false;
+        if (entityDimension.equals(targetDimension)) return false;
         SendMessengerUtils.sendOrBroadcastActionBar(operator, message);
         return true;
     }
@@ -54,29 +61,25 @@ public class BindingToolUtils {
 
         if (entityUuid == null || clickedPos == null) return false;
 
-        BindingType type = BindingType.isHoldingAnyTool(player, hand, level.getEntity(entityUuid));
+        Entity entity = level.getEntity(entityUuid);
+        BindingType type = BindingType.isHoldingAnyTool(player, hand, entity);
         if (type == null) return false;
 
         player.getItemInHand(hand).shrink(1);
 
         ServerLevel serverLevel = (ServerLevel) level;
         ServerPlayer operator = (ServerPlayer) player;
-        Entity entity = level.getEntity(entityUuid);
-
-        // --- 新增：获取实体类型的本地化名称组件 ---
-        // entity.getType().getDescription() 会自动返回如 "entity.minecraft.villager" 对应的翻译组件（如“村民”）
-        Component entityName = entity.getType().getDescription();
 
         SelectionState.removeAll(playerUuid);
         boolean isSuccess = false;
-        if (entity instanceof Villager) {
-            isSuccess = VillagerBindingUtils.bindVillager(serverLevel, operator, entityUuid, clickedPos, type);
+        if (entity instanceof Villager villager) {
+            isSuccess = VillagerBindHandler.bindVillager(serverLevel, operator, villager, clickedPos, type);
         }
 
         if (isSuccess) {
             SendMessengerUtils.sendOrBroadcastActionBar(operator,
                     Component.translatable("msg.system.bind.success",
-                            entityName,           // 新增：实体类型名（如“村民”）
+                            entity.getType().getDescription(),
                             entityUuid.toString(),
                             Component.translatable(type.getI18nPrefix()),
                             clickedPos.toShortString()

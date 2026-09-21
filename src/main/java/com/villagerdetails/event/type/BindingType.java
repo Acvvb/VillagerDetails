@@ -1,7 +1,7 @@
 package com.villagerdetails.event.type;
 
 import com.villagerdetails.permission.BindingTypeSwitch;
-import com.villagerdetails.util.BindingToolUtils;
+import com.villagerdetails.handler.BindHandler;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.villager.Villager;
@@ -74,7 +74,7 @@ public enum BindingType {
     public static BindingType isHoldingAnyTool(Player player, InteractionHand hand, Entity entity) {
         for (BindingType type : BindingType.values()) {
             if (BindingTypeSwitch.isEnabled(type)){
-                if (BindingToolUtils.isNotHoldingTool(player, hand, type.getRequiredItem(), type.getRequiredToolName())){
+                if (BindHandler.isNotHoldingTool(player, hand, type.getRequiredItem(), type.getRequiredToolName())){
                     if (entity ==null || type.entityClass.isInstance(entity)) return type;
                 }
             }

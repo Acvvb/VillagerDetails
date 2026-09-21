@@ -1,4 +1,13 @@
 {
+  "msg.villager.bind_area.no_villagers_or_beds": "区域内未找到村民或床（找到 %s 个村民，%s 张床）",
+  "msg.villager.bind_area.no_match": "区域内找到 %s 个村民和 %s 张床，但未能成功绑定",
+  "msg.villager.bind_area.success": "成功绑定 %s 张床（找到 %s 个村民，%s 张床，区域: %s ~ %s）",
+
+  "message.selection.pos1_set": "§a[选区] pos1: [%d, %d, %d]",
+  "message.selection.pos2_set": "§a[选区] pos2: [%d, %d, %d]",
+  "message.selection.pos1_not_set": "§7Pos1: 未设置",
+  "message.selection.pos2_not_set": "§7Pos2: 未设置",
+
   "msg.entity.select.success": "已选中 %s %s",
   "msg.block.select.success": "已选中 %s(%s)",
   "msg.system.bind.success": "已将%s(%s)的%s(%s)",

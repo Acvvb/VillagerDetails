@@ -9,10 +9,13 @@ import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.VillagerDetails;
 import com.villagerdetails.event.type.BindingType;
 
+import com.villagerdetails.handler.entity.villager.VillagerBindServer;
 import com.villagerdetails.permission.BindingTypeSwitch;
+import com.villagerdetails.selection.SelectionManager;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -53,6 +56,23 @@ public class EntityBinderCommand {
                                         .executes(ctx -> toggleType(ctx, BoolArgumentType.getBool(ctx, "state")))
                                 )
                         )
+                )
+                .then(Commands.literal("bindAreaBeds")
+                        .executes(ctx -> {
+                            ServerPlayer player = ctx.getSource().getPlayer();
+                            if (player == null) return 0;
+                            if (!SelectionManager.hasSelection(player)) {
+                                player.sendSystemMessage(Component.literal("§c请先用 pos1/pos2 设置选区"));
+                                return 0;
+                            }
+                            BlockPos pos1 = SelectionManager.getPos1(player);
+                            BlockPos pos2 = SelectionManager.getPos2(player);
+                            int count = VillagerBindServer.bindAreaBeds(player.level(), player, pos1, pos2);
+                            player.sendSystemMessage(Component.literal(
+                                    String.format("§a成功绑定 %d 张床", count)
+                            ));
+                            return 1;
+                        })
                 );
 
         dispatcher.register(root);

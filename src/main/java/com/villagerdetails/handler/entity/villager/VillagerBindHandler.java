@@ -1,8 +1,7 @@
 
-package com.villagerdetails.util.entity;
+package com.villagerdetails.handler.entity.villager;
 
 import com.villagerdetails.event.type.BindingType;
-import com.villagerdetails.util.BindingToolUtils;
 import com.villagerdetails.util.SendMessengerUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
@@ -40,53 +39,39 @@ import java.util.UUID;
  * 功能：统一管理村民床绑定和工作方块绑定逻辑
  * </p>
  */
-public class VillagerBindingUtils {
+public class VillagerBindHandler extends VillagerBindServer {
 
-    private static final Logger log = LogManager.getLogger(VillagerBindingUtils.class);
+    private static final Logger log = LogManager.getLogger(VillagerBindHandler.class);
 
     // ==================== 公共入口 ====================
 
     /**
-     * 根据 BindingType 执行村民绑定（床 / 工作方块）
+     * 绑定村民床（默认发送消息）
+     */
+    public static boolean bindBed(ServerLevel level, ServerPlayer operator, Villager villager, BlockPos newBedPos) {
+        return bindBed(level, operator, villager, newBedPos, true);
+    }
+
+    /**
+     * 绑定村民床
      *
-     * @param level        服务端世界
-     * @param operator     操作玩家
-     * @param villagerUuid 村民 UUID
-     * @param targetPos    目标方块位置（床头或工作方块）
-     * @param type         绑定类型（BED / WORK_BLOCK）
+     * @param level   服务端世界
+     * @param operator 操作玩家
+     * @param villager 村民实体
+     * @param newBedPos 目标床位置
+     * @param sendMsg 是否向玩家发送提示信息
      * @return 绑定是否成功
      */
-    public static boolean bindVillager(ServerLevel level, ServerPlayer operator, UUID villagerUuid, BlockPos targetPos, BindingType type) {
+    public static boolean bindBed(ServerLevel level, ServerPlayer operator, Villager villager, BlockPos newBedPos, boolean sendMsg) {
 
-        Villager villager = (Villager) level.getEntity(villagerUuid);
-        if (villager == null) return false;
-        // 维度校验
-        if (BindingToolUtils.checkSameDimension(villager, level, operator,
-                Component.translatable("msg.villager.cross_dimension",type.getI18nPrefix())
-        )) return false;
+        UUID villagerUuid = villager.getUUID();
 
-        return event(level, operator, villagerUuid, targetPos, type, villager);
-    }
-
-
-    private static boolean event(ServerLevel level, ServerPlayer operator, UUID villagerUuid, BlockPos targetPos, BindingType type, Villager villager) {
-        return switch (type) {
-            case BED -> bindBed(level, operator, villager, villagerUuid, targetPos);
-            case WORK_BLOCK -> bindWorkBlock(level, operator, villager, villagerUuid, targetPos);
-        };
-    }
-
-    // ==================== 床绑定逻辑 ====================
-
-    private static boolean bindBed(ServerLevel level, ServerPlayer operator, Villager villager, UUID villagerUuid, BlockPos newBedPos) {
         // 验证目标位置是否为床，并返回床头坐标
-        BlockPos bedHeadPos = findBedHead(level, operator, newBedPos);
-        if (bedHeadPos == null) {
-            return false;
-        }
+        BlockPos bedHeadPos = findBedHead(level, operator, newBedPos, sendMsg);
+        if (bedHeadPos == null) return false;
 
         // 检查是否已经绑定过这张床
-        if (checkDuplicateBinding(villager, villagerUuid, bedHeadPos, level, operator)) return true;
+        if (checkDuplicateBinding(villager, bedHeadPos, level, operator, sendMsg)) return true;
 
         // 清除其他村民对目标床的绑定
         clearOtherVillagersBedBinding(level, villagerUuid, bedHeadPos);
@@ -97,8 +82,10 @@ public class VillagerBindingUtils {
         // 确保新床的 POI 已注册
         Optional<Holder<PoiType>> holderOpt = registerBedPoi(level, bedHeadPos);
         if (holderOpt.isEmpty()) {
-            SendMessengerUtils.sendOrBroadcastActionBar(operator,
-                    Component.translatable(getMessageKey(BindingType.BED, "bind.fail")));
+            if (sendMsg) {
+                SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                        Component.translatable(getMessageKey(BindingType.BED, "bind.fail")));
+            }
             return false;
         }
 
@@ -106,25 +93,47 @@ public class VillagerBindingUtils {
         villager.getBrain().setMemory(MemoryModuleType.HOME, GlobalPos.of(level.dimension(), bedHeadPos));
 
         // 发送成功消息
-        SendMessengerUtils.sendOrBroadcastActionBar(operator,
-                Component.translatable(getMessageKey(BindingType.BED, "bind.success"),
-                        villagerUuid.toString(), bedHeadPos.toShortString()));
+        if (sendMsg) {
+            SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                    Component.translatable(getMessageKey(BindingType.BED, "bind.success"),
+                            villagerUuid.toString(), bedHeadPos.toShortString()));
+        }
 
         return true;
     }
 
-    private static boolean bindWorkBlock(ServerLevel level, ServerPlayer operator, Villager villager, UUID villagerUuid, BlockPos workBlockPos) {
+    /**
+     * 绑定村民工作方块（默认发送消息）
+     */
+    public static boolean bindWorkBlock(ServerLevel level, ServerPlayer operator, Villager villager, BlockPos workBlockPos) {
+        return bindWorkBlock(level, operator, villager, workBlockPos, true);
+    }
+
+    /**
+     * 绑定村民工作方块
+     *
+     * @param level        服务端世界
+     * @param operator     操作玩家
+     * @param villager     村民实体
+     * @param workBlockPos 目标工作方块位置
+     * @param sendMsg      是否向玩家发送提示信息
+     * @return 绑定是否成功
+     */
+    public static boolean bindWorkBlock(ServerLevel level, ServerPlayer operator, Villager villager, BlockPos workBlockPos, boolean sendMsg) {
+
+        UUID villagerUuid = villager.getUUID();
+
         // 验证目标位置是否为工作方块，并返回POI类型
-        Optional<Holder<PoiType>> poiHolderOpt = findWorkBlockPoi(level, operator, workBlockPos);
+        Optional<Holder<PoiType>> poiHolderOpt = findWorkBlockPoi(level, operator, workBlockPos, sendMsg);
         if (poiHolderOpt.isEmpty()) return false;
 
         Holder<PoiType> poiHolder = poiHolderOpt.get();
 
         // 检查村民是否已交易过
-        if (checkVillagerTraded(villager, operator)) return false;
+        if (checkVillagerTraded(villager, operator, sendMsg)) return false;
 
         // 检查工作方块上已有村民是否已交易过
-        if (checkWorkBlockOwnerTraded(level, operator, villager, workBlockPos)) return false;
+        if (checkWorkBlockOwnerTraded(level, operator, villager, workBlockPos, sendMsg)) return false;
 
         // 根据POI类型获取目标职业
         ResourceKey<VillagerProfession> newProfession = getProfessionByPoiType(poiHolder);
@@ -140,9 +149,11 @@ public class VillagerBindingUtils {
         setVillagerProfessionAndMemories(villager, level, workBlockPos, newProfession, poiHolder);
 
         // 发送成功消息
-        SendMessengerUtils.sendOrBroadcastActionBar(operator,
-                Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "bind.success"),
-                        villagerUuid.toString(), workBlockPos.toShortString()));
+        if (sendMsg) {
+            SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                    Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "bind.success"),
+                            villagerUuid.toString(), workBlockPos.toShortString()));
+        }
 
         log.debug("玩家 {} 成功将村民 {} 的职业绑定为 {}，工作方块位置: {}",
                 operator.getUUID(), villagerUuid, newProfession, workBlockPos);
@@ -150,19 +161,23 @@ public class VillagerBindingUtils {
         return true;
     }
 
+    // ==================== 床绑定逻辑 ====================
+
     /**
      * 验证指定位置是否为床，并返回床头坐标
      */
-    private static BlockPos findBedHead(ServerLevel level, ServerPlayer operator, BlockPos pos) {
+    private static BlockPos findBedHead(ServerLevel level, ServerPlayer operator, BlockPos pos, boolean sendMsg) {
         BlockState state = level.getBlockState(pos);
 
         if (!state.is(BlockTags.BEDS)) {
-            SendMessengerUtils.sendOrBroadcastActionBar(operator,
-                    Component.translatable("msg.villager.not_allow_block",
-                            state.getBlock().getName().getString(),
-                            Component.translatable(BindingType.BED.getI18nPrefix())
-                    )
-            );
+            if (sendMsg) {
+                SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                        Component.translatable("msg.villager.not_allow_block",
+                                state.getBlock().getName().getString(),
+                                Component.translatable(BindingType.BED.getI18nPrefix())
+                        )
+                );
+            }
             return null;
         }
 
@@ -177,14 +192,16 @@ public class VillagerBindingUtils {
     /**
      * 检查村民是否已经绑定了目标床
      */
-    private static boolean checkDuplicateBinding(Villager villager, UUID villagerUuid, BlockPos bedHeadPos, ServerLevel level, ServerPlayer operator) {
+    private static boolean checkDuplicateBinding(Villager villager, BlockPos bedHeadPos, ServerLevel level, ServerPlayer operator, boolean sendMsg) {
         Optional<GlobalPos> currentHomeOpt = villager.getBrain().getMemory(MemoryModuleType.HOME);
         if (currentHomeOpt.isPresent()) {
             GlobalPos currentHome = currentHomeOpt.get();
             if (currentHome.dimension().equals(level.dimension()) && currentHome.pos().equals(bedHeadPos)) {
-                SendMessengerUtils.sendOrBroadcastActionBar(operator,
-                        Component.translatable(getMessageKey(BindingType.BED, "already_bound"),
-                                villagerUuid.toString()));
+                if (sendMsg) {
+                    SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                            Component.translatable(getMessageKey(BindingType.BED, "already_bound"),
+                                    villager.getStringUUID()));
+                }
                 return true;
             }
         }
@@ -225,19 +242,23 @@ public class VillagerBindingUtils {
         return holderOpt;
     }
 
+    // ==================== 工作方块绑定逻辑 ====================
+
     /**
      * 验证指定位置是否为工作方块，并返回POI类型
      */
-    private static Optional<Holder<PoiType>> findWorkBlockPoi(ServerLevel level, ServerPlayer operator, BlockPos pos) {
+    private static Optional<Holder<PoiType>> findWorkBlockPoi(ServerLevel level, ServerPlayer operator, BlockPos pos, boolean sendMsg) {
         BlockState state = level.getBlockState(pos);
         Optional<Holder<PoiType>> poiHolder = PoiTypes.forState(state);
         if (poiHolder.isEmpty() || !isWorkPoiType(poiHolder.get())) {
             String blockName = state.getBlock().getName().getString();
-            SendMessengerUtils.sendOrBroadcastActionBar(operator,
-                    Component.translatable("msg.villager.not_allow_block", blockName,
-                            Component.translatable(BindingType.WORK_BLOCK.getI18nPrefix())
-                    )
-            );
+            if (sendMsg) {
+                SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                        Component.translatable("msg.villager.not_allow_block", blockName,
+                                Component.translatable(BindingType.WORK_BLOCK.getI18nPrefix())
+                        )
+                );
+            }
             log.debug("玩家点击的方块不是工作方块，方块名称: {}，位置: {}", blockName, pos);
             return Optional.empty();
         }
@@ -247,10 +268,12 @@ public class VillagerBindingUtils {
     /**
      * 检查村民是否已交易过（职业锁定）
      */
-    private static boolean checkVillagerTraded(Villager villager, ServerPlayer operator) {
+    private static boolean checkVillagerTraded(Villager villager, ServerPlayer operator, boolean sendMsg) {
         if (villager.getVillagerXp() > 0) {
-            SendMessengerUtils.sendOrBroadcastActionBar(operator,
-                    Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "traded")));
+            if (sendMsg) {
+                SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                        Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "traded")));
+            }
             return true;
         }
         return false;
@@ -259,24 +282,30 @@ public class VillagerBindingUtils {
     /**
      * 检查工作方块上已有村民是否已交易过
      */
-    private static boolean checkWorkBlockOwnerTraded(ServerLevel level, ServerPlayer operator, Villager villager, BlockPos workBlockPos) {
+    private static boolean checkWorkBlockOwnerTraded(ServerLevel level, ServerPlayer operator, Villager villager, BlockPos workBlockPos, boolean sendMsg) {
 
         if (villager.getVillagerXp() > 0) {
-            SendMessengerUtils.sendOrBroadcastActionBar(operator,
-                    Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "traded")));
+            if (sendMsg) {
+                SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                        Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "traded")));
+            }
             return true;
         }
 
         List<Villager> boundVillagers = getVillagersBoundToWorkBlock(level, workBlockPos);
         for (Villager existingVillager : boundVillagers) {
             if (existingVillager.getUUID().equals(villager.getUUID())) {
-                SendMessengerUtils.sendOrBroadcastActionBar(operator,
-                        Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "already_bound")));
+                if (sendMsg) {
+                    SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                            Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "already_bound")));
+                }
                 return true;
             }
             if (existingVillager.getVillagerXp() > 0) {
-                SendMessengerUtils.sendOrBroadcastActionBar(operator,
-                        Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "owner_traded")));
+                if (sendMsg) {
+                    SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                            Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "owner_traded")));
+                }
                 log.debug("工作方块 {} 所属村民 {} 已交易过，无法修改职业", workBlockPos, existingVillager.getUUID());
                 return true;
             }

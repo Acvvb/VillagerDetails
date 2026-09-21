@@ -2,7 +2,7 @@ package com.villagerdetails.event;
 
 import com.villagerdetails.cache.SelectionState;
 import com.villagerdetails.event.type.BindingType;
-import com.villagerdetails.util.BindingToolUtils;
+import com.villagerdetails.handler.BindHandler;
 import com.villagerdetails.util.SendMessengerUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -31,7 +31,7 @@ public class UseBlockListener {
         if (type == null) return InteractionResult.PASS;
 
         if (SelectionState.isEnd(playerUuid)){
-            if (BindingToolUtils.chooseUtil(level, player, hand)) return InteractionResult.SUCCESS;
+            if (BindHandler.chooseUtil(level, player, hand)) return InteractionResult.SUCCESS;
         }else {
             SendMessengerUtils.sendOrBroadcastActionBar(operator,
                     Component.translatable("msg.block.select.success",

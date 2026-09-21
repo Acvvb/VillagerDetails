@@ -2,7 +2,7 @@ package com.villagerdetails.event;
 
 import com.villagerdetails.cache.SelectionState;
 import com.villagerdetails.event.type.BindingType;
-import com.villagerdetails.util.BindingToolUtils;
+import com.villagerdetails.handler.BindHandler;
 import com.villagerdetails.util.SendMessengerUtils;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -26,7 +26,7 @@ public class UseEntityListener {
         UUID entityUUID = entity.getUUID();
         SelectionState.setSelectedEntity(playerUuid, entityUUID);
         if (SelectionState.isEnd(playerUuid)) {
-            BindingToolUtils.chooseUtil(level, player, hand);
+            BindHandler.chooseUtil(level, player, hand);
         }else {
             String entityName = Component.translatable(entity.getType().getDescriptionId()).getString();
             SendMessengerUtils.sendOrBroadcastActionBar(

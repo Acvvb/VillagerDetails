@@ -32,6 +32,8 @@ public class VillagerDetails implements ModInitializer {
 		ServerLifecycleEvents.SERVER_STARTED.register(new ServerLifecycleListener());
 		ServerLifecycleEvents.SERVER_STOPPING.register(new ServerStoppingListener());
 
+		SelectionEventListener.register();
+
 		// 注册追踪事件(网络同步)
 		VillagerTrackingHandler.register();
 
