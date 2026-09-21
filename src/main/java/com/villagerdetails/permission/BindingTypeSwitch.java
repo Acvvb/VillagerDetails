@@ -2,84 +2,81 @@ package com.villagerdetails.permission;
 
 import com.villagerdetails.config.WorldBindingConfig;
 import com.villagerdetails.event.type.BindingType;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.util.EnumMap;
 import java.util.Map;
 
+/**
+ * 绑定类型开关管理器
+ */
 public class BindingTypeSwitch {
 
-    private static final Logger LOGGER = LogManager.getLogger(BindingTypeSwitch.class);
-
-    private static final Map<BindingType, Boolean> SWITCH_MAP = new EnumMap<>(BindingType.class);
-
-    // 当前世界的配置实例（由事件处理器设置）
-    private static WorldBindingConfig currentConfig;
+    private static final Map<BindingType, Boolean> switches = new EnumMap<>(BindingType.class);
 
     static {
+        // 默认全部开启
         for (BindingType type : BindingType.values()) {
-            SWITCH_MAP.put(type, false);
+            switches.put(type, true);
         }
     }
 
     /**
-     * 设置当前世界配置实例（在世界加载事件中调用）
-     */
-    public static void setWorldConfig(WorldBindingConfig config) {
-        currentConfig = config;
-    }
-
-    /**
-     * 检查指定绑定类型是否开启
+     * 根据 BindingType 查询开关状态
      */
     public static boolean isEnabled(BindingType type) {
-        return SWITCH_MAP.getOrDefault(type, false);
+        return switches.getOrDefault(type, false);
     }
 
     /**
-     * 设置指定绑定类型的开关状态，同时保存到存档
+     * 根据 bindingTypeId 查询开关状态
+     * 供权限层调用，避免直接依赖 BindingType
      */
-    public static void setEnabled(BindingType type, boolean enabled) {
-        SWITCH_MAP.put(type, enabled);
-        LOGGER.info("绑定类型 [{}] 已{}", type.getRequiredToolName(), enabled ? "开启" : "关闭");
-
-        // 同步保存到 WorldBindingConfig
-        if (currentConfig != null) {
-            currentConfig.setBindingState(type.getName(), enabled);
-        }
-    }
-
-    /**
-     * 一次性设置所有绑定类型的开关状态
-     */
-    public static void setAllEnabled(boolean enabled) {
+    public static boolean isEnabledByTypeId(int bindingTypeId) {
         for (BindingType type : BindingType.values()) {
-            SWITCH_MAP.put(type, enabled);
-            if (currentConfig != null) {
-                currentConfig.setBindingState(type.getName(), enabled);
+            if (type.getId() == bindingTypeId) {
+                return isEnabled(type);
             }
         }
-        LOGGER.info("所有绑定类型已{}", enabled ? "开启" : "关闭");
+        return false;
     }
 
     /**
-     * 重置所有绑定类型为默认关闭状态
+     * 根据 BindingType 设置开关状态
+     */
+    public static void setEnabled(BindingType type, boolean enabled) {
+        switches.put(type, enabled);
+    }
+
+    /**
+     * 根据 bindingTypeId 设置开关状态
+     */
+    public static void setEnabledByTypeId(int bindingTypeId, boolean b) {
+        for (BindingType type : BindingType.values()) {
+            if (type.getId() == bindingTypeId) {
+                setEnabled(type, b);
+                return;
+            }
+        }
+    }
+
+    /**
+     * 重置所有开关为默认状态（全部开启）
      */
     public static void resetAll() {
         for (BindingType type : BindingType.values()) {
-            SWITCH_MAP.put(type, false);
-            if (currentConfig != null) {
-                currentConfig.setBindingState(type.getName(), false);
-            }
+            switches.put(type, true);
         }
-        LOGGER.info("所有绑定类型已重置为默认关闭状态");
     }
 
     /**
-     * 获取所有开关状态的快照
+     * 从世界配置批量同步开关状态
+     * 通常在世界加载或配置变更时调用
      */
-    public static Map<BindingType, Boolean> getAllStates() {
-        return new EnumMap<>(SWITCH_MAP);
+    public static void setWorldConfig(WorldBindingConfig config) {
+        if (config == null) return;
+        for (BindingType type : BindingType.values()) {
+            boolean enabled = config.isBindingEnabled(type.getId());
+            switches.put(type, enabled);
+        }
     }
 }

@@ -1,11 +1,7 @@
 package com.villagerdetails.event.type;
 
-import com.villagerdetails.permission.BindingTypeSwitch;
-import com.villagerdetails.handler.BindHandler;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.villager.Villager;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 
@@ -37,54 +33,18 @@ public enum BindingType {
         this.i18nPrefix = i18nPrefix;
     }
 
-    // ==================== 新增字段 Getter ====================
+    // ==================== Getter ====================
 
-    public int getId() {
-        return id;
-    }
+    public int getId() { return id; }
+    public String getName() { return name; }
+    public String getMsg() { return msg; }
+    public Class<? extends Entity> getEntityClass() { return entityClass; }
+    public Item getRequiredItem() { return requiredItem; }
+    public String getRequiredToolName() { return requiredToolName; }
+    public String getI18nPrefix() { return i18nPrefix; }
 
-    public String getName() {
-        return name;
-    }
+    // ==================== 静态查找方法 ====================
 
-    public String getMsg() {
-        return msg;
-    }
-
-    // ==================== 原有字段 Getter ====================
-
-    public Class<? extends Entity> getEntityClass() {
-        return entityClass;
-    }
-
-    public Item getRequiredItem() {
-        return requiredItem;
-    }
-
-    public String getRequiredToolName() {
-        return requiredToolName;
-    }
-
-    public String getI18nPrefix() {
-        return i18nPrefix;
-    }
-
-    // ==================== 静态方法 ====================
-
-    public static BindingType isHoldingAnyTool(Player player, InteractionHand hand, Entity entity) {
-        for (BindingType type : BindingType.values()) {
-            if (BindingTypeSwitch.isEnabled(type)){
-                if (BindHandler.isNotHoldingTool(player, hand, type.getRequiredItem(), type.getRequiredToolName())){
-                    if (entity ==null || type.entityClass.isInstance(entity)) return type;
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * 根据实体类型查找对应的绑定类型
-     */
     public static Optional<BindingType> ofEntity(String entityTypeName) {
         for (BindingType value : values()) {
             if (value.requiredToolName.equalsIgnoreCase(entityTypeName)) {
@@ -94,9 +54,6 @@ public enum BindingType {
         return Optional.empty();
     }
 
-    /**
-     * 根据 id 查找对应的绑定类型
-     */
     public static Optional<BindingType> ofId(int id) {
         for (BindingType value : values()) {
             if (value.id == id) {
@@ -106,9 +63,6 @@ public enum BindingType {
         return Optional.empty();
     }
 
-    /**
-     * 根据 name 查找对应的绑定类型
-     */
     public static Optional<BindingType> ofName(String name) {
         for (BindingType value : values()) {
             if (value.name.equalsIgnoreCase(name)) {

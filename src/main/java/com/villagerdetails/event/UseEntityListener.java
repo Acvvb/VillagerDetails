@@ -20,7 +20,7 @@ public class UseEntityListener {
 
     public static InteractionResult onUseEntity(Player player, Level level, InteractionHand hand, Entity entity, EntityHitResult hitResult) {
         if (level.isClientSide()) return InteractionResult.PASS;
-        BindingType type = BindingType.isHoldingAnyTool(player,hand,entity);
+        BindingType type = BindingToolValidator.isHoldingAnyTool(player,hand,entity);
         if (type == null) return InteractionResult.PASS;
         UUID playerUuid = player.getUUID();
         UUID entityUUID = entity.getUUID();

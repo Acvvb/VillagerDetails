@@ -27,7 +27,7 @@ public class UseBlockListener {
         ServerPlayer operator = (ServerPlayer) player;
         SelectionState.setSelectedBlock(playerUuid,clickedPos);
 
-        BindingType type = BindingType.isHoldingAnyTool(player,hand,null);
+        BindingType type = BindingToolValidator.isHoldingAnyTool(player,hand,null);
         if (type == null) return InteractionResult.PASS;
 
         if (SelectionState.isEnd(playerUuid)){

@@ -1,6 +1,7 @@
 package com.villagerdetails.handler;
 
 import com.villagerdetails.cache.SelectionState;
+import com.villagerdetails.event.BindingToolValidator;
 import com.villagerdetails.event.type.BindingType;
 import com.villagerdetails.util.SendMessengerUtils;
 import com.villagerdetails.handler.entity.villager.VillagerBindHandler;
@@ -62,7 +63,7 @@ public class BindHandler {
         if (entityUuid == null || clickedPos == null) return false;
 
         Entity entity = level.getEntity(entityUuid);
-        BindingType type = BindingType.isHoldingAnyTool(player, hand, entity);
+        BindingType type = BindingToolValidator.isHoldingAnyTool(player, hand, entity);
         if (type == null) return false;
 
         player.getItemInHand(hand).shrink(1);

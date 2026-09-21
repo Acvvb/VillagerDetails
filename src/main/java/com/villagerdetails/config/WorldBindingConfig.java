@@ -136,4 +136,20 @@ public class WorldBindingConfig extends SavedData {
             BindingTypeSwitch.setEnabled(type, getBindingState(type.getName()));
         }
     }
+
+    /**
+     * 根据 bindingTypeId 查询配置中的绑定状态
+     * 如果配置中不存在该记录，默认返回 true（与内存开关默认值保持一致）
+     */
+    public boolean isBindingEnabled(int id) {
+        // 通过 id 查找对应的 BindingType
+        for (BindingType type : BindingType.values()) {
+            if (type.getId() == id) {
+                // 使用枚举的 name 作为 key 去 Map 中查询状态
+                return getBindingState(type.getName());
+            }
+        }
+        // 找不到对应的 id，默认返回 true
+        return true;
+    }
 }
