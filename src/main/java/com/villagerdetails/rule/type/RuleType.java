@@ -81,4 +81,16 @@ public enum RuleType {
         }
         return null;
     }
+
+    /**
+     * 根据 registerName 查找对应的 RuleType（忽略大小写）
+     */
+    public static RuleType getRuleTypeByRegisterName(String registerName) {
+        for (RuleType ruleType : RuleType.values()) {
+            if (ruleType.registerName.equalsIgnoreCase(registerName)) {
+                return ruleType;
+            }
+        }
+        return null;
+    }
 }

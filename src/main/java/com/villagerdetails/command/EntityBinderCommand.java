@@ -85,10 +85,7 @@ public class EntityBinderCommand {
         if (player == null) return 0;
 
         String ruleName = StringArgumentType.getString(context, "rule");
-        RuleType rule = Arrays.stream(RuleType.values())
-                .filter(r -> r.getRegisterName().equalsIgnoreCase(ruleName))
-                .findFirst()
-                .orElse(null);
+        RuleType rule = RuleType.getRuleTypeByRegisterName(ruleName);
 
         if (rule == null) {
             sendOrBroadcast(player,Component.literal("§c未知的规则名称: " + ruleName));
@@ -120,9 +117,8 @@ public class EntityBinderCommand {
         boolean targetState = state;
         RuleCache.setEnabled(rule, targetState);
 
-        WorldBindingConfig config = WorldBindingConfig.getOrCreate(player.level());
+        WorldBindingConfig config = WorldBindingConfig.getOrCreate(context.getSource().getServer());
         config.setBindingState(rule.getRegisterName(), targetState);
-        config.setDirty();
 
         sendOrBroadcast(player,Component.literal(
                 String.format("§a规则 %s (%s) 已%s",

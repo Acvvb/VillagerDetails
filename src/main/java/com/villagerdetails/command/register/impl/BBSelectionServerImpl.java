@@ -4,7 +4,6 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.villagerdetails.cache.BBSectionStateCache;
 import com.villagerdetails.command.register.server.RegisterServer;
-import com.villagerdetails.event.type.ListenerType;
 import com.villagerdetails.handler.binding.entity.villager.VillagerBindServer;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.commands.CommandSourceStack;
@@ -14,7 +13,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
-import static com.villagerdetails.cache.RuleCache.isEnabled;
 import static com.villagerdetails.rule.type.RuleType.BATCH_BED_RESET;
 import static com.villagerdetails.util.SendMessengerUtils.sendToPlayer;
 
@@ -33,7 +31,6 @@ public class BBSelectionServerImpl implements RegisterServer {
     @Override
     public LiteralArgumentBuilder<CommandSourceStack> register() {
         return Commands.literal(BLOCK_BLOCK_SECTION)
-                .requires(_ -> isEnabled(BATCH_BED_RESET))
                 .then(Commands.literal("pos1")
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(context -> this.setPosWithArgs(context, POS1_SETTER)))

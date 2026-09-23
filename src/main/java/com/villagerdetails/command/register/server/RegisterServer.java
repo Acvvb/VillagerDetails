@@ -1,9 +1,8 @@
 package com.villagerdetails.command.register.server;
 
-import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import net.minecraft.commands.CommandSourceStack;
 import com.villagerdetails.rule.type.RuleType;
+import net.minecraft.commands.CommandSourceStack;
 
 public interface RegisterServer {
 
