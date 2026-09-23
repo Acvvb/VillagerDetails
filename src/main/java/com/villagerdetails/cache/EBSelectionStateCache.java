@@ -10,7 +10,7 @@ import java.util.UUID;
  * 暂存玩家选中的村民UUID
  * 因为Fabric事件是静态的，用静态变量跨事件传递数据
  */
-public class SelectionState {
+public class EBSelectionStateCache {
     // key: 玩家UUID, value: 选中的村民UUID
     private static final java.util.Map<UUID, UUID> selectedEntity = new java.util.HashMap<>();
     private static final Map<UUID, BlockPos> selectedBlocks = new HashMap<>();

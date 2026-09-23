@@ -1,14 +1,13 @@
 package com.villagerdetails.config;
 
 import com.mojang.serialization.Codec;
-import com.villagerdetails.event.type.BindingType;
-import com.villagerdetails.permission.BindingTypeSwitch;
-import net.minecraft.nbt.CompoundTag;
+import com.villagerdetails.cache.RuleCache;
+import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
-import net.minecraft.util.datafix.DataFixTypes;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,8 +19,6 @@ public class WorldBindingConfig extends SavedData {
 
     private final Map<String, Integer> bindingStates = new HashMap<>();
 
-    // ==================== Codec 定义 ====================
-
     private static final Codec<Map<String, Integer>> STATE_MAP_CODEC =
             Codec.unboundedMap(Codec.STRING, Codec.INT);
 
@@ -31,7 +28,7 @@ public class WorldBindingConfig extends SavedData {
                 config.bindingStates.putAll(map);
                 return config;
             },
-            config -> config.bindingStates
+            config -> new HashMap<>(config.bindingStates)
     );
 
     public static final SavedDataType<WorldBindingConfig> TYPE = new SavedDataType<>(
@@ -41,115 +38,75 @@ public class WorldBindingConfig extends SavedData {
             DataFixTypes.LEVEL
     );
 
-    // ==================== 构造函数 ====================
-
     public WorldBindingConfig() {
         super();
     }
 
-    // ==================== 获取实例 ====================
-
-    /**
-     * 从指定维度获取配置，不存在则自动创建
-     */
     public static WorldBindingConfig getOrCreate(ServerLevel level) {
         return level.getDataStorage().computeIfAbsent(TYPE);
     }
 
-    // ==================== 业务方法 ====================
-
-    /**
-     * 设置某个绑定类型的状态
-     */
     public void setBindingState(String key, boolean enabled) {
         bindingStates.put(key, enabled ? 1 : 0);
-        setDirty(); // 标记数据已修改，触发存档保存
+        setDirty();
     }
 
-    /**
-     * 获取某个绑定类型的状态，默认返回 false
-     */
     public boolean getBindingState(String key) {
         return bindingStates.getOrDefault(key, 0) == 1;
     }
 
-    /**
-     * 切换某个绑定类型的状态
-     */
     public void toggleBindingState(String key) {
         boolean current = getBindingState(key);
         setBindingState(key, !current);
     }
 
-    /**
-     * 移除某个绑定类型的配置
-     */
     public void removeBindingState(String key) {
         bindingStates.remove(key);
         setDirty();
     }
 
-    /**
-     * 获取所有绑定状态的副本（防止外部直接修改）
-     */
     public Map<String, Boolean> getAllBindingStates() {
         Map<String, Boolean> result = new HashMap<>();
         bindingStates.forEach((k, v) -> result.put(k, v == 1));
         return result;
     }
 
-    /**
-     * 重置所有绑定状态
-     */
     public void resetAll() {
         bindingStates.clear();
         setDirty();
     }
 
-    // ==================== 存档读写 ====================
-
     /**
-     * 将数据保存到 NBT（本地存档）
-     */
-    public CompoundTag save(CompoundTag tag) {
-        bindingStates.forEach(tag::putInt);
-        return tag;
-    }
-
-    /**
-     * 从 NBT 加载数据（本地存档）
-     */
-    public static WorldBindingConfig load(CompoundTag tag) {
-        WorldBindingConfig config = new WorldBindingConfig();
-        for (String key : tag.keySet()) {
-            config.bindingStates.put(key, tag.getIntOr(key,0));
-        }
-        return config;
-    }
-
-    /**
-     * 将配置中的绑定状态同步到 BindingTypeSwitch（内存开关）
-     * 在世界加载时调用
+     * 核心：将存档配置同步到 RuleCache
+     * - 存档中有记录 → 用存档的值
+     * - 存档中无记录 → 用枚举默认值 type.isState()
      */
     public void syncToSwitch() {
-        for (BindingType type : BindingType.values()) {
-            BindingTypeSwitch.setEnabled(type, getBindingState(type.getName()));
+        Map<RuleType, Boolean> syncMap = new HashMap<>();
+        for (RuleType type : RuleType.values()) {
+            String key = type.getRegisterName();
+            boolean enabled;
+            if (bindingStates.containsKey(key)) {
+                // 配置中有，按配置
+                enabled = bindingStates.get(key) == 1;
+            } else {
+                // 配置中没有，按枚举默认值
+                enabled = type.isState();
+            }
+            syncMap.put(type, enabled);
         }
+        RuleCache.syncRules(syncMap);
     }
 
-    /**
-     * 根据 bindingTypeId 查询配置中的绑定状态
-     * 如果配置中不存在该记录，默认返回 true（与内存开关默认值保持一致）
-     */
     public boolean isBindingEnabled(int id) {
-        // 通过 id 查找对应的 BindingType
-        for (BindingType type : BindingType.values()) {
-            if (type.getId() == id) {
-                // 使用枚举的 name 作为 key 去 Map 中查询状态
-                return getBindingState(type.getName());
+        RuleType type = RuleType.getRuleTypeById(id);
+        if (type != null) {
+            String key = type.getRegisterName();
+            if (bindingStates.containsKey(key)) {
+                return bindingStates.get(key) == 1;
             }
+            return type.isState();
         }
-        // 找不到对应的 id，默认返回 true
-        return true;
+        return false;
     }
 }

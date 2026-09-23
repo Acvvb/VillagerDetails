@@ -39,17 +39,16 @@ public class SendMessengerUtils {
     }
 
     /**
-     * 向当前操作者发送消息，若无操作者则广播给全服
+     * 向当前操作者发送消息，若无操作者则后台打印
      *
      * @param player  操作玩家（可为 null）
-     * @param level   服务器维度，用于广播时使用
      * @param message 消息组件
      */
-    public static void sendOrBroadcast(ServerPlayer player, ServerLevel level, Component message) {
+    public static void sendOrBroadcast(ServerPlayer player, Component message) {
         if (player != null) {
             sendToPlayer(player, message);
         } else {
-            broadcastToAll(level, message);
+            LogManager.getLogger(System.class).info(message);
         }
     }
 

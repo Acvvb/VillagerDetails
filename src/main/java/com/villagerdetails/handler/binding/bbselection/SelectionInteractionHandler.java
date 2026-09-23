@@ -1,11 +1,12 @@
-package com.villagerdetails.selection;
+package com.villagerdetails.handler.binding.bbselection;
 
+import com.villagerdetails.cache.BBSectionStateCache;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.network.chat.Component;
 
 /**
  * 选区物品交互处理器
@@ -27,7 +28,7 @@ public class SelectionInteractionHandler {
     public static boolean onLeftClickBlock(ServerPlayer player, BlockPos pos) {
         ItemStack mainHand = player.getItemInHand(InteractionHand.MAIN_HAND);
         if (checkSelectionTool(mainHand)) return false;
-        SelectionManager.setPos1(player, pos);
+        BBSectionStateCache.setPos1(player, pos);
         player.sendSystemMessage(Component.literal(
                 String.format("§a[选区] pos1: [%d, %d, %d]", pos.getX(), pos.getY(), pos.getZ())
         ));
@@ -44,7 +45,7 @@ public class SelectionInteractionHandler {
     public static boolean onRightClickBlock(ServerPlayer player, BlockPos pos) {
         ItemStack mainHand = player.getItemInHand(InteractionHand.MAIN_HAND);
         if (checkSelectionTool(mainHand)) return false;
-        SelectionManager.setPos2(player, pos);
+        BBSectionStateCache.setPos2(player, pos);
         player.sendSystemMessage(Component.literal(
                 String.format("§a[选区] pos2: [%d, %d, %d]", pos.getX(), pos.getY(), pos.getZ())
         ));

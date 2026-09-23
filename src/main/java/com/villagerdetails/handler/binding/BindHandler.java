@@ -1,10 +1,9 @@
-package com.villagerdetails.handler;
+package com.villagerdetails.handler.binding;
 
-import com.villagerdetails.cache.SelectionState;
-import com.villagerdetails.event.BindingToolValidator;
-import com.villagerdetails.event.type.BindingType;
+import com.villagerdetails.cache.EBSelectionStateCache;
+import com.villagerdetails.handler.binding.entity.villager.VillagerBindHandler;
+import com.villagerdetails.handler.binding.type.BindingType;
 import com.villagerdetails.util.SendMessengerUtils;
-import com.villagerdetails.handler.entity.villager.VillagerBindHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
@@ -57,13 +56,13 @@ public class BindHandler {
 
     public static boolean chooseUtil(Level level, Player player, InteractionHand hand) {
         UUID playerUuid = player.getUUID();
-        UUID entityUuid = SelectionState.getSelectedEntity(playerUuid);
-        BlockPos clickedPos = SelectionState.getSelectedBlock(playerUuid);
+        UUID entityUuid = EBSelectionStateCache.getSelectedEntity(playerUuid);
+        BlockPos clickedPos = EBSelectionStateCache.getSelectedBlock(playerUuid);
 
         if (entityUuid == null || clickedPos == null) return false;
 
         Entity entity = level.getEntity(entityUuid);
-        BindingType type = BindingToolValidator.isHoldingAnyTool(player, hand, entity);
+        BindingType type = BindingUtil.isHoldingAnyTool(player, hand, entity);
         if (type == null) return false;
 
         player.getItemInHand(hand).shrink(1);
@@ -71,7 +70,7 @@ public class BindHandler {
         ServerLevel serverLevel = (ServerLevel) level;
         ServerPlayer operator = (ServerPlayer) player;
 
-        SelectionState.removeAll(playerUuid);
+        EBSelectionStateCache.removeAll(playerUuid);
         boolean isSuccess = false;
         if (entity instanceof Villager villager) {
             isSuccess = VillagerBindHandler.bindVillager(serverLevel, operator, villager, clickedPos, type);

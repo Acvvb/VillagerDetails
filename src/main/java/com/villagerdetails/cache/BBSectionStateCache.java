@@ -1,4 +1,4 @@
-package com.villagerdetails.selection;
+package com.villagerdetails.cache;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -13,7 +13,7 @@ import java.util.UUID;
  * 每个玩家独立维护自己的 pos1 / pos2。
  * </p>
  */
-public class SelectionManager {
+public class BBSectionStateCache {
 
     private static final Map<UUID, BlockPos> POS1_MAP = new HashMap<>();
     private static final Map<UUID, BlockPos> POS2_MAP = new HashMap<>();

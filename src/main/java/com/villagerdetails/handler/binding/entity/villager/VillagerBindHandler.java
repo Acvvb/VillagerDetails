@@ -1,7 +1,7 @@
 
-package com.villagerdetails.handler.entity.villager;
+package com.villagerdetails.handler.binding.entity.villager;
 
-import com.villagerdetails.event.type.BindingType;
+import com.villagerdetails.handler.binding.type.BindingType;
 import com.villagerdetails.util.SendMessengerUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;

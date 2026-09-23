@@ -1,4 +1,4 @@
-package com.villagerdetails.handler.entity.villager;
+package com.villagerdetails.handler.binding.entity.villager;
 
 import com.villagerdetails.math.gridhashing.BindableMob;
 import com.villagerdetails.math.gridhashing.BindableTarget;

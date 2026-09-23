@@ -1,7 +1,7 @@
 
-package com.villagerdetails.handler.entity.villager;
+package com.villagerdetails.handler.binding.entity.villager;
 
-import com.villagerdetails.event.type.BindingType;
+import com.villagerdetails.handler.binding.type.BindingType;
 import com.villagerdetails.math.gridhashing.BindableMob;
 import com.villagerdetails.math.gridhashing.BindableTarget;
 import com.villagerdetails.math.gridhashing.GenericMobTargetMatcher;
@@ -15,7 +15,7 @@ import net.minecraft.world.entity.npc.villager.Villager;
 import java.util.List;
 import java.util.Map;
 
-import static com.villagerdetails.handler.BindHandler.checkSameDimension;
+import static com.villagerdetails.handler.binding.BindHandler.checkSameDimension;
 
 /**
  * 村民绑定服务类

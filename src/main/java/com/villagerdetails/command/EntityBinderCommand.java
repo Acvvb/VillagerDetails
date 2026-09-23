@@ -7,148 +7,127 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.VillagerDetails;
-import com.villagerdetails.event.type.BindingType;
-
-import com.villagerdetails.handler.entity.villager.VillagerBindServer;
-import com.villagerdetails.permission.BindingTypeSwitch;
-import com.villagerdetails.selection.SelectionManager;
+import com.villagerdetails.cache.RuleCache;
+import com.villagerdetails.config.WorldBindingConfig;
+import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
+import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
+
 public class EntityBinderCommand {
 
-    /** 绑定类型名称的 Tab 补全 */
-    private static final SuggestionProvider<CommandSourceStack> BINDING_TYPE_SUGGESTER = (context, builder) ->
+    /** 规则名称的 Tab 补全，使用 registerName 作为补全源 */
+    private static final SuggestionProvider<CommandSourceStack> RULE_SUGGESTER = (_, builder) ->
             SharedSuggestionProvider.suggest(
-                    Arrays.stream(BindingType.values())
-                            .map(BindingType::getName)
+                    Arrays.stream(RuleType.values())
+                            .map(RuleType::getRegisterName) // 改为使用 registerName
                             .collect(Collectors.toList()),
                     builder
             );
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal(VillagerDetails.MOD_ID)
-                .executes(EntityBinderCommand::showHelp)
+                // 无参数时，列出所有规则
+                .executes(EntityBinderCommand::listRules)
 
-                // /entitybinder list
-                .then(Commands.literal("list")
-                        .executes(EntityBinderCommand::listTypes)
-                )
-
-                // /entitybinder reset
-                .then(Commands.literal("reset")
-                        .executes(EntityBinderCommand::resetAll)
-                )
-
-                // /entitybinder toggle <type> [on|off]
-                .then(Commands.literal("toggle")
-                        .then(Commands.argument("type", StringArgumentType.word())
-                                .suggests(BINDING_TYPE_SUGGESTER)
-                                .executes(ctx -> toggleType(ctx, null))
-                                .then(Commands.argument("state", BoolArgumentType.bool())
-                                        .executes(ctx -> toggleType(ctx, BoolArgumentType.getBool(ctx, "state")))
-                                )
+                // /entityController <registerName> [on|off]
+                .then(Commands.argument("rule", StringArgumentType.word())
+                        .suggests(RULE_SUGGESTER)
+                        .executes(ctx -> toggleRule(ctx, null))
+                        .then(Commands.argument("state", BoolArgumentType.bool())
+                                .executes(ctx -> toggleRule(ctx, BoolArgumentType.getBool(ctx, "state")))
                         )
-                )
-                .then(Commands.literal("bindAreaBeds")
-                        .executes(ctx -> {
-                            ServerPlayer player = ctx.getSource().getPlayer();
-                            if (player == null) return 0;
-                            if (!SelectionManager.hasSelection(player)) {
-                                player.sendSystemMessage(Component.literal("§c请先用 pos1/pos2 设置选区"));
-                                return 0;
-                            }
-                            BlockPos pos1 = SelectionManager.getPos1(player);
-                            BlockPos pos2 = SelectionManager.getPos2(player);
-                            int count = VillagerBindServer.bindAreaBeds(player.level(), player, pos1, pos2);
-                            player.sendSystemMessage(Component.literal(
-                                    String.format("§a成功绑定 %d 张床", count)
-                            ));
-                            return 1;
-                        })
                 );
-
         dispatcher.register(root);
     }
 
-    // ==================== 帮助信息 ====================
 
-    private static int showHelp(CommandContext<CommandSourceStack> context) {
+    /** 列出所有规则 */
+    private static int listRules(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = context.getSource().getPlayer();
         if (player == null) return 0;
 
-        player.sendSystemMessage(Component.literal("§6========== EntityBinder 帮助 =========="));
-        player.sendSystemMessage(Component.literal("§e/entitybinder list §7- 列出所有绑定类型"));
-        player.sendSystemMessage(Component.literal("§e/entitybinder toggle <type> [on|off] §7- 开关绑定类型"));
-        player.sendSystemMessage(Component.literal("§e/entitybinder reset §7- 重置所有开关"));
-        player.sendSystemMessage(Component.literal("§6======================================"));
-        return 1;
-    }
-
-    // ==================== list ====================
-
-    private static int listTypes(CommandContext<CommandSourceStack> context) {
-        ServerPlayer player = context.getSource().getPlayer();
-        if (player == null) return 0;
-
-        player.sendSystemMessage(Component.literal("§6========== 绑定类型列表 =========="));
-        for (BindingType type : BindingType.values()) {
-            boolean enabled = BindingTypeSwitch.isEnabled(type);
-            String status = enabled ? "§a开启" : "§c关闭";
-            player.sendSystemMessage(Component.literal(
-                    String.format("§e%-12s §7ID: %-2d §7[%s] §7- %s",
-                            type.getName(), type.getId(), status, type.getMsg())
+        sendOrBroadcast(player,Component.literal("§6========== 控制器规则列表 =========="));
+        for (RuleType rule : RuleType.values()) {
+            boolean currentState = RuleCache.isEnabled(rule);
+            String status = currentState ? "§a开启" : "§c关闭";
+            sendOrBroadcast(player,Component.literal(
+                    String.format("§e%s §7ID: %-2d §7[%s]",
+                            rule.getRegisterName(), rule.getId(), status)
             ));
+            sendOrBroadcast(player,Component.literal(
+                    String.format("  §7名称: %s", rule.getDisplayName())
+            ));
+            sendOrBroadcast(player,Component.literal(
+                    String.format("  §7说明: %s", rule.getDisplayInfo())
+            ));
+            sendOrBroadcast(player,Component.literal(
+                    String.format("  §7分类: %s", rule.getCategory())
+            ));
+            sendOrBroadcast(player,Component.literal(" "));
         }
-        player.sendSystemMessage(Component.literal("§6================================"));
-        return 1;
-    }
-
-    // ==================== reset ====================
-
-    private static int resetAll(CommandContext<CommandSourceStack> context) {
-        ServerPlayer player = context.getSource().getPlayer();
-        if (player == null) return 0;
-
-        BindingTypeSwitch.resetAll();
-        player.sendSystemMessage(Component.literal("§a所有绑定类型已重置为默认开启状态"));
+        sendOrBroadcast(player,Component.literal("§6================================"));
         return 1;
     }
 
     // ==================== toggle ====================
 
-    private static int toggleType(CommandContext<CommandSourceStack> context, Boolean state) {
+    private static int toggleRule(CommandContext<CommandSourceStack> context, Boolean state) {
+
         ServerPlayer player = context.getSource().getPlayer();
         if (player == null) return 0;
 
-        String typeName = StringArgumentType.getString(context, "type");
-        BindingType type = BindingType.ofName(typeName).orElse(null);
+        String ruleName = StringArgumentType.getString(context, "rule");
+        RuleType rule = Arrays.stream(RuleType.values())
+                .filter(r -> r.getRegisterName().equalsIgnoreCase(ruleName))
+                .findFirst()
+                .orElse(null);
 
-        if (type == null) {
-            player.sendSystemMessage(Component.literal("§c未知的绑定类型: " + typeName));
+        if (rule == null) {
+            sendOrBroadcast(player,Component.literal("§c未知的规则名称: " + ruleName));
             return 0;
         }
 
+        // 未指定 state 时，显示规则详情而非切换开关
         if (state == null) {
-            // 未指定 on/off，切换当前状态
-            boolean current = BindingTypeSwitch.isEnabled(type);
-            BindingTypeSwitch.setEnabled(type, !current);
-            player.sendSystemMessage(Component.literal(
-                    String.format("§a%s (%s) 已%s", type.getMsg(), type.getName(), !current ? "§a开启" : "§c关闭")
+            boolean currentState = RuleCache.isEnabled(rule);
+            String status = currentState ? "§a开启" : "§c关闭";
+
+            sendOrBroadcast(player,Component.literal("§6========== 规则详情 =========="));
+            sendOrBroadcast(player,Component.literal(
+                    String.format("§e%s(%s)", rule.getDisplayName(), rule.getRegisterName())
             ));
-        } else {
-            BindingTypeSwitch.setEnabled(type, state);
-            player.sendSystemMessage(Component.literal(
-                    String.format("§a%s (%s) 已%s", type.getMsg(), type.getName(), state ? "§a开启" : "§c关闭")
+            sendOrBroadcast(player,Component.literal(
+                    String.format("§e%s", rule.getDisplayInfo())
             ));
+            sendOrBroadcast(player,Component.literal(
+                    String.format("§e%s", rule.getCategory())
+            ));
+            sendOrBroadcast(player,Component.literal(
+                    String.format("§e%s", status)
+            ));
+            sendOrBroadcast(player,Component.literal("§6================================"));
+            return 1;
         }
+
+        boolean targetState = state;
+        RuleCache.setEnabled(rule, targetState);
+
+        WorldBindingConfig config = WorldBindingConfig.getOrCreate(player.level());
+        config.setBindingState(rule.getRegisterName(), targetState);
+        config.setDirty();
+
+        sendOrBroadcast(player,Component.literal(
+                String.format("§a规则 %s (%s) 已%s",
+                        rule.getDisplayName(), rule.getRegisterName(), targetState ? "§a开启" : "§c关闭")
+        ));
         return 1;
     }
 }

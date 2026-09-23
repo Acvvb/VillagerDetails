@@ -1,6 +1,6 @@
 package com.villagerdetails.math.gridhashing.villager;
 
-import com.villagerdetails.handler.entity.villager.VillagerBindHandler;
+import com.villagerdetails.handler.binding.entity.villager.VillagerBindHandler;
 import com.villagerdetails.math.gridhashing.BindableMob;
 import com.villagerdetails.math.gridhashing.BindableTarget;
 import net.minecraft.server.level.ServerLevel;

@@ -1,13 +1,12 @@
-package com.villagerdetails.event;
+package com.villagerdetails.handler.binding;
 
-import com.villagerdetails.event.type.BindingType;
-import com.villagerdetails.handler.BindHandler;
-import com.villagerdetails.permission.BindingTypeSwitch;
+import com.villagerdetails.cache.RuleCache;
+import com.villagerdetails.handler.binding.type.BindingType;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 
-public class BindingToolValidator {
+public class BindingUtil {
 
     /**
      * 检查玩家是否持有任意已启用的绑定工具
@@ -19,9 +18,7 @@ public class BindingToolValidator {
      */
     public static BindingType isHoldingAnyTool(Player player, InteractionHand hand, Entity entity) {
         for (BindingType type : BindingType.values()) {
-            if (!BindingTypeSwitch.isEnabled(type)) {
-                continue;
-            }
+            if (!RuleCache.isEnabled(type.getRuleType())) continue;
             if (BindHandler.isNotHoldingTool(player, hand, type.getRequiredItem(), type.getRequiredToolName())) {
                 if (entity == null || type.getEntityClass().isInstance(entity)) {
                     return type;
