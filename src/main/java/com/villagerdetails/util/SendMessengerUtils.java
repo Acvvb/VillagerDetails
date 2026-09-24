@@ -1,15 +1,21 @@
 package com.villagerdetails.util;
 
+import com.villagerdetails.cache.RuleCache;
+import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.List;
+
 /**
  * 消息发送工具类
  */
 public class SendMessengerUtils {
+
+
 
     private static final Logger log = LogManager.getLogger(SendMessengerUtils.class);
 
@@ -48,7 +54,7 @@ public class SendMessengerUtils {
         if (player != null) {
             sendToPlayer(player, message);
         } else {
-            LogManager.getLogger(System.class).info(message);
+            log.info(message.getString());
         }
     }
 
@@ -58,7 +64,7 @@ public class SendMessengerUtils {
      * @param player  操作玩家（可为 null）
      * @param message 消息组件
      */
-    public static void sendOrBroadcastActionBar(ServerPlayer player, Component message) {
+    public static void sendOverlayOrBroadcast(ServerPlayer player, Component message) {
         if (player != null) {
             player.sendSystemMessage(message, true);
         } else {

@@ -83,7 +83,7 @@ public class VillagerBindHandler extends VillagerBindServer {
         Optional<Holder<PoiType>> holderOpt = registerBedPoi(level, bedHeadPos);
         if (holderOpt.isEmpty()) {
             if (sendMsg) {
-                SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                SendMessengerUtils.sendOverlayOrBroadcast(operator,
                         Component.translatable(getMessageKey(BindingType.BED, "bind.fail")));
             }
             return false;
@@ -94,7 +94,7 @@ public class VillagerBindHandler extends VillagerBindServer {
 
         // 发送成功消息
         if (sendMsg) {
-            SendMessengerUtils.sendOrBroadcastActionBar(operator,
+            SendMessengerUtils.sendOverlayOrBroadcast(operator,
                     Component.translatable(getMessageKey(BindingType.BED, "bind.success"),
                             villagerUuid.toString(), bedHeadPos.toShortString()));
         }
@@ -150,7 +150,7 @@ public class VillagerBindHandler extends VillagerBindServer {
 
         // 发送成功消息
         if (sendMsg) {
-            SendMessengerUtils.sendOrBroadcastActionBar(operator,
+            SendMessengerUtils.sendOverlayOrBroadcast(operator,
                     Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "bind.success"),
                             villagerUuid.toString(), workBlockPos.toShortString()));
         }
@@ -171,7 +171,7 @@ public class VillagerBindHandler extends VillagerBindServer {
 
         if (!state.is(BlockTags.BEDS)) {
             if (sendMsg) {
-                SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                SendMessengerUtils.sendOverlayOrBroadcast(operator,
                         Component.translatable("msg.villager.not_allow_block",
                                 state.getBlock().getName().getString(),
                                 Component.translatable(BindingType.BED.getI18nPrefix())
@@ -198,7 +198,7 @@ public class VillagerBindHandler extends VillagerBindServer {
             GlobalPos currentHome = currentHomeOpt.get();
             if (currentHome.dimension().equals(level.dimension()) && currentHome.pos().equals(bedHeadPos)) {
                 if (sendMsg) {
-                    SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                    SendMessengerUtils.sendOverlayOrBroadcast(operator,
                             Component.translatable(getMessageKey(BindingType.BED, "already_bound"),
                                     villager.getStringUUID()));
                 }
@@ -253,7 +253,7 @@ public class VillagerBindHandler extends VillagerBindServer {
         if (poiHolder.isEmpty() || !isWorkPoiType(poiHolder.get())) {
             String blockName = state.getBlock().getName().getString();
             if (sendMsg) {
-                SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                SendMessengerUtils.sendOverlayOrBroadcast(operator,
                         Component.translatable("msg.villager.not_allow_block", blockName,
                                 Component.translatable(BindingType.WORK_BLOCK.getI18nPrefix())
                         )
@@ -271,7 +271,7 @@ public class VillagerBindHandler extends VillagerBindServer {
     private static boolean checkVillagerTraded(Villager villager, ServerPlayer operator, boolean sendMsg) {
         if (villager.getVillagerXp() > 0) {
             if (sendMsg) {
-                SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                SendMessengerUtils.sendOverlayOrBroadcast(operator,
                         Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "traded")));
             }
             return true;
@@ -286,7 +286,7 @@ public class VillagerBindHandler extends VillagerBindServer {
 
         if (villager.getVillagerXp() > 0) {
             if (sendMsg) {
-                SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                SendMessengerUtils.sendOverlayOrBroadcast(operator,
                         Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "traded")));
             }
             return true;
@@ -296,14 +296,14 @@ public class VillagerBindHandler extends VillagerBindServer {
         for (Villager existingVillager : boundVillagers) {
             if (existingVillager.getUUID().equals(villager.getUUID())) {
                 if (sendMsg) {
-                    SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                    SendMessengerUtils.sendOverlayOrBroadcast(operator,
                             Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "already_bound")));
                 }
                 return true;
             }
             if (existingVillager.getVillagerXp() > 0) {
                 if (sendMsg) {
-                    SendMessengerUtils.sendOrBroadcastActionBar(operator,
+                    SendMessengerUtils.sendOverlayOrBroadcast(operator,
                             Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "owner_traded")));
                 }
                 log.debug("工作方块 {} 所属村民 {} 已交易过，无法修改职业", workBlockPos, existingVillager.getUUID());

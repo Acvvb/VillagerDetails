@@ -4,6 +4,7 @@ import com.villagerdetails.command.register.impl.BBSelectionServerImpl;
 import com.villagerdetails.command.register.server.RegisterServer;
 import com.villagerdetails.event.type.ListenerType;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.villagerdetails.event.type.ListenerType.BLOCK_RANGE_SELECTION;
@@ -92,5 +93,22 @@ public enum RuleType {
             }
         }
         return null;
+    }
+
+    /**
+     * 根据 分类 查找对应的 分类内所有规则
+     */
+    public static List<RuleType> getRuleTypeListByRuleCategoryType(RuleCategoryType ruleCategoryType) {
+        List<RuleType> ruleTypeSet = new ArrayList<>();
+        if(ruleCategoryType == null) return ruleTypeSet;
+        for (RuleType ruleType : RuleType.values()) {
+            for (RuleCategoryType type : ruleType.getCategory()) {
+                if (type.equals(ruleCategoryType)) {
+                    ruleTypeSet.add(ruleType);
+                    break;
+                }
+            }
+        }
+        return ruleTypeSet;
     }
 }

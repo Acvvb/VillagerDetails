@@ -46,7 +46,7 @@ public class EBSectionManager {
             BindHandler.chooseUtil(level, player, hand);
         }else {
             String entityName = Component.translatable(entity.getType().getDescriptionId()).getString();
-            SendMessengerUtils.sendOrBroadcastActionBar(
+            SendMessengerUtils.sendOverlayOrBroadcast(
                     (ServerPlayer) player,
                     Component.translatable("msg.entity.select.success", entityName,entityUUID.toString())
             );
@@ -67,7 +67,7 @@ public class EBSectionManager {
         if (EBSelectionStateCache.isEnd(playerUuid)){
             if (BindHandler.chooseUtil(level, player, hand)) return InteractionResult.SUCCESS;
         }else {
-            SendMessengerUtils.sendOrBroadcastActionBar(operator,
+            SendMessengerUtils.sendOverlayOrBroadcast(operator,
                     Component.translatable("msg.block.select.success",
                             level.getBlockState(clickedPos).getBlock().getName(),
                             "%d, %d, %d".formatted(clickedPos.getX(), clickedPos.getY(), clickedPos.getZ())

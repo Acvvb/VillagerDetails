@@ -50,7 +50,7 @@ public class BindHandler {
         ResourceKey<Level> entityDimension = entity.level().dimension();
         ResourceKey<Level> targetDimension = targetLevel.dimension();
         if (entityDimension.equals(targetDimension)) return false;
-        SendMessengerUtils.sendOrBroadcastActionBar(operator, message);
+        SendMessengerUtils.sendOverlayOrBroadcast(operator, message);
         return true;
     }
 
@@ -77,7 +77,7 @@ public class BindHandler {
         }
 
         if (isSuccess) {
-            SendMessengerUtils.sendOrBroadcastActionBar(operator,
+            SendMessengerUtils.sendOverlayOrBroadcast(operator,
                     Component.translatable("msg.system.bind.success",
                             entity.getType().getDescription(),
                             entityUuid.toString(),
