@@ -37,42 +37,57 @@ public class EBSectionManager {
     public static InteractionResult onUseEntity(Player player, Level level, InteractionHand hand, Entity entity, EntityHitResult hitResult) {
         if (!isEnableOfListener(ENTITY_BLOCK_SELECTION)) return InteractionResult.PASS;
         if (level.isClientSide()) return InteractionResult.PASS;
-        BindingType type = BindingUtil.isHoldingAnyTool(player,hand,entity);
+        if (hand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
+
+        // 只有手持正确的工具时才进入选择流程，避免误缓存
+        BindingType type = BindingUtil.isHoldingAnyTool(player, hand, entity);
         if (type == null) return InteractionResult.PASS;
+
         UUID playerUuid = player.getUUID();
-        UUID entityUUID = entity.getUUID();
-        EBSelectionStateCache.setSelectedEntity(playerUuid, entityUUID);
-        if (EBSelectionStateCache.isEnd(playerUuid)) {
+        UUID entityUuid = entity.getUUID();
+        EBSelectionStateCache.selectEntity(playerUuid, entityUuid);
+
+        // 实体 + 方块都已选中 → 触发绑定
+        if (EBSelectionStateCache.isComplete(playerUuid)) {
             BindHandler.chooseUtil(level, player, hand);
-        }else {
-            String entityName = Component.translatable(entity.getType().getDescriptionId()).getString();
-            SendMessengerUtils.sendOverlayOrBroadcast(
-                    (ServerPlayer) player,
-                    Component.translatable("msg.entity.select.success", entityName,entityUUID.toString())
-            );
-            log.debug("玩家 {} 选中了实体({}): {}", playerUuid, entityName, entityUUID);
+            return InteractionResult.SUCCESS;
         }
+
+        String entityName = Component.translatable(entity.getType().getDescriptionId()).getString();
+        SendMessengerUtils.sendOverlayOrBroadcast(
+                (ServerPlayer) player,
+                Component.translatable("msg.entity.select.success", entityName, entityUuid.toString())
+        );
+        log.debug("玩家 {} 选中了实体({}): {}", playerUuid, entityName, entityUuid);
         return InteractionResult.SUCCESS;
     }
 
     public static InteractionResult onUseBlock(Player player, Level level, InteractionHand hand, BlockHitResult hitResult) {
         if (!isEnableOfListener(ENTITY_BLOCK_SELECTION)) return InteractionResult.PASS;
         if (level.isClientSide()) return InteractionResult.PASS;
+        if (hand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
+
+        // 先校验工具，再缓存方块，避免未拿工具时污染方块缓存
+        BindingType type = BindingUtil.isHoldingAnyTool(player, hand, null);
+        if (type == null) return InteractionResult.PASS;
+
         UUID playerUuid = player.getUUID();
         BlockPos clickedPos = hitResult.getBlockPos();
-        ServerPlayer operator = (ServerPlayer) player;
-        EBSelectionStateCache.setSelectedBlock(playerUuid,clickedPos);
-        BindingType type = BindingUtil.isHoldingAnyTool(player,hand,null);
-        if (type == null) return InteractionResult.PASS;
-        if (EBSelectionStateCache.isEnd(playerUuid)){
-            if (BindHandler.chooseUtil(level, player, hand)) return InteractionResult.SUCCESS;
-        }else {
-            SendMessengerUtils.sendOverlayOrBroadcast(operator,
-                    Component.translatable("msg.block.select.success",
-                            level.getBlockState(clickedPos).getBlock().getName(),
-                            "%d, %d, %d".formatted(clickedPos.getX(), clickedPos.getY(), clickedPos.getZ())
-                    ));
+        EBSelectionStateCache.selectBlock(playerUuid, clickedPos);
+
+        // 实体 + 方块都已选中 → 触发绑定
+        if (EBSelectionStateCache.isComplete(playerUuid)) {
+            BindHandler.chooseUtil(level, player, hand);
+            return InteractionResult.SUCCESS;
         }
-        return InteractionResult.PASS;
+
+        SendMessengerUtils.sendOverlayOrBroadcast(
+                (ServerPlayer) player,
+                Component.translatable("msg.block.select.success",
+                        level.getBlockState(clickedPos).getBlock().getName(),
+                        "%d, %d, %d".formatted(clickedPos.getX(), clickedPos.getY(), clickedPos.getZ())
+                )
+        );
+        return InteractionResult.SUCCESS;
     }
 }

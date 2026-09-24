@@ -4,7 +4,6 @@ import com.villagerdetails.cache.EBSelectionStateCache;
 import com.villagerdetails.handler.binding.entity.villager.VillagerBindHandler;
 import com.villagerdetails.handler.binding.type.BindingType;
 import com.villagerdetails.util.SendMessengerUtils;
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -25,10 +24,11 @@ public class BindHandler {
      * 通用工具检测：蹲着 + 手持改名为指定名称的拴绳
      * @param player 玩家
      * @param hand 交互手
-     * @param requiredToolName 要求的工具名称（如 "bed" 或 "workblock"）
-     * @return true 表示不满足条件（应返回 PASS 放行），false 表示满足条件（可以继续处理）
+     * @param requiredItem 要求的工具物品（如拴绳）
+     * @param requiredToolName 要求的工具名称（如 "bed" 或 "work"）
+     * @return true 表示当前手持的是正确的工具
      */
-    public static boolean isNotHoldingTool(Player player, InteractionHand hand, Item requiredItem, String requiredToolName) {
+    public static boolean isHoldingTool(Player player, InteractionHand hand, Item requiredItem, String requiredToolName) {
         if (!player.isShiftKeyDown()) return false;
         ItemStack itemInHand = player.getItemInHand(hand);
         if (itemInHand.isEmpty()) return false;
@@ -56,35 +56,21 @@ public class BindHandler {
 
     public static boolean chooseUtil(Level level, Player player, InteractionHand hand) {
         UUID playerUuid = player.getUUID();
-        UUID entityUuid = EBSelectionStateCache.getSelectedEntity(playerUuid);
-        BlockPos clickedPos = EBSelectionStateCache.getSelectedBlock(playerUuid);
+        // 原子取出并清空选择状态：绑定无论成败，缓存都不会残留旧状态导致重复触发
+        EBSelectionStateCache.SelectionState state = EBSelectionStateCache.take(playerUuid);
+        if (state == null || !state.isComplete()) return false;
 
-        if (entityUuid == null || clickedPos == null) return false;
-
-        Entity entity = level.getEntity(entityUuid);
+        Entity entity = level.getEntity(state.entityUuid());
         BindingType type = BindingUtil.isHoldingAnyTool(player, hand, entity);
-        if (type == null) return false;
-
-        player.getItemInHand(hand).shrink(1);
+        if (type == null || !(entity instanceof Villager villager)) return false;
 
         ServerLevel serverLevel = (ServerLevel) level;
         ServerPlayer operator = (ServerPlayer) player;
 
-        EBSelectionStateCache.removeAll(playerUuid);
-        boolean isSuccess = false;
-        if (entity instanceof Villager villager) {
-            isSuccess = VillagerBindHandler.bindVillager(serverLevel, operator, villager, clickedPos, type);
-        }
-
+        boolean isSuccess = VillagerBindHandler.bindVillager(serverLevel, operator, villager, state.blockPos(), type);
         if (isSuccess) {
-            SendMessengerUtils.sendOverlayOrBroadcast(operator,
-                    Component.translatable("msg.system.bind.success",
-                            entity.getType().getDescription(),
-                            entityUuid.toString(),
-                            Component.translatable(type.getI18nPrefix()),
-                            clickedPos.toShortString()
-                    )
-            );
+            // 只有真正绑定成功才消耗工具，避免"已绑定过 / 失败"时白白消耗拴绳
+            player.getItemInHand(hand).shrink(1);
         }
         return isSuccess;
     }

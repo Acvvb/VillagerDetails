@@ -31,6 +31,7 @@ public class BBSelectionServerImpl implements RegisterServer {
     @Override
     public LiteralArgumentBuilder<CommandSourceStack> register() {
         return Commands.literal(BLOCK_BLOCK_SECTION)
+                .executes(BBSelectionServerImpl::bindAreaBeds)
                 .then(Commands.literal("pos1")
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(context -> this.setPosWithArgs(context, POS1_SETTER)))
@@ -82,7 +83,7 @@ public class BBSelectionServerImpl implements RegisterServer {
         return 1;
     }
 
-    private int bindAreaBeds(CommandContext<CommandSourceStack> context) {
+    private static int bindAreaBeds(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = context.getSource().getPlayer();
         if (player == null) return 0;
         if (!BBSectionStateCache.hasSelection(player)) {

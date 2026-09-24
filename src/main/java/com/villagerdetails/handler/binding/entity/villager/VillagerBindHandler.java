@@ -70,8 +70,8 @@ public class VillagerBindHandler extends VillagerBindServer {
         BlockPos bedHeadPos = findBedHead(level, operator, newBedPos, sendMsg);
         if (bedHeadPos == null) return false;
 
-        // 检查是否已经绑定过这张床
-        if (checkDuplicateBinding(villager, bedHeadPos, level, operator, sendMsg)) return true;
+        // 检查是否已经绑定过这张床：已绑定时只提示，不再视为一次新的成功绑定
+        if (checkDuplicateBinding(villager, bedHeadPos, level, operator, sendMsg)) return false;
 
         // 清除其他村民对目标床的绑定
         clearOtherVillagersBedBinding(level, villagerUuid, bedHeadPos);
