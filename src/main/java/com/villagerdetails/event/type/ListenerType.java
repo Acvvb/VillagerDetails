@@ -2,15 +2,16 @@ package com.villagerdetails.event.type;
 
 public enum ListenerType {
 
-    ENTITY_BLOCK_SELECTION(1,"实体绑定选区工具"),
-    BLOCK_RANGE_SELECTION(2,"选区工具")
+    NONE("空"),
+    ENTITY_BLOCK_SELECTION("实体绑定选区工具"),
+    BLOCK_RANGE_SELECTION("选区工具")
     ;
 
     private final int id;
     private final String name;
 
-    ListenerType(int id, String name) {
-        this.id = id;
+    ListenerType(String name) {
+        this.id = this.ordinal();
         this.name = name;
     }
 
