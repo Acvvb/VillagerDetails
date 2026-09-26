@@ -9,10 +9,4 @@ public interface MerchantOfferMixin {
 
     @Accessor("uses")
     void setUses(int uses);
-
-    @Accessor("uses")
-    int getUses();
-
-    @Accessor("maxUses")
-    int getMaxUses();
 }

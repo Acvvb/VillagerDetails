@@ -21,5 +21,6 @@
   "msg.villager.work_block": "Work Block",
   "msg.villager.work_block.traded": "Villagers who have already traded cannot change their profession",
   "msg.villager.work_block.owner_traded": "The villager who owns this work block has already traded, profession change is not allowed.",
-  "msg.villager.work_block.already_bound": "The villager who owns this work block has already traded, profession change is not allowed."
+  "msg.villager.work_block.already_bound": "The villager who owns this work block has already traded, profession change is not allowed.",
+  "msg.villager.move.success": "成功设置村民(%s)目的地%s,请确保路径通畅。"
 }

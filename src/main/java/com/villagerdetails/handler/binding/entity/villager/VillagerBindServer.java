@@ -49,6 +49,7 @@ public class VillagerBindServer {
         return switch (type) {
             case BED -> VillagerBindHandler.bindBed(level, operator, villager, targetPos);
             case WORK_BLOCK -> VillagerBindHandler.bindWorkBlock(level, operator, villager, targetPos);
+            case MOVE -> VillagerBindHandler.bindMove(level, operator, villager, targetPos);
         };
     }
 

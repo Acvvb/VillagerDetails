@@ -2,6 +2,7 @@
 package com.villagerdetails.handler.binding.entity.villager;
 
 import com.villagerdetails.handler.binding.type.BindingType;
+import com.villagerdetails.handler.villager.move.VillagerMoveHandler;
 import com.villagerdetails.util.SendMessengerUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
@@ -158,6 +159,13 @@ public class VillagerBindHandler extends VillagerBindServer {
         log.debug("玩家 {} 成功将村民 {} 的职业绑定为 {}，工作方块位置: {}",
                 operator.getUUID(), villagerUuid, newProfession, workBlockPos);
 
+        return true;
+    }
+
+    public static boolean bindMove(ServerLevel level, ServerPlayer operator, Villager villager, BlockPos targetPos) {
+        VillagerMoveHandler.sendTo(villager,targetPos);
+        SendMessengerUtils.sendOverlayOrBroadcast(operator,
+                Component.translatable(getMessageKey(BindingType.MOVE, "success"), villager.getUUID().toString(),targetPos.toShortString()));
         return true;
     }
 
@@ -407,11 +415,10 @@ public class VillagerBindHandler extends VillagerBindServer {
      * WORK_BLOCK -> msg.villager.work_block
      */
     private static String getMessageKey(BindingType type, String suffix) {
-        if (type == BindingType.BED) {
-            return "msg.villager.bed." + suffix;
-        } else if (type == BindingType.WORK_BLOCK) {
-            return "msg.villager.work_block." + suffix;
-        }
-        return "msg.villager." + type.getRequiredToolName() + "." + suffix;
+        return switch (type) {
+            case BED -> "msg.villager.bed." + suffix;
+            case WORK_BLOCK -> "msg.villager.work_block." + suffix;
+            case MOVE -> "msg.villager.move." + suffix;
+        };
     }
 }

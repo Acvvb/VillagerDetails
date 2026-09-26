@@ -29,9 +29,8 @@ public class BBSelectionListener {
     }
 
     private static boolean onLeftClickBlock(Level level, Player player, BlockPos blockPos, BlockState blockState, @Nullable BlockEntity blockEntity) {
-        if (!isEnableOfListener(BLOCK_RANGE_SELECTION)) return true; // 未启用时放行，正常破坏
+        if (!isEnableOfListener(BLOCK_RANGE_SELECTION)) return true;
         if (!(player instanceof ServerPlayer sp)) return true;
-        // 调用原有的左键处理逻辑，返回 false 表示取消破坏
         return !SelectionInteractionHandler.onLeftClickBlock(sp, blockPos);
     }
 
@@ -41,7 +40,7 @@ public class BBSelectionListener {
         if (interactionHand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
         if (blockHitResult.getType() != HitResult.Type.BLOCK) return InteractionResult.PASS;
         if (SelectionInteractionHandler.onRightClickBlock(sp, blockHitResult.getBlockPos())) {
-            return InteractionResult.SUCCESS; // 取消原右键行为
+            return InteractionResult.SUCCESS;
         }
         return InteractionResult.PASS;
     }

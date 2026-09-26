@@ -8,8 +8,9 @@ import net.minecraft.world.item.Items;
 
 public enum BindingType {
     // 构造参数顺序：id, 实体Class, 工具物品, 工具名称, 国际化消息前缀
-    BED(1, RuleType.VILLAGER_BED_RESET, Villager.class, Items.LEAD, "bed", "msg.villager.bed"),
-    WORK_BLOCK(2, RuleType.VILLAGER_WORK_BLOCK_RESET, Villager.class, Items.LEAD, "work", "msg.villager.work_block"),
+    BED(RuleType.VILLAGER_BED_RESET, Villager.class, Items.LEAD, "bed", "msg.villager.bed"),
+    WORK_BLOCK(RuleType.VILLAGER_WORK_BLOCK_RESET, Villager.class, Items.LEAD, "work", "msg.villager.work_block"),
+    MOVE(RuleType.VILLAGER_MOVE_CONTROLLER,Villager.class,Items.LEAD,"move","")
     ;
 
     private final int id;
@@ -19,8 +20,8 @@ public enum BindingType {
     private final String requiredToolName;
     private final String i18nPrefix;
 
-    BindingType(int id, RuleType ruleType, Class<? extends Entity> entityClass, Item requiredItem, String requiredToolName, String i18nPrefix) {
-        this.id = id;
+    BindingType(RuleType ruleType, Class<? extends Entity> entityClass, Item requiredItem, String requiredToolName, String i18nPrefix) {
+        this.id = this.ordinal();
         this.ruleType = ruleType;
         this.entityClass = entityClass;
         this.requiredItem = requiredItem;

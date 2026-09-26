@@ -1,5 +1,12 @@
 package com.villagerdetails.mixin;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.mojang.datafixers.util.Pair;
+import com.villagerdetails.cache.ModMemories;
+import com.villagerdetails.cache.RuleCache;
+import com.villagerdetails.handler.villager.move.ModActivities;
+import com.villagerdetails.handler.villager.move.MoveToDestination;
 import com.villagerdetails.network.VillagerBedPayload;
 import com.villagerdetails.network.VillagerPacket;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
@@ -10,6 +17,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.trading.MerchantOffer;
 import org.apache.logging.log4j.LogManager;
@@ -24,6 +32,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+
+import static com.villagerdetails.rule.type.RuleType.VILLAGER_HARD_WORKING;
 
 @Mixin(Villager.class)
 public class VillagerMixin {
@@ -77,14 +87,9 @@ public class VillagerMixin {
         }
     }
 
-    /**
-     * 每次补货后剩余可用次数 = maxUses 的倍数。
-     * 1.0 = 原版（补满到 maxUses）
-     * 2.0 = 2 倍
-     * 3.0 = 3 倍
-     */
+    /** 补货倍数 */
     @Unique
-    private static final float MULTIPLIER = 2.0F;
+    private static volatile float restockMultiplier = 2.0F;
 
     @Redirect(
             method = "restock",
@@ -94,9 +99,23 @@ public class VillagerMixin {
             )
     )
     private void customResetUses(MerchantOffer offer) {
-        MerchantOfferMixin acc = (MerchantOfferMixin) offer;
-        int maxUses = acc.getMaxUses();
-        int newUses = -(int) ((MULTIPLIER - 1.0F) * maxUses);
-        acc.setUses(newUses);
+        if (!RuleCache.isEnabled(VILLAGER_HARD_WORKING)) {
+            offer.resetUses();
+            return;
+        }
+        int maxUses = offer.getMaxUses();
+        int newUses = -(int) ((restockMultiplier - 1.0F) * maxUses);
+        ((MerchantOfferMixin) offer).setUses(newUses);
+    }
+
+
+    @Inject(method = "registerBrainGoals", at = @At("RETURN"))
+    private void villagerdetails$addDestinationActivity(Brain<Villager> brain, CallbackInfo ci) {
+        brain.addActivity(
+                ModActivities.GO_TO_DESTINATION,
+                ImmutableList.of(Pair.of(0, new MoveToDestination())),
+                ImmutableSet.of(Pair.of(ModMemories.DESTINATION, MemoryStatus.VALUE_PRESENT)),
+                ImmutableSet.of()
+        );
     }
 }

@@ -19,5 +19,6 @@
   "msg.villager.work_block": "工作方块",
   "msg.villager.work_block.traded": "已经交易过的村民无法修改职业",
   "msg.villager.work_block.owner_traded": "该工作方块所属村民已交易过，不允许修改村民职业。",
-  "msg.villager.work_block.already_bound": "该工作方块所属村民已交易过，不允许修改村民职业。"
+  "msg.villager.work_block.already_bound": "该工作方块所属村民已交易过，不允许修改村民职业。",
+  "msg.villager.move.success": "成功设置村民(%s)目的地%s,请确保路径通畅。"
 }
