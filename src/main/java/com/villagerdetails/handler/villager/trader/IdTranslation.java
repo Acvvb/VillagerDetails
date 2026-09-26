@@ -1,4 +1,4 @@
-package com.villagerdetails.handler.villagerTrader;
+package com.villagerdetails.handler.villager.trader;
 
 import net.minecraft.resources.Identifier;
 

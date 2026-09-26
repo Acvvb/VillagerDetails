@@ -1,7 +1,8 @@
 package com.villagerdetails.mixin;
 
-import com.villagerdetails.handler.villagerTrader.AutoVillagerTrader;
-import com.villagerdetails.handler.villagerTrader.IdTranslation;
+import com.villagerdetails.cache.RuleCache;
+import com.villagerdetails.handler.villager.trader.AutoVillagerTrader;
+import com.villagerdetails.handler.villager.trader.IdTranslation;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
@@ -26,6 +27,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.function.Predicate;
+
+import static com.villagerdetails.rule.type.RuleType.VILLAGER_AUTO_TRADER;
+import static com.villagerdetails.rule.type.RuleType.VILLAGER_SILENT_AUTO_REROLL_TRADER;
 import static com.villagerdetails.util.SendMessengerUtils.sendOverlayOrBroadcast;
 
 @Mixin(NameTagItem.class)
@@ -38,6 +42,9 @@ public class NameTagItemMixin {
             LivingEntity target,
             InteractionHand type,
             CallbackInfoReturnable<InteractionResult> cir) {
+
+        //规则状态检测
+        if (!RuleCache.isEnabled(VILLAGER_AUTO_TRADER)) return;
 
         // 只在原版命名成功时触发（PASS 说明没名字或不能命名）
         InteractionResult result = cir.getReturnValue();
@@ -67,7 +74,9 @@ public class NameTagItemMixin {
 
         // 触发自动刷新
         int attempts = AutoVillagerTrader.tick(villager, 500, want);
-        villager.setCustomName(null);
+
+        //是否移除村民命名
+        if(RuleCache.isEnabled(VILLAGER_SILENT_AUTO_REROLL_TRADER)) villager.setCustomName(null);
 
         ServerPlayer sp = (ServerPlayer) player;
         if (attempts > 0) {
@@ -78,7 +87,7 @@ public class NameTagItemMixin {
                     "§e刷了 §c500 §e次都没命中，再命名一次试试"));
         } else {
             sendOverlayOrBroadcast(sp, Component.literal(
-                    "§c该村民无法刷新（已锁定 / 小孩 / 无职业 / 无工作站）"));
+                    "§c该村民无法刷新"));
         }
     }
 

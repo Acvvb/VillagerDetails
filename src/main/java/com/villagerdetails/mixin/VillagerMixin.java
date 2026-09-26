@@ -11,12 +11,14 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.item.trading.MerchantOffer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.Objects;
@@ -24,10 +26,10 @@ import java.util.Optional;
 import java.util.Set;
 
 @Mixin(Villager.class)
-public class VillagerMemoryMixin {
+public class VillagerMixin {
 
     @Unique
-    private static final Logger log = LogManager.getLogger(VillagerMemoryMixin.class);
+    private static final Logger log = LogManager.getLogger(VillagerMixin.class);
 
     /** 记录上一次已发送的床位置，用于检测变化 */
     @Unique
@@ -73,5 +75,28 @@ public class VillagerMemoryMixin {
                     new VillagerBedPayload(new VillagerPacket(villager.getId(), Optional.ofNullable(bedPos)))
             );
         }
+    }
+
+    /**
+     * 每次补货后剩余可用次数 = maxUses 的倍数。
+     * 1.0 = 原版（补满到 maxUses）
+     * 2.0 = 2 倍
+     * 3.0 = 3 倍
+     */
+    @Unique
+    private static final float MULTIPLIER = 2.0F;
+
+    @Redirect(
+            method = "restock",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/world/item/trading/MerchantOffer;resetUses()V"
+            )
+    )
+    private void customResetUses(MerchantOffer offer) {
+        MerchantOfferMixin acc = (MerchantOfferMixin) offer;
+        int maxUses = acc.getMaxUses();
+        int newUses = -(int) ((MULTIPLIER - 1.0F) * maxUses);
+        acc.setUses(newUses);
     }
 }

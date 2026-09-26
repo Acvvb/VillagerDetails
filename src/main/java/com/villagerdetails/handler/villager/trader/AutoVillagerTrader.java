@@ -1,5 +1,6 @@
-package com.villagerdetails.handler.villagerTrader;
+package com.villagerdetails.handler.villager.trader;
 
+import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.mixin.AbstractVillagerMixin;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.villager.Villager;
@@ -9,6 +10,8 @@ import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 
 import java.util.function.Predicate;
+
+import static com.villagerdetails.rule.type.RuleType.VILLAGER_AUTO_LOCK_HIT_TRADER;
 
 public class AutoVillagerTrader {
 
@@ -33,7 +36,7 @@ public class AutoVillagerTrader {
             acc.setOffersField(null);
             MerchantOffers offers = villager.getOffers();
             if (hasWanted(offers, want)) {
-                lock(villager, offers);
+                if (RuleCache.isEnabled(VILLAGER_AUTO_LOCK_HIT_TRADER)) lock(villager, offers);
                 return i + 1;
             }
         }

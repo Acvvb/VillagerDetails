@@ -4,8 +4,9 @@
   "compatibilityLevel": "JAVA_25",
   "mixins": [
     "AbstractVillagerMixin",
+    "MerchantOfferMixin",
     "NameTagItemMixin",
-    "VillagerMemoryMixin"
+    "VillagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

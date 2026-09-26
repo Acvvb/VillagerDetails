@@ -13,7 +13,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
-import static com.villagerdetails.rule.type.RuleType.BATCH_BED_RESET;
+import static com.villagerdetails.rule.type.RuleType.VILLAGER_BATCH_BED_RESET;
 import static com.villagerdetails.util.SendMessengerUtils.sendToPlayer;
 
 public class BBSelectionServerImpl implements RegisterServer {
@@ -25,7 +25,7 @@ public class BBSelectionServerImpl implements RegisterServer {
 
     @Override
     public RuleType getRuleType() {
-        return BATCH_BED_RESET;
+        return VILLAGER_BATCH_BED_RESET;
     }
 
     @Override
