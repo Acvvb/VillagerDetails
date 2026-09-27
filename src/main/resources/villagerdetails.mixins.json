@@ -4,11 +4,14 @@
   "compatibilityLevel": "JAVA_25",
   "mixins": [
     "AbstractVillagerMixin",
-    "BrainAccessor",
+    "BrainInterfaceMixin",
     "BrainMixin",
+    "EnchantRandomlyFunctionMixin",
     "MerchantOfferMixin",
     "NameTagItemMixin",
-    "VillagerMixin"
+    "VillagerMixin",
+    "VillagerTradeMixin",
+    "VillagerInterfaceTradesMixin"
   ],
   "injectors": {
     "defaultRequire": 1

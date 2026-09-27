@@ -6,7 +6,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 @Mixin(Brain.class)
-public interface BrainAccessor {
+public interface BrainInterfaceMixin {
 
     @Invoker("setActiveActivity")
     void invokeSetActiveActivity(Activity activity);

@@ -21,6 +21,6 @@ public abstract class BrainMixin {
         if (activity == Activity.CORE) return;
 
         ci.cancel();
-        ((BrainAccessor) brain).invokeSetActiveActivity(ModActivities.GO_TO_DESTINATION);
+        ((BrainInterfaceMixin) brain).invokeSetActiveActivity(ModActivities.GO_TO_DESTINATION);
     }
 }

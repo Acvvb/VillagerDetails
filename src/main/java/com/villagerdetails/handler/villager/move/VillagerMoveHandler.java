@@ -4,7 +4,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.mojang.datafixers.util.Pair;
 import com.villagerdetails.cache.ModMemories;
-import com.villagerdetails.mixin.BrainAccessor;
+import com.villagerdetails.mixin.BrainInterfaceMixin;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.Brain;
@@ -51,6 +51,6 @@ public final class VillagerMoveHandler {
         brain.setMemory(ModMemories.DESTINATION, destination);
         brain.setMemory(MemoryModuleType.WALK_TARGET,
                 new WalkTarget(destination, 0.5F, 0));   // closeEnoughDist 保持 2
-        ((BrainAccessor) brain).invokeSetActiveActivity(ModActivities.GO_TO_DESTINATION);
+        ((BrainInterfaceMixin) brain).invokeSetActiveActivity(ModActivities.GO_TO_DESTINATION);
     }
 }

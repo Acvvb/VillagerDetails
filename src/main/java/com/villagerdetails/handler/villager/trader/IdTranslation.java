@@ -2,11 +2,16 @@ package com.villagerdetails.handler.villager.trader;
 
 import net.minecraft.resources.Identifier;
 
+import java.util.HashMap;
 import java.util.Map;
 
 public final class IdTranslation {
 
-    private IdTranslation() {}   // 工具类，禁止实例化
+    private IdTranslation() {}
+
+    // ==============================================================
+    // 附魔中文映射
+    // ==============================================================
 
     private static final Map<String, String> CN_TO_ENCHANT = Map.ofEntries(
             // 保护类
@@ -65,19 +70,62 @@ public final class IdTranslation {
             Map.entry("消失诅咒", "vanishing_curse")
     );
 
+    // ==============================================================
+    // 物品中文映射：只加 16 种陶瓦
+    // ==============================================================
+
+    private static final Map<String, String> CN_TO_ITEM = buildItemMap();
+
+    private static Map<String, String> buildItemMap() {
+        Map<String, String> m = new HashMap<>();
+        m.put("白色陶瓦", "white_terracotta");
+        m.put("橙色陶瓦", "orange_terracotta");
+        m.put("品红色陶瓦", "magenta_terracotta");
+        m.put("淡蓝色陶瓦", "light_blue_terracotta");
+        m.put("黄色陶瓦", "yellow_terracotta");
+        m.put("黄绿色陶瓦", "lime_terracotta");
+        m.put("粉红色陶瓦", "pink_terracotta");
+        m.put("灰色陶瓦", "gray_terracotta");
+        m.put("淡灰色陶瓦", "light_gray_terracotta");
+        m.put("青色陶瓦", "cyan_terracotta");
+        m.put("紫色陶瓦", "purple_terracotta");
+        m.put("蓝色陶瓦", "blue_terracotta");
+        m.put("棕色陶瓦", "brown_terracotta");
+        m.put("绿色陶瓦", "green_terracotta");
+        m.put("红色陶瓦", "red_terracotta");
+        m.put("黑色陶瓦", "black_terracotta");
+        return Map.copyOf(m);
+    }
+
+    // ==============================================================
+    // 解析入口
+    // ==============================================================
+
     /**
-     * 把玩家输入的中文名转成附魔 ID。
-     * 支持：中文全名（经验修补）、英文 ID（mending）、带命名空间（minecraft:mending）
+     * 把玩家输入的名字转成 Identifier。
+     * 顺序：附魔中文 → 物品中文 → 英文 ID。
      *
      * @return 解析成功的 Identifier，失败返回 null
      */
     public static Identifier resolveEnchantId(String raw) {
         if (raw == null) return null;
+
         String trimmed = raw.replace('\u3000', ' ').trim();
-        String mapped = CN_TO_ENCHANT.get(trimmed);
-        if (mapped != null) {
-            return Identifier.tryParse("minecraft:" + mapped);
+        if (trimmed.isEmpty()) return null;
+
+        // 1) 附魔中文名
+        String enchantMapped = CN_TO_ENCHANT.get(trimmed);
+        if (enchantMapped != null) {
+            return Identifier.tryParse("minecraft:" + enchantMapped);
         }
+
+        // 2) 物品中文名（目前只有 16 种陶瓦）
+        String itemMapped = CN_TO_ITEM.get(trimmed);
+        if (itemMapped != null) {
+            return Identifier.tryParse("minecraft:" + itemMapped);
+        }
+
+        // 3) 英文 ID 兜底
         String lower = trimmed.toLowerCase();
         Identifier id = Identifier.tryParse(lower);
         if (id == null) id = Identifier.tryParse("minecraft:" + lower);
