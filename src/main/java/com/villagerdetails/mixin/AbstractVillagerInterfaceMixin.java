@@ -7,7 +7,7 @@ import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(AbstractVillager.class)
-public interface AbstractVillagerMixin {
+public interface AbstractVillagerInterfaceMixin {
 
     @Mutable
     @Accessor("offers")

@@ -3,15 +3,16 @@
   "package": "com.villagerdetails.mixin",
   "compatibilityLevel": "JAVA_25",
   "mixins": [
-    "AbstractVillagerMixin",
+    "AbstractVillagerExchangeMixin",
+    "AbstractVillagerInterfaceMixin",
     "BrainInterfaceMixin",
     "BrainMixin",
     "EnchantRandomlyFunctionMixin",
     "MerchantOfferMixin",
     "NameTagItemMixin",
+    "VillagerInterfaceTradesMixin",
     "VillagerMixin",
-    "VillagerTradeMixin",
-    "VillagerInterfaceTradesMixin"
+    "VillagerTradeMixin"
   ],
   "injectors": {
     "defaultRequire": 1

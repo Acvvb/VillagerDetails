@@ -1,7 +1,7 @@
 package com.villagerdetails.handler.villager.trader;
 
 import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.mixin.AbstractVillagerMixin;
+import com.villagerdetails.mixin.AbstractVillagerInterfaceMixin;
 import com.villagerdetails.mixin.VillagerInterfaceTradesMixin;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
@@ -124,7 +124,7 @@ public class AutoVillagerTrader {
         if (isRerollable(villager)) return -1;
         if (!(villager.level() instanceof ServerLevel sl)) return -1;
 
-        AbstractVillagerMixin acc = (AbstractVillagerMixin) villager;
+        AbstractVillagerInterfaceMixin acc = (AbstractVillagerInterfaceMixin) villager;
         VillagerInterfaceTradesMixin tradesInvoker = (VillagerInterfaceTradesMixin) villager;
         VillagerData originalData = villager.getVillagerData();
 
@@ -288,7 +288,7 @@ public class AutoVillagerTrader {
 
     private static int tickLevel(Villager villager, Integer targetLevel, int maxAttempts, Predicate<MerchantOffers> matcher, boolean doLock) {
         if (!(villager.level() instanceof ServerLevel serverLevel)) return -1;
-        AbstractVillagerMixin acc = (AbstractVillagerMixin) villager;
+        AbstractVillagerInterfaceMixin acc = (AbstractVillagerInterfaceMixin) villager;
         VillagerInterfaceTradesMixin tradesInvoker = (VillagerInterfaceTradesMixin) villager;
         VillagerData originalData = villager.getVillagerData();
         for (int i = 0; i < maxAttempts; i++) {
