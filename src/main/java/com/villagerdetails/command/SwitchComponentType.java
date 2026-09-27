@@ -14,7 +14,7 @@ public enum SwitchComponentType {
     ;
 
     public final static String INFO = "点击切换规则状态\n当前状态: %s";
-    public final static String COMMAND_BASE = String.format("/%s ", VillagerDetails.MOD_ID);
+    public final static String COMMAND_BASE = String.format("/%s ", VillagerDetails.BAST_COMMAND);
 
     private final int id;
     private final String displayName;

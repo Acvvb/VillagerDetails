@@ -1,19 +1,34 @@
 package com.villagerdetails.handler.villager.trader;
 
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.level.storage.LevelResource;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-import java.util.HashMap;
+import java.io.Reader;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class IdTranslation {
 
     private IdTranslation() {}
 
-    // ==============================================================
-    // 附魔中文映射
-    // ==============================================================
+    private static final Logger LOGGER = LogManager.getLogger("VillagerDetails");
 
-    private static final Map<String, String> CN_TO_ENCHANT = Map.ofEntries(
+    /** 存档内相对路径 */
+    private static final String SAVE_RELATIVE_PATH = "villagerdetails/id_mappings.json";
+
+    private static final Map<String, String> DEFAULT_CN_TO_ENCHANT = Map.ofEntries(
             // 保护类
             Map.entry("保护", "protection"),
             Map.entry("火焰保护", "fire_protection"),
@@ -65,36 +80,138 @@ public final class IdTranslation {
             Map.entry("快速装填", "quick_charge"),
             Map.entry("穿透", "piercing"),
 
+            // 重锤专属
+            Map.entry("致密", "density"),
+            Map.entry("破甲", "breach"),
+            Map.entry("风爆", "wind_burst"),
+
+            // 长矛专属
+            Map.entry("突进", "lunge"),
+
             // 通用
             Map.entry("经验修补", "mending"),
             Map.entry("消失诅咒", "vanishing_curse")
     );
 
-    // ==============================================================
-    // 物品中文映射：只加 16 种陶瓦
-    // ==============================================================
+    private static final Map<String, String> DEFAULT_CN_TO_ITEM = Map.ofEntries(
+            Map.entry("白色陶瓦", "white_terracotta"),
+            Map.entry("橙色陶瓦", "orange_terracotta"),
+            Map.entry("品红色陶瓦", "magenta_terracotta"),
+            Map.entry("淡蓝色陶瓦", "light_blue_terracotta"),
+            Map.entry("黄色陶瓦", "yellow_terracotta"),
+            Map.entry("黄绿色陶瓦", "lime_terracotta"),
+            Map.entry("粉红色陶瓦", "pink_terracotta"),
+            Map.entry("灰色陶瓦", "gray_terracotta"),
+            Map.entry("淡灰色陶瓦", "light_gray_terracotta"),
+            Map.entry("青色陶瓦", "cyan_terracotta"),
+            Map.entry("紫色陶瓦", "purple_terracotta"),
+            Map.entry("蓝色陶瓦", "blue_terracotta"),
+            Map.entry("棕色陶瓦", "brown_terracotta"),
+            Map.entry("绿色陶瓦", "green_terracotta"),
+            Map.entry("红色陶瓦", "red_terracotta"),
+            Map.entry("黑色陶瓦", "black_terracotta")
+    );
 
-    private static final Map<String, String> CN_TO_ITEM = buildItemMap();
+    private static volatile Map<String, String> cnToEnchant = DEFAULT_CN_TO_ENCHANT;
+    private static volatile Map<String, String> cnToItem = DEFAULT_CN_TO_ITEM;
 
-    private static Map<String, String> buildItemMap() {
-        Map<String, String> m = new HashMap<>();
-        m.put("白色陶瓦", "white_terracotta");
-        m.put("橙色陶瓦", "orange_terracotta");
-        m.put("品红色陶瓦", "magenta_terracotta");
-        m.put("淡蓝色陶瓦", "light_blue_terracotta");
-        m.put("黄色陶瓦", "yellow_terracotta");
-        m.put("黄绿色陶瓦", "lime_terracotta");
-        m.put("粉红色陶瓦", "pink_terracotta");
-        m.put("灰色陶瓦", "gray_terracotta");
-        m.put("淡灰色陶瓦", "light_gray_terracotta");
-        m.put("青色陶瓦", "cyan_terracotta");
-        m.put("紫色陶瓦", "purple_terracotta");
-        m.put("蓝色陶瓦", "blue_terracotta");
-        m.put("棕色陶瓦", "brown_terracotta");
-        m.put("绿色陶瓦", "green_terracotta");
-        m.put("红色陶瓦", "red_terracotta");
-        m.put("黑色陶瓦", "black_terracotta");
-        return Map.copyOf(m);
+    /**
+     * 服务器启动时调用。从存档加载配置；文件不存在则写入默认映射。
+     */
+    public static void loadFromWorld(MinecraftServer server) {
+        Path file = getConfigPath(server);
+        loadFrom(file);
+    }
+
+    /**
+     * 从指定文件加载。
+     * 已存在的项 → 覆盖默认；
+     * 不存在的项 → 保留默认（合并语义）。
+     */
+    public static void loadFrom(Path file) {
+        if (Files.exists(file)) {
+            Map<String, String> enchant = new LinkedHashMap<>();
+            Map<String, String> item = new LinkedHashMap<>();
+            boolean loaded = false;
+
+            try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+                JsonElement rootElement = JsonParser.parseReader(reader);
+                if (rootElement != null && rootElement.isJsonObject()) {
+                    JsonObject root = rootElement.getAsJsonObject();
+                    mergeInto(root.getAsJsonObject("enchant"), enchant);
+                    mergeInto(root.getAsJsonObject("item"), item);
+                    loaded = true;
+                    LOGGER.info("[VillagerDetails] 已加载映射配置：{} 条附魔 + {} 条物品",
+                            enchant.size(), item.size());
+                }
+            } catch (Exception e) {
+                LOGGER.error("[VillagerDetails] 加载映射配置失败，回落默认表", e);
+            }
+
+            if (loaded) {
+                cnToEnchant = Collections.unmodifiableMap(enchant);
+                cnToItem = Collections.unmodifiableMap(item);
+                return;
+            }
+        } else {
+            // 首次：写默认到存档
+            writeDefaults(file);
+            LOGGER.info("[VillagerDetails] 已生成默认映射配置：{}", file);
+        }
+
+        // json 不存在 / 解析失败 → 用默认表兜底
+        cnToEnchant = DEFAULT_CN_TO_ENCHANT;
+        cnToItem = DEFAULT_CN_TO_ITEM;
+    }
+
+    /** 重置为默认（可通过命令调用） */
+    public static void resetToDefault() {
+        cnToEnchant = DEFAULT_CN_TO_ENCHANT;
+        cnToItem = DEFAULT_CN_TO_ITEM;
+    }
+
+    private static Path getConfigPath(MinecraftServer server) {
+        return server.getWorldPath(LevelResource.ROOT).resolve(SAVE_RELATIVE_PATH);
+    }
+
+    /** 把 JSON 里的键值对合并到目标 map（覆盖默认值） */
+    private static void mergeInto(JsonObject obj, Map<String, String> target) {
+        if (obj == null) return;
+        for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
+            JsonElement v = entry.getValue();
+            if (v != null && v.isJsonPrimitive() && v.getAsJsonPrimitive().isString()) {
+                String key = entry.getKey();
+                if (!key.isBlank()) {
+                    target.put(key, v.getAsString());
+                }
+            }
+        }
+    }
+
+    /** 把默认映射写入文件 */
+    private static void writeDefaults(Path file) {
+        try {
+            if (file.getParent() != null) {
+                Files.createDirectories(file.getParent());
+            }
+
+            JsonObject root = new JsonObject();
+
+            JsonObject enchantObj = new JsonObject();
+            IdTranslation.DEFAULT_CN_TO_ENCHANT.forEach(enchantObj::addProperty);
+            root.add("enchant", enchantObj);
+
+            JsonObject itemObj = new JsonObject();
+            IdTranslation.DEFAULT_CN_TO_ITEM.forEach(itemObj::addProperty);
+            root.add("item", itemObj);
+
+            try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
+                new GsonBuilder().setPrettyPrinting().disableHtmlEscaping()
+                        .create().toJson(root, writer);
+            }
+        } catch (Exception e) {
+            LOGGER.error("[VillagerDetails] 写入默认映射配置失败", e);
+        }
     }
 
     // ==============================================================
@@ -104,8 +221,6 @@ public final class IdTranslation {
     /**
      * 把玩家输入的名字转成 Identifier。
      * 顺序：附魔中文 → 物品中文 → 英文 ID。
-     *
-     * @return 解析成功的 Identifier，失败返回 null
      */
     public static Identifier resolveEnchantId(String raw) {
         if (raw == null) return null;
@@ -113,14 +228,14 @@ public final class IdTranslation {
         String trimmed = raw.replace('\u3000', ' ').trim();
         if (trimmed.isEmpty()) return null;
 
-        // 1) 附魔中文名
-        String enchantMapped = CN_TO_ENCHANT.get(trimmed);
+        // 1) 附魔中文名（从当前运行时映射）
+        String enchantMapped = cnToEnchant.get(trimmed);
         if (enchantMapped != null) {
             return Identifier.tryParse("minecraft:" + enchantMapped);
         }
 
-        // 2) 物品中文名（目前只有 16 种陶瓦）
-        String itemMapped = CN_TO_ITEM.get(trimmed);
+        // 2) 物品中文名
+        String itemMapped = cnToItem.get(trimmed);
         if (itemMapped != null) {
             return Identifier.tryParse("minecraft:" + itemMapped);
         }

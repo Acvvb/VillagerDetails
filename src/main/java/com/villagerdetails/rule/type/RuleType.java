@@ -16,6 +16,8 @@ public enum RuleType {
     VILLAGER_WORK_BLOCK_RESET( "VillagerWorkBlockBinding", "村民工作方块编辑器", "使用命名为work的拴绳蹲下右键选择村民和床修改村民所绑定的工作方块", List.of(VILLAGER), ENTITY_BLOCK_SELECTION, null, false),
     VILLAGER_BATCH_BED_RESET( "VillagerBatchBedBinding", "批量村民床编辑器", "命名为tool的拴绳左右键选区，执行/entityCommand bindAreaBeds将范围内村民的床绑定为与其直线距离最近的床", List.of(VILLAGER), BLOCK_RANGE_SELECTION, new BBSelectionServerImpl(), false),
     VILLAGER_AUTO_TRADER("VillagerAutoTrader","自动刷新交易","用命名牌写上目标附魔，右键图书管理员即可自动刷新出该满级附魔交易",List.of(VILLAGER),NONE,null,false),
+    VILLAGER_GOD_TOOLS("VillagerGodTools", "神装工具刷新", "使用331/331a/331b命名牌刷出三附魔钻石工具", List.of(VILLAGER), null, null, false),
+    VILLAGER_TERRACOTTA_TRADER("VillagerTerracottaTrader", "陶瓦刷新", "使用陶瓦名称命名牌同时刷出对应陶瓦和带釉陶瓦", List.of(VILLAGER), NONE, null, false),
     VILLAGER_AUTO_LOCK_HIT_TRADER("VillagerAutoLockHitTrader","自动锁定村民交易","使用自动刷新交易规则刷新出的附魔书自动锁定该村民交易",List.of(VILLAGER) ,NONE,null,false),
     VILLAGER_SILENT_AUTO_REROLL_TRADER("VillagerSilentTrader","无感村民交易刷新","使用自动刷新交易规则后自动移除命名名称",List.of(VILLAGER),NONE,null,false),
     VILLAGER_HARD_WORKING("VillagerHardWorking","勤劳的村民","调整村民每次补货的数量(默认两倍补货)",List.of(VILLAGER),NONE,null,false),

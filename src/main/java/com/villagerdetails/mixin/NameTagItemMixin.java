@@ -43,16 +43,20 @@ public class NameTagItemMixin {
         Component customName = itemStack.get(DataComponents.CUSTOM_NAME);
         if (customName == null) return;
 
-        // 5) 直接调顶层入口
-        int attempts = AutoVillagerTrader.tickByName(villager, customName.getString(), 500);
+        String name = customName.getString();
 
+        // ★ 只处理支持的三类名字，其余直接放行（不弹消息）
+        if (!AutoVillagerTrader.isSupportedName(villager, name)) return;
+
+        // 5) 支持的名字 → 调顶层入口
+        int attempts = AutoVillagerTrader.tickByName(villager, name, 500);
         villager.setCustomName(null);
 
         // 6) 反馈
         ServerPlayer sp = (ServerPlayer) player;
         if (attempts > 0) {
             sendOverlayOrBroadcast(sp, Component.literal(
-                    "§a命中！第 §e" + attempts + " §a次刷新就出了 " + customName.getString()));
+                    "§a命中！第 §e" + attempts + " §a次刷新就出了 " + name));
         } else if (attempts == 0) {
             sendOverlayOrBroadcast(sp, Component.literal(
                     "§e刷了 §c500 §e次都没命中，再命名一次试试"));
@@ -61,7 +65,10 @@ public class NameTagItemMixin {
                     "§c该村民无法刷新（已锁定 / 小孩 / 无职业 / 无工作站）"));
         } else if (attempts == -2) {
             sendOverlayOrBroadcast(sp, Component.literal(
-                    "§c无法识别 " + customName.getString() + "，或该村民刷不出这个物品"));
+                    "§c该村民刷不出 " + name));
+        } else if (attempts == -3) {
+            sendOverlayOrBroadcast(sp, Component.literal(
+                    "§c对应规则未开启，请先启用"));
         }
     }
 }
