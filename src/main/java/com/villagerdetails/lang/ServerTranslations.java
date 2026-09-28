@@ -33,7 +33,7 @@ public final class ServerTranslations {
 
     private ServerTranslations() {}
 
-    private static final Logger LOGGER = LogManager.getLogger("ServerTranslations");
+    private static final Logger log = LogManager.getLogger(ServerTranslations.class);
 
     // ==============================================================
     // 加载的模组列表——想支持哪个模组就往这里加
@@ -74,7 +74,7 @@ public final class ServerTranslations {
             loadJsonInto(mod, lang, map);
         }
         ALL_LANGUAGES.put(lang, Collections.unmodifiableMap(map));
-        LOGGER.info("[ServerTranslations] 预加载 {}：{} 条", lang, map.size());
+        log.debug("[ServerTranslations] 预加载 {}：{} 条", lang, map.size());
     }
 
     /** 切换语言（如果没预加载会自动加载） */
@@ -85,12 +85,12 @@ public final class ServerTranslations {
             map = ALL_LANGUAGES.get(lang);
         }
         if (map == null) {
-            LOGGER.warn("[ServerTranslations] 无法加载语言：{}，保持 {}", lang, currentLang);
+            log.warn("[ServerTranslations] 无法加载语言：{}，保持 {}", lang, currentLang);
             return;
         }
         current = map;
         currentLang = lang;
-        LOGGER.info("[ServerTranslations] 已切换为 {}", lang);
+        log.debug("[ServerTranslations] 已切换为 {}", lang);
     }
 
     /**
@@ -163,10 +163,10 @@ public final class ServerTranslations {
                         loaded++;
                     }
                 }
-                LOGGER.debug("[ServerTranslations] {}@{} 加载 {} 条", mod, lang, loaded);
+                log.debug("[ServerTranslations] {}@{} 加载 {} 条", mod, lang, loaded);
             }
         } catch (Exception e) {
-            LOGGER.error("[ServerTranslations] 加载失败：{}", path, e);
+            log.error("[ServerTranslations] 加载失败：{}", path, e);
         }
     }
 }

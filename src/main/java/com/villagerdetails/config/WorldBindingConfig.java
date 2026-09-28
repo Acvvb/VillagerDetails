@@ -87,10 +87,9 @@ public class WorldBindingConfig {
                     bindingStates.put(entry.getKey(), entry.getValue().getAsString());
                 }
             }
-            log.info("[VillagerDetails] 已从 {} 加载绑定配置（{} 项）",
-                    filePath, bindingStates.size());
+            log.info("已从 {} 加载绑定配置（{} 项）", filePath, bindingStates.size());
         } catch (IOException | JsonParseException e) {
-            log.error("[VillagerDetails] 读取绑定配置失败：{}", filePath, e);
+            log.error("读取绑定配置失败：{}", filePath, e);
         }
     }
 

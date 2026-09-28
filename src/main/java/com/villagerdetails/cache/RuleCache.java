@@ -52,23 +52,6 @@ public class RuleCache {
         return rules.getOrDefault(type, type.getState());
     }
 
-    public static Integer getStateToInteger(RuleType type) {
-        String str = rules.getOrDefault(type, type.getState());
-        if (str != null) {
-            String trimmed = str.trim();
-            if (!trimmed.isEmpty()) {
-                try {
-                    return Integer.parseInt(trimmed);
-                } catch (NumberFormatException e) {
-                    setState(type, type.getState());
-                    return Integer.parseInt(type.getState());
-                }
-            }
-        }
-        setState(type, type.getState());
-        return Integer.parseInt(type.getState());
-    }
-
     public static boolean isEnabled(RuleType type) {
         return !SwitchComponentType.FALSE_STR.equalsIgnoreCase(getState(type));
     }
@@ -89,10 +72,6 @@ public class RuleCache {
         String node = "c." + ruleType.getRegisterName().toLowerCase(Locale.ROOT);
         return src.checkPermission(VillagerDetails.id(node), level);
     }
-
-    // ==============================================================
-    // 修改（值变化 → 持久化 + 双回调）
-    // ==============================================================
 
     public static void setState(RuleType type, String state) {
         if (type == null || state == null) return;
@@ -137,10 +116,6 @@ public class RuleCache {
         }
     }
 
-    // ==============================================================
-    // 持久化
-    // ==============================================================
-
     private static void persist(RuleType type, String state) {
         MinecraftServer s = server;
         if (s == null) return;
@@ -154,10 +129,6 @@ public class RuleCache {
             System.err.println("[RuleCache] 持久化失败 " + type.getRegisterName() + ": " + e);
         }
     }
-
-    // ==============================================================
-    // 回调
-    // ==============================================================
 
     private static void fireCallbacks(RuleType type, String oldValue, String newValue) {
         RuleCallbacks.fire(type, oldValue, newValue);
@@ -174,10 +145,6 @@ public class RuleCache {
             }
         }
     }
-
-    // ==============================================================
-    // 原有逻辑
-    // ==============================================================
 
     public static boolean isEnableOfListener(ServerPlayer serverPlayer, ListenerType targetRuleType) {
         for (RuleType type : RuleType.values()) {

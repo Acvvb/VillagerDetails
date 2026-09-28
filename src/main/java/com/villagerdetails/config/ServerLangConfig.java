@@ -18,7 +18,7 @@ public final class ServerLangConfig {
 
     private ServerLangConfig() {}
 
-    private static final Logger LOGGER = LogManager.getLogger("ServerLangConfig");
+    private static final Logger LOGGER = LogManager.getLogger(ServerLangConfig.class);
 
     private static final String SAVE_PATH = "villagerdetails/server_lang.json";
 
@@ -43,7 +43,7 @@ public final class ServerLangConfig {
     public static void loadFrom(Path file) {
         if (!Files.exists(file)) {
             writeDefault(file);
-            LOGGER.info("[ServerLangConfig] 已生成默认配置：{}", file);
+            LOGGER.info("已生成默认配置：{}", file);
             return;
         }
 
@@ -62,9 +62,9 @@ public final class ServerLangConfig {
                 defaultLang = root.get("default").getAsString();
             }
 
-            LOGGER.info("[ServerLangConfig] preload={}, default={}", preloadLanguage, defaultLang);
+            LOGGER.info("preload={}, default={}", preloadLanguage, defaultLang);
         } catch (Exception e) {
-            LOGGER.error("[ServerLangConfig] 加载失败，使用默认值", e);
+            LOGGER.error("加载失败，使用默认值", e);
         }
     }
 
@@ -89,7 +89,7 @@ public final class ServerLangConfig {
                         .create().toJson(root, w);
             }
         } catch (Exception e) {
-            LOGGER.error("[ServerLangConfig] 写入默认失败", e);
+            LOGGER.error("写入默认失败", e);
         }
     }
 }

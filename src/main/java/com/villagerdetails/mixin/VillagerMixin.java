@@ -9,6 +9,7 @@ import com.villagerdetails.handler.villager.move.ModActivities;
 import com.villagerdetails.handler.villager.move.MoveToDestination;
 import com.villagerdetails.network.VillagerBedPayload;
 import com.villagerdetails.network.VillagerPacket;
+import com.villagerdetails.util.ParseUtils;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
@@ -87,10 +88,6 @@ public class VillagerMixin {
         }
     }
 
-    /** 补货倍数 */
-    @Unique
-    private static volatile float restockMultiplier = 2.0F;
-
     @Redirect(
             method = "restock",
             at = @At(
@@ -99,15 +96,17 @@ public class VillagerMixin {
             )
     )
     private void customResetUses(MerchantOffer offer) {
-        if (!RuleCache.isEnabled(VILLAGER_HARD_WORKING)) {
+        String state = RuleCache.getState(VILLAGER_HARD_WORKING);
+        String defaultValue = VILLAGER_HARD_WORKING.getState();
+        float multiple = ParseUtils.toFloat(state,ParseUtils.toFloat(defaultValue)) - 1.0F;
+        if (multiple <= 0) {
             offer.resetUses();
             return;
         }
         int maxUses = offer.getMaxUses();
-        int newUses = -(int) ((restockMultiplier - 1.0F) * maxUses);
-        ((MerchantOfferMixin) offer).setUses(newUses);
+        int newUses = -(int) (multiple * maxUses);
+        ((MerchantOfferInterfaceMixin) offer).setUses(newUses);
     }
-
 
     @Inject(method = "registerBrainGoals", at = @At("RETURN"))
     private void villagerdetails$addDestinationActivity(Brain<Villager> brain, CallbackInfo ci) {

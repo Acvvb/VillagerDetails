@@ -21,7 +21,7 @@ public abstract class MerchantMenuProvisionMixin {
 
     @Inject(method = "tryMoveItems", at = @At("HEAD"))
     private void villagerdetails$provision(int newTradeIndex, CallbackInfo ci) {
-        MerchantMenuAccessor acc = (MerchantMenuAccessor) this;
+        MerchantMenuInterfaceMixin acc = (MerchantMenuInterfaceMixin) this;
         Merchant trader = acc.getTrader();
         MerchantContainer container = acc.getTradeContainer();
         if (trader == null || container == null) return;

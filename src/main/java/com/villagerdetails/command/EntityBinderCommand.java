@@ -94,7 +94,7 @@ public class EntityBinderCommand {
                         .requires(EntityBinderCommand::hasBasePermission)
                         .suggests(RULE_SUGGESTER)
                         .executes(ctx -> toggleRule(ctx, null))
-                        .then(Commands.argument("state", StringArgumentType.word())
+                        .then(Commands.argument("state", StringArgumentType.greedyString())
                                 .suggests(STATE_SUGGESTER)
                                 .executes(ctx -> toggleRule(ctx, StringArgumentType.getString(ctx, "state")))
                         )
@@ -231,10 +231,11 @@ public class EntityBinderCommand {
             return 0;
         }
 
+        // 无 state → 显示当前
         if (state == null) {
             String currentState = RuleCache.getState(rule);
-            MutableComponent mutableComponent = Component.empty();
-            mutableComponent.append(divider())
+            MutableComponent mc = Component.empty();
+            mc.append(divider())
                     .append(getRuleName(rule))
                     .append("\n分类： ")
                     .append(categoryDisplay(rule.getCategory()))
@@ -242,18 +243,15 @@ public class EntityBinderCommand {
                     .append(rule.getDisplayInfo())
                     .append("\n值： ")
                     .append(quickSwitchComponents(rule, currentState));
-            sendOrLog(player, mutableComponent);
+            sendOrLog(player, mc);
             return 1;
         }
 
-        String canonical = rule.getQuickSwitches().stream()
-                .filter(s -> s.equalsIgnoreCase(state))
-                .findFirst()
-                .orElse(null);
-        if (canonical == null) {
-            sendOrBroadcast(player, Component.literal("§c无效的状态值: " + state));
-            return 0;
-        }
+        // ★ 校验 state
+        String canonical = rule.isMultiSelect()
+                ? canonicalMultiSelect(rule, state, player)
+                : canonicalSingleSelect(rule, state, player);
+        if (canonical == null) return 0;   // 校验失败
 
         RuleCache.setState(rule, canonical);
 
@@ -261,10 +259,42 @@ public class EntityBinderCommand {
         config.setBindingState(rule.getRegisterName(), canonical);
 
         sendOrBroadcast(player, Component.literal(
-                String.format("§a %s (%s) 已切换为 %s",
-                        rule.getDisplayName(), rule.getRegisterName(), SwitchComponentType.displayNameOf(canonical))
+                "§a" + rule.getDisplayName() + " (" + rule.getRegisterName() + ") 已设为 §e"
+                        + (canonical.isEmpty() ? "（空）" : canonical)
         ));
         return 1;
+    }
+
+    /** 单选：整段必须匹配某个 quickSwitch */
+    private static String canonicalSingleSelect(RuleType rule, String state, ServerPlayer player) {
+        String canonical = rule.getQuickSwitches().stream()
+                .filter(s -> s.equalsIgnoreCase(state))
+                .findFirst()
+                .orElse(null);
+        if (canonical == null) {
+            sendOrBroadcast(player, Component.literal("§c无效的状态值: " + state));
+            return null;
+        }
+        return canonical;
+    }
+
+    /** 多选：逗号拆分，每项必须匹配 quickSwitch；合并去重 */
+    private static String canonicalMultiSelect(RuleType rule, String state, ServerPlayer player) {
+        java.util.Set<String> selected = new java.util.LinkedHashSet<>();
+        for (String part : state.split(",")) {
+            String trimmed = part.trim();
+            if (trimmed.isEmpty()) continue;
+            String match = rule.getQuickSwitches().stream()
+                    .filter(s -> s.equalsIgnoreCase(trimmed))
+                    .findFirst()
+                    .orElse(null);
+            if (match == null) {
+                sendOrBroadcast(player, Component.literal("§c无效的选项: " + trimmed));
+                return null;
+            }
+            selected.add(match);
+        }
+        return String.join(",", selected);
     }
 
     private static MutableComponent getRuleName(RuleType ruleType) {
@@ -299,18 +329,35 @@ public class EntityBinderCommand {
         return result;
     }
 
-    private static MutableComponent switchComponent(RuleType rule, String state, String currentState) {
-        boolean isMatch = state.equalsIgnoreCase(currentState);
-        boolean isOn = !SwitchComponentType.FALSE_STR.equalsIgnoreCase(state);
-        int color;
-        if (isMatch) {
-            color = isOn ? 0x2ecc71 : 0xe74c3c;
+    private static MutableComponent switchComponent(RuleType rule, String option, String currentState) {
+        boolean selected;
+        String nextState;
+
+        if (rule.isMultiSelect()) {
+            // 多选：点击切换该选项
+            selected = isSelectedIn(currentState, option);
+            nextState = selected
+                    ? removeFrom(currentState, option)     // 已在 → 删
+                    : appendTo(currentState, option);      // 不在 → 加
         } else {
-            color = 0xAAAAAA;
+            // 单选：点击就是选它
+            selected = option.equalsIgnoreCase(currentState);
+            nextState = option;
         }
-        String displayName = SwitchComponentType.displayNameOf(state);
-        String command = String.join(" ", COMMAND_BASE, rule.getRegisterName(), state);
-        String hoverText = String.format(SwitchComponentType.INFO, SwitchComponentType.displayNameOf(currentState));
+
+        // 颜色
+        int color;
+        if (rule.isMultiSelect()) {
+            color = selected ? 0x2ecc71 : 0xAAAAAA;   // 选中绿 / 未选灰
+        } else {
+            boolean isOn = !SwitchComponentType.FALSE_STR.equalsIgnoreCase(option);
+            color = selected ? (isOn ? 0x2ecc71 : 0xe74c3c) : 0xAAAAAA;
+        }
+
+        String displayName = SwitchComponentType.displayNameOf(option);
+        String command = String.join(" ", COMMAND_BASE, rule.getRegisterName(), nextState);
+        String hoverText = String.format(SwitchComponentType.INFO,
+                SwitchComponentType.displayNameOf(currentState));
         return buildClickableButton("[" + displayName + "]", color, command, hoverText);
     }
 
@@ -340,5 +387,31 @@ public class EntityBinderCommand {
         } else {
             log.info(mutableComponent.toString());
         }
+    }
+
+    private static boolean isSelectedIn(String state, String option) {
+        if (state == null || state.isEmpty()) return false;
+        for (String part : state.split(",")) {
+            if (part.trim().equalsIgnoreCase(option)) return true;
+        }
+        return false;
+    }
+
+    private static String appendTo(String state, String option) {
+        if (isSelectedIn(state, option)) return state;
+        if (state == null || state.isEmpty()) return option;
+        return state + "," + option;
+    }
+
+    private static String removeFrom(String state, String option) {
+        if (state == null || state.isEmpty()) return "";
+        List<String> parts = new java.util.ArrayList<>();
+        for (String part : state.split(",")) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty() && !trimmed.equalsIgnoreCase(option)) {
+                parts.add(trimmed);
+            }
+        }
+        return String.join(",", parts);
     }
 }

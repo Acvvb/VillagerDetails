@@ -1,6 +1,7 @@
 package com.villagerdetails.mixin;
 
 import com.villagerdetails.handler.villager.trader.refresh.AutoVillagerTrader;
+import com.villagerdetails.util.ParseUtils;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -16,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import static com.villagerdetails.cache.RuleCache.getStateToInteger;
+import static com.villagerdetails.cache.RuleCache.getState;
 import static com.villagerdetails.rule.type.RuleType.VILLAGER_ONE_TICK_TRADER_COUNT;
 import static com.villagerdetails.util.SendMessengerUtils.sendOverlayOrBroadcast;
 
@@ -49,8 +50,8 @@ public class NameTagItemMixin {
 
         // ★ 只处理支持的三类名字，其余直接放行（不弹消息）
         if (!AutoVillagerTrader.isSupportedName(villager, name)) return;
-
-        int count = getStateToInteger(VILLAGER_ONE_TICK_TRADER_COUNT);
+        String defaultValue = getState(VILLAGER_ONE_TICK_TRADER_COUNT);
+        int count = ParseUtils.toInt(defaultValue,ParseUtils.toInt(defaultValue));
         int attempts = AutoVillagerTrader.tickByName(villager, name, count);
         villager.setCustomName(null);
 

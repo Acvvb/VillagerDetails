@@ -3,7 +3,8 @@ package com.villagerdetails.rule.type;
 public enum RuleCategoryType {
 
     MOD_SETTING("Setting", "设置"),
-    VILLAGER("villager" ,"村民");
+    VILLAGER("villager" ,"村民"),
+    ENTITY("entity","实体");
 
     private final int id;
 

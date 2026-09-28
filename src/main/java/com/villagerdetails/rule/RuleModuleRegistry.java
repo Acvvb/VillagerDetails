@@ -17,7 +17,7 @@ public final class RuleModuleRegistry {
 
     private RuleModuleRegistry() {}
 
-    private static final Logger log = LogManager.getLogger("RuleModuleRegistry");
+    private static final Logger log = LogManager.getLogger(RuleModuleRegistry.class);
 
     /** ★ 所有模块在这里登记 */
     private static final List<RuleModule> MODULES = List.of(
@@ -27,16 +27,16 @@ public final class RuleModuleRegistry {
 
     /** 主类调一次 */
     public static void initAll() {
-        log.info("[RuleModuleRegistry] initAll 开始，{} 个模块", MODULES.size());
+        log.info("initAll 开始，{} 个模块", MODULES.size());
 
         for (RuleModule module : MODULES) {
-            log.info("[RuleModuleRegistry] 注册模块：{}", module.name());
+            log.info("注册模块：{}", module.name());
             module.registerCallbacks();
         }
 
         RuleCache.addListener((type, oldValue, newValue) ->
-                log.info("[RuleCache] {} {} → {}", type.getRegisterName(), oldValue, newValue));
+                log.debug(" {} {} → {}", type.getRegisterName(), oldValue, newValue));
 
-        log.info("[RuleModuleRegistry] initAll 完成");
+        log.info("initAll 完成");
     }
 }

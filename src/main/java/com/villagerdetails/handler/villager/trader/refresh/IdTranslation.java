@@ -23,7 +23,7 @@ public final class IdTranslation {
 
     private IdTranslation() {}
 
-    private static final Logger LOGGER = LogManager.getLogger("VillagerDetails");
+    private static final Logger log = LogManager.getLogger(IdTranslation.class);
 
     /** 存档内相对路径 */
     private static final String SAVE_RELATIVE_PATH = "villagerdetails/id_mappings.json";
@@ -141,11 +141,11 @@ public final class IdTranslation {
                     mergeInto(root.getAsJsonObject("enchant"), enchant);
                     mergeInto(root.getAsJsonObject("item"), item);
                     loaded = true;
-                    LOGGER.info("[VillagerDetails] 已加载映射配置：{} 条附魔 + {} 条物品",
+                    log.info("已加载映射配置：{} 条附魔 + {} 条物品",
                             enchant.size(), item.size());
                 }
             } catch (Exception e) {
-                LOGGER.error("[VillagerDetails] 加载映射配置失败，回落默认表", e);
+                log.error("加载映射配置失败，回落默认表", e);
             }
 
             if (loaded) {
@@ -156,7 +156,7 @@ public final class IdTranslation {
         } else {
             // 首次：写默认到存档
             writeDefaults(file);
-            LOGGER.info("[VillagerDetails] 已生成默认映射配置：{}", file);
+            log.info("已生成默认映射配置：{}", file);
         }
 
         // json 不存在 / 解析失败 → 用默认表兜底
@@ -210,7 +210,7 @@ public final class IdTranslation {
                         .create().toJson(root, writer);
             }
         } catch (Exception e) {
-            LOGGER.error("[VillagerDetails] 写入默认映射配置失败", e);
+            log.error("写入默认映射配置失败", e);
         }
     }
 
