@@ -1,6 +1,6 @@
 package com.villagerdetails.mixin;
 
-import com.villagerdetails.handler.villager.trader.AutoVillagerTrader;
+import com.villagerdetails.handler.villager.trader.refresh.AutoVillagerTrader;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;

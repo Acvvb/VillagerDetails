@@ -10,7 +10,7 @@ import com.villagerdetails.VillagerDetails;
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.command.register.server.RegisterServer;
 import com.villagerdetails.config.WorldBindingConfig;
-import com.villagerdetails.handler.villager.trader.IdTranslation;
+import com.villagerdetails.handler.villager.trader.refresh.IdTranslation;
 import com.villagerdetails.rule.type.RuleCategoryType;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.commands.CommandSourceStack;

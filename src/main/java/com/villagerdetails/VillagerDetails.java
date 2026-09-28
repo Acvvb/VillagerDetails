@@ -7,7 +7,7 @@ import com.villagerdetails.event.BBSelectionListener;
 import com.villagerdetails.event.EBSectionManager;
 import com.villagerdetails.event.ServerLifecycleListener;
 import com.villagerdetails.event.ServerStoppingListener;
-import com.villagerdetails.handler.villager.trader.IdTranslation;
+import com.villagerdetails.handler.villager.trader.refresh.IdTranslation;
 import com.villagerdetails.lang.ServerTranslations;
 import com.villagerdetails.network.VillagerBedPayload;
 import com.villagerdetails.network.VillagerTrackingHandler;

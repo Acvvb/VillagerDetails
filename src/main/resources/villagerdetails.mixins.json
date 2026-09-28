@@ -8,6 +8,8 @@
     "BrainInterfaceMixin",
     "BrainMixin",
     "EnchantRandomlyFunctionMixin",
+    "MerchantMenuAccessor",
+    "MerchantMenuProvisionMixin",
     "MerchantOfferMixin",
     "NameTagItemMixin",
     "VillagerInterfaceTradesMixin",

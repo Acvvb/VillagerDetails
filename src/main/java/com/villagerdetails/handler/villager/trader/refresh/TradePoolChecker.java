@@ -1,4 +1,4 @@
-package com.villagerdetails.handler.villager.trader;
+package com.villagerdetails.handler.villager.trader.refresh;
 
 import com.villagerdetails.mixin.EnchantRandomlyFunctionMixin;
 import com.villagerdetails.mixin.VillagerTradeMixin;
