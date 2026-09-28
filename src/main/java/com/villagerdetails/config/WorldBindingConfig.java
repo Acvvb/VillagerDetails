@@ -121,7 +121,7 @@ public class WorldBindingConfig {
 
     public void setBindingState(String key, String state) {
         RuleType type = RuleType.getRuleTypeByRegisterName(key);
-        if (type != null && type.getState().getCommandStr().equals(state)) {
+        if (type != null && type.getState().equals(state)) {
             bindingStates.remove(key);
         } else {
             bindingStates.put(key, state);
@@ -135,7 +135,7 @@ public class WorldBindingConfig {
         if (bindingStates.containsKey(key)) {
             return bindingStates.get(key);
         }
-        return type != null ? type.getState().getCommandStr() : SwitchComponentType.FALSE.getCommandStr();
+        return type != null ? type.getState() : SwitchComponentType.FALSE_STR;
     }
 
     public void resetAll() {
@@ -145,10 +145,10 @@ public class WorldBindingConfig {
     }
 
     public void syncToSwitch() {
-        Map<RuleType, SwitchComponentType> syncMap = new HashMap<>();
+        Map<RuleType, String> syncMap = new HashMap<>();
         for (RuleType type : RuleType.values()) {
-            SwitchComponentType state = SwitchComponentType.getByCommandStr(getBindingState(type.getRegisterName()));
-            if (state != null) {
+            String state = getBindingState(type.getRegisterName());
+            if (state != null && type.getQuickSwitches().contains(state)) {
                 syncMap.put(type, state);
             }
         }

@@ -58,7 +58,7 @@ public class EntityBinderCommand {
             return builder.buildFuture();
         }
         return SharedSuggestionProvider.suggest(
-                rule.getQuickSwitches().stream().map(SwitchComponentType::getCommandStr).collect(Collectors.toList()),
+                rule.getQuickSwitches(),
                 builder);
     };
 
@@ -109,7 +109,7 @@ public class EntityBinderCommand {
      * @return 拥有返回 true，否则 false
      */
     private static boolean hasBasePermission(CommandSourceStack src) {
-        PermissionLevel permissionLevel = RuleCache.getState(SETTING_EC_COMMAND_PERMISSION).getPermissionLevel();
+        PermissionLevel permissionLevel = SwitchComponentType.permissionLevelOf(RuleCache.getState(SETTING_EC_COMMAND_PERMISSION));
         return src.checkPermission(PERM_BASE, permissionLevel != null ? permissionLevel : PermissionLevel.OWNERS);
     }
 
@@ -201,7 +201,7 @@ public class EntityBinderCommand {
 
     public static void sendRuleList(ServerPlayer player, List<RuleType> ruleTypeList) {
         for (RuleType rule : ruleTypeList) {
-            SwitchComponentType currentState = RuleCache.getState(rule);
+            String currentState = RuleCache.getState(rule);
             player.sendSystemMessage(Component.empty()
                     .append(getRuleName(rule))
                     .append(quickSwitchComponents(rule, currentState))
@@ -232,7 +232,7 @@ public class EntityBinderCommand {
         }
 
         if (state == null) {
-            SwitchComponentType currentState = RuleCache.getState(rule);
+            String currentState = RuleCache.getState(rule);
             MutableComponent mutableComponent = Component.empty();
             mutableComponent.append(divider())
                     .append(getRuleName(rule))
@@ -246,20 +246,23 @@ public class EntityBinderCommand {
             return 1;
         }
 
-        SwitchComponentType switchValue = SwitchComponentType.getByCommandStr(state);
-        if (switchValue == null || !rule.getQuickSwitches().contains(switchValue)) {
+        String canonical = rule.getQuickSwitches().stream()
+                .filter(s -> s.equalsIgnoreCase(state))
+                .findFirst()
+                .orElse(null);
+        if (canonical == null) {
             sendOrBroadcast(player, Component.literal("§c无效的状态值: " + state));
             return 0;
         }
 
-        RuleCache.setState(rule, switchValue);
+        RuleCache.setState(rule, canonical);
 
         WorldBindingConfig config = WorldBindingConfig.getOrCreate(context.getSource().getServer());
-        config.setBindingState(rule.getRegisterName(), state);
+        config.setBindingState(rule.getRegisterName(), canonical);
 
         sendOrBroadcast(player, Component.literal(
                 String.format("§a %s (%s) 已切换为 %s",
-                        rule.getDisplayName(), rule.getRegisterName(), SwitchComponentType.displayNameOf(state))
+                        rule.getDisplayName(), rule.getRegisterName(), SwitchComponentType.displayNameOf(canonical))
         ));
         return 1;
     }
@@ -284,9 +287,9 @@ public class EntityBinderCommand {
         return component;
     }
 
-    private static MutableComponent quickSwitchComponents(RuleType rule, SwitchComponentType currentState) {
+    private static MutableComponent quickSwitchComponents(RuleType rule, String currentState) {
         MutableComponent result = Component.empty();
-        List<SwitchComponentType> switches = rule.getQuickSwitches();
+        List<String> switches = rule.getQuickSwitches();
         for (int i = 0; i < switches.size(); i++) {
             if (i > 0) {
                 result.append(" ");
@@ -296,18 +299,18 @@ public class EntityBinderCommand {
         return result;
     }
 
-    private static MutableComponent switchComponent(RuleType rule, SwitchComponentType state, SwitchComponentType currentState) {
-        boolean isMatch = (state == currentState);
-        boolean isOn = (state != SwitchComponentType.FALSE);
+    private static MutableComponent switchComponent(RuleType rule, String state, String currentState) {
+        boolean isMatch = state.equalsIgnoreCase(currentState);
+        boolean isOn = !SwitchComponentType.FALSE_STR.equalsIgnoreCase(state);
         int color;
         if (isMatch) {
             color = isOn ? 0x2ecc71 : 0xe74c3c;
         } else {
             color = 0xAAAAAA;
         }
-        String displayName = state.getDisplayName();
-        String command = String.join(" ", COMMAND_BASE, rule.getRegisterName(), state.getCommandStr());
-        String hoverText = String.format(SwitchComponentType.INFO, currentState.getDisplayName());
+        String displayName = SwitchComponentType.displayNameOf(state);
+        String command = String.join(" ", COMMAND_BASE, rule.getRegisterName(), state);
+        String hoverText = String.format(SwitchComponentType.INFO, SwitchComponentType.displayNameOf(currentState));
         return buildClickableButton("[" + displayName + "]", color, command, hoverText);
     }
 

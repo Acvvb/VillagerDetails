@@ -19,7 +19,7 @@ import java.util.Map;
  */
 public class RuleCache {
 
-    private static final Map<RuleType, SwitchComponentType> rules = new EnumMap<>(RuleType.class);
+    private static final Map<RuleType, String> rules = new EnumMap<>(RuleType.class);
 
     static {
         // 默认使用枚举中定义的 state 值
@@ -31,20 +31,37 @@ public class RuleCache {
     /**
      * 根据 RuleType 查询规则状态
      */
-    public static SwitchComponentType getState(RuleType type) {
+    public static String getState(RuleType type) {
         return rules.getOrDefault(type, type.getState());
     }
 
+    public static Integer getStateToInteger(RuleType type) {
+        String Str = rules.getOrDefault(type, type.getState());
+        if (Str != null) {
+            String trimmed = Str.trim();
+            if (!trimmed.isEmpty()) {
+                try {
+                    return Integer.parseInt(trimmed);
+                } catch (NumberFormatException e) {
+                    setState(type,type.getState());
+                    return Integer.parseInt(type.getState());
+                }
+            }
+        }
+        setState(type,type.getState());
+        return Integer.parseInt(type.getState());
+    }
+
     /**
-     * 根据 RuleType 查询规则是否开启（非 FALSE 即视为开启）
+     * 根据 RuleType 查询规则是否开启（非 false 即视为开启）
      */
     public static boolean isEnabled(RuleType type) {
-        return getState(type) != SwitchComponentType.FALSE;
+        return !SwitchComponentType.FALSE_STR.equalsIgnoreCase(getState(type));
     }
 
     public static boolean isEnabled(ServerPlayer serverPlayer, RuleType ruleType) {
         if (!isEnabled(ruleType)) return false;
-        PermissionLevel level = getState(ruleType).getPermissionLevel();
+        PermissionLevel level = SwitchComponentType.permissionLevelOf(getState(ruleType));
         if (level == null) return false;
         String node = "c." + ruleType.getRegisterName().toLowerCase(Locale.ROOT);
         Identifier permissionNode = VillagerDetails.id(node);
@@ -53,7 +70,7 @@ public class RuleCache {
 
     public static boolean isEnabled(CommandSourceStack src, RuleType ruleType) {
         if (!isEnabled(ruleType)) return false;
-        PermissionLevel level = getState(ruleType).getPermissionLevel();
+        PermissionLevel level = SwitchComponentType.permissionLevelOf(getState(ruleType));
         if (level == null) return false;
         String node = "c." + ruleType.getRegisterName().toLowerCase(Locale.ROOT);
         return src.checkPermission(VillagerDetails.id(node), level);
@@ -62,7 +79,7 @@ public class RuleCache {
     /**
      * 根据 RuleType 设置规则状态
      */
-    public static void setState(RuleType type, SwitchComponentType state) {
+    public static void setState(RuleType type, String state) {
         rules.put(type, state);
     }
 
@@ -79,10 +96,10 @@ public class RuleCache {
      * 批量同步规则状态
      * 通常在配置变更时调用，解耦了与 WorldBindingConfig 的直接依赖
      */
-    public static void syncRules(Map<RuleType, SwitchComponentType> newRules) {
+    public static void syncRules(Map<RuleType, String> newRules) {
         if (newRules == null) return;
         for (RuleType type : RuleType.values()) {
-            SwitchComponentType value = newRules.get(type);
+            String value = newRules.get(type);
             if (value != null) {
                 rules.put(type, value);
             }

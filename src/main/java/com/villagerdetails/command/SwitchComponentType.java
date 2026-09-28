@@ -22,14 +22,22 @@ public enum SwitchComponentType {
 
     public static final String INFO = "点击切换规则状态\n当前状态: %s";
 
+    /** 关闭态命令字符串 */
+    public static final String FALSE_STR = "false";
+    public static final String TRUE_STR = "true";
+    public static final String OPS_STR = "ops";
+    public static final String MASTER_STR = "master";
+    public static final String ADMIN_STR = "admin";
+    public static final String OWNER_STR = "owner";
+
     /** 不含关闭态的权限开关（用于 /ec 权限管理这类“必须有一个等级”的设置） */
-    public static final List<SwitchComponentType> SETTING_PERMISSIONS = List.of(TRUE, OPS, MASTER, ADMIN, OWNER);
+    public static final List<String> SETTING_PERMISSIONS = List.of(TRUE_STR, OPS_STR, MASTER_STR, ADMIN_STR, OWNER_STR);
 
     /** 完整开关（关闭 + 各权限等级） */
-    public static final List<SwitchComponentType> PERMISSIONS = List.of(FALSE, TRUE, OPS, MASTER, ADMIN, OWNER);
+    public static final List<String> PERMISSIONS = List.of(FALSE_STR, TRUE_STR, OPS_STR, MASTER_STR, ADMIN_STR, OWNER_STR);
 
     /** 简单开关（仅关闭/开启） */
-    public static final List<SwitchComponentType> ON_OFF = List.of(FALSE, TRUE);
+    public static final List<String> ON_OFF = List.of(FALSE_STR, TRUE_STR);
 
     private final String displayName;
     private final String commandStr;
@@ -71,6 +79,14 @@ public enum SwitchComponentType {
     public static String displayNameOf(String commandStr) {
         SwitchComponentType type = getByCommandStr(commandStr);
         return type != null ? type.getDisplayName() : commandStr;
+    }
+
+    /**
+     * 根据状态字符串解析对应权限等级；无法识别（如自定义配置值）时返回 null。
+     */
+    public static PermissionLevel permissionLevelOf(String commandStr) {
+        SwitchComponentType type = getByCommandStr(commandStr);
+        return type != null ? type.getPermissionLevel() : null;
     }
 
 }

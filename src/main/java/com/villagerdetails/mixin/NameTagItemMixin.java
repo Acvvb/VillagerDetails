@@ -16,6 +16,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import static com.villagerdetails.cache.RuleCache.getStateToInteger;
+import static com.villagerdetails.rule.type.RuleType.VILLAGER_ONE_TICK_TRADER_COUNT;
 import static com.villagerdetails.util.SendMessengerUtils.sendOverlayOrBroadcast;
 
 @Mixin(NameTagItem.class)
@@ -48,8 +50,8 @@ public class NameTagItemMixin {
         // ★ 只处理支持的三类名字，其余直接放行（不弹消息）
         if (!AutoVillagerTrader.isSupportedName(villager, name)) return;
 
-        // 5) 支持的名字 → 调顶层入口
-        int attempts = AutoVillagerTrader.tickByName(villager, name, 500);
+        int count = getStateToInteger(VILLAGER_ONE_TICK_TRADER_COUNT);
+        int attempts = AutoVillagerTrader.tickByName(villager, name, count);
         villager.setCustomName(null);
 
         // 6) 反馈
@@ -59,7 +61,7 @@ public class NameTagItemMixin {
                     "§a命中！第 §e" + attempts + " §a次刷新就出了 " + name));
         } else if (attempts == 0) {
             sendOverlayOrBroadcast(sp, Component.literal(
-                    "§e刷了 §c500 §e次都没命中，再命名一次试试"));
+                    "§e刷了 §c" + count + " §e次都没命中，再命名一次试试"));
         } else if (attempts == -1) {
             sendOverlayOrBroadcast(sp, Component.literal(
                     "§c该村民无法刷新（已锁定 / 小孩 / 无职业 / 无工作站）"));

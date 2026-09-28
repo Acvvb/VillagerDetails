@@ -292,13 +292,7 @@ public class VillagerBindHandler extends VillagerBindServer {
      */
     private static boolean checkWorkBlockOwnerTraded(ServerLevel level, ServerPlayer operator, Villager villager, BlockPos workBlockPos, boolean sendMsg) {
 
-        if (villager.getVillagerXp() > 0) {
-            if (sendMsg) {
-                SendMessengerUtils.sendOverlayOrBroadcast(operator,
-                        Component.translatable(getMessageKey(BindingType.WORK_BLOCK, "traded")));
-            }
-            return true;
-        }
+        if (checkVillagerTraded(villager, operator, sendMsg)) return true;
 
         List<Villager> boundVillagers = getVillagersBoundToWorkBlock(level, workBlockPos);
         for (Villager existingVillager : boundVillagers) {
