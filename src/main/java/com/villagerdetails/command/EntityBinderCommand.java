@@ -1,7 +1,6 @@
 package com.villagerdetails.command;
 
 import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
@@ -18,7 +17,6 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.*;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionLevel;
@@ -29,16 +27,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.villagerdetails.command.SwitchComponentType.DISABLE;
-import static com.villagerdetails.command.SwitchComponentType.ENABLE;
+import static com.villagerdetails.cache.RuleCache.isEnabled;
+import static com.villagerdetails.command.CommandConstants.COMMAND_BASE;
+import static com.villagerdetails.command.CommandConstants.PERM_BASE;
+import static com.villagerdetails.rule.type.RuleType.SETTING_EC_COMMAND_PERMISSION;
 import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
-
 public class EntityBinderCommand {
 
-    public final static String COMMAND_BASE = "/" + VillagerDetails.BAST_COMMAND;
 
-    /** reload 子命令的权限节点 */
-    private static final Identifier PERM_RELOAD = VillagerDetails.id("c.reload");
 
     private static final SuggestionProvider<CommandSourceStack> RULE_SUGGESTER = (_, builder) ->
             SharedSuggestionProvider.suggest(
@@ -56,12 +52,30 @@ public class EntityBinderCommand {
                     builder
             );
 
+    private static final SuggestionProvider<CommandSourceStack> STATE_SUGGESTER = (ctx, builder) -> {
+        RuleType rule = RuleType.getRuleTypeByRegisterName(StringArgumentType.getString(ctx, "rule"));
+        if (rule == null) {
+            return builder.buildFuture();
+        }
+        return SharedSuggestionProvider.suggest(
+                rule.getQuickSwitches().stream().map(SwitchComponentType::getCommandStr).collect(Collectors.toList()),
+                builder);
+    };
+
     private static final Logger log = LogManager.getLogger(EntityBinderCommand.class);
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal(VillagerDetails.BAST_COMMAND)
-                .executes(EntityBinderCommand::helpRules)
+                // /ec 自身执行时手动检查权限 2（否则会连带屏蔽 /ec c）
+                .executes(ctx -> {
+                    if (!hasBasePermission(ctx.getSource())) {
+                        return 0;
+                    }
+                    return helpRules(ctx);
+                })
+                // list 分支：整体要求权限 2
                 .then(Commands.literal("list")
+                        .requires(EntityBinderCommand::hasBasePermission)
                         .executes(EntityBinderCommand::listRules)
                         .then(Commands.argument("category", StringArgumentType.word())
                                 .suggests(CATEGORY_SUGGESTER)
@@ -74,21 +88,33 @@ public class EntityBinderCommand {
                                 .executes(ctx -> listRulesByStatus(ctx, false))
                         )
                 )
-                // ★ 原 /c 挂到根下，成为 /xxx c
+                // c 分支：所有人可访问（内部 reload 等敏感节点由自身 requires 保护）
                 .then(buildCSubcommand())
                 .then(Commands.argument("rule", StringArgumentType.word())
+                        .requires(EntityBinderCommand::hasBasePermission)
                         .suggests(RULE_SUGGESTER)
                         .executes(ctx -> toggleRule(ctx, null))
-                        .then(Commands.argument("state", BoolArgumentType.bool())
-                                .executes(ctx -> toggleRule(ctx, BoolArgumentType.getBool(ctx, "state")))
+                        .then(Commands.argument("state", StringArgumentType.word())
+                                .suggests(STATE_SUGGESTER)
+                                .executes(ctx -> toggleRule(ctx, StringArgumentType.getString(ctx, "state")))
                         )
                 );
         dispatcher.register(root);
     }
 
+    /**
+     * 检查命令源是否拥有指定的权限节点。
+     *
+     * @param src 命令源
+     * @return 拥有返回 true，否则 false
+     */
+    private static boolean hasBasePermission(CommandSourceStack src) {
+        PermissionLevel permissionLevel = RuleCache.getState(SETTING_EC_COMMAND_PERMISSION).getPermissionLevel();
+        return src.checkPermission(PERM_BASE, permissionLevel != null ? permissionLevel : PermissionLevel.OWNERS);
+    }
 
     /**
-     * 构建 /xxx c 子命令树。
+     * 构建 /ec c 子命令树。
      * 包含：
      *   · 所有 RegisterServer 注册的子命令（规则开启才可用）
      *   · reload
@@ -101,13 +127,13 @@ public class EntityBinderCommand {
             RegisterServer registerServer = ruleType.getCommandObject();
             if (registerServer == null) continue;
             LiteralArgumentBuilder<CommandSourceStack> subCommand = registerServer.register()
-                    .requires(_ -> RuleCache.isEnabled(ruleType));
+                    .requires(src -> isEnabled(src,ruleType));
             c = c.then(subCommand);
         }
 
         // reload
         c = c.then(Commands.literal("reload")
-                .requires(src -> src.checkPermission(PERM_RELOAD, PermissionLevel.GAMEMASTERS))
+                .requires(src -> src.checkPermission(PERM_BASE, PermissionLevel.OWNERS))
                 .executes(EntityBinderCommand::reloadMappings)
         );
 
@@ -131,14 +157,11 @@ public class EntityBinderCommand {
         }
     }
 
-    // ==============================================================
-    // 以下原有代码保持不变
-    // ==============================================================
 
     private static int listRulesByStatus(CommandContext<CommandSourceStack> ctx, boolean enabled) throws CommandSyntaxException {
         ServerPlayer player = ctx.getSource().getPlayerOrException();
         List<RuleType> filteredRules = Arrays.stream(RuleType.values())
-                .filter(rule -> RuleCache.isEnabled(rule) == enabled)
+                .filter(rule -> isEnabled(rule) == enabled)
                 .collect(Collectors.toList());
         String statusText = enabled ? "已经开启" : "已经关闭";
         sendOrBroadcast(player, Component.literal("§6============== " + statusText + " 规则列表 =============== "));
@@ -178,12 +201,10 @@ public class EntityBinderCommand {
 
     public static void sendRuleList(ServerPlayer player, List<RuleType> ruleTypeList) {
         for (RuleType rule : ruleTypeList) {
-            boolean currentState = RuleCache.isEnabled(rule);
+            SwitchComponentType currentState = RuleCache.getState(rule);
             player.sendSystemMessage(Component.empty()
                     .append(getRuleName(rule))
-                    .append(switchComponent(rule, ENABLE, currentState))
-                    .append(" ")
-                    .append(switchComponent(rule, DISABLE, currentState))
+                    .append(quickSwitchComponents(rule, currentState))
             );
         }
     }
@@ -200,7 +221,7 @@ public class EntityBinderCommand {
         return 1;
     }
 
-    private static int toggleRule(CommandContext<CommandSourceStack> context, Boolean state) {
+    private static int toggleRule(CommandContext<CommandSourceStack> context, String state) {
         ServerPlayer player = context.getSource().getPlayer();
         String ruleName = StringArgumentType.getString(context, "rule");
         RuleType rule = RuleType.getRuleTypeByRegisterName(ruleName);
@@ -211,7 +232,7 @@ public class EntityBinderCommand {
         }
 
         if (state == null) {
-            boolean currentState = RuleCache.isEnabled(rule);
+            SwitchComponentType currentState = RuleCache.getState(rule);
             MutableComponent mutableComponent = Component.empty();
             mutableComponent.append(divider())
                     .append(getRuleName(rule))
@@ -220,22 +241,25 @@ public class EntityBinderCommand {
                     .append("\n")
                     .append(rule.getDisplayInfo())
                     .append("\n值： ")
-                    .append(switchComponent(rule, ENABLE, currentState))
-                    .append(" ")
-                    .append(switchComponent(rule, DISABLE, currentState));
+                    .append(quickSwitchComponents(rule, currentState));
             sendOrLog(player, mutableComponent);
             return 1;
         }
 
-        boolean targetState = state;
-        RuleCache.setEnabled(rule, targetState);
+        SwitchComponentType switchValue = SwitchComponentType.getByCommandStr(state);
+        if (switchValue == null || !rule.getQuickSwitches().contains(switchValue)) {
+            sendOrBroadcast(player, Component.literal("§c无效的状态值: " + state));
+            return 0;
+        }
+
+        RuleCache.setState(rule, switchValue);
 
         WorldBindingConfig config = WorldBindingConfig.getOrCreate(context.getSource().getServer());
-        config.setBindingState(rule.getRegisterName(), targetState);
+        config.setBindingState(rule.getRegisterName(), state);
 
         sendOrBroadcast(player, Component.literal(
-                String.format("§a %s (%s) 已%s",
-                        rule.getDisplayName(), rule.getRegisterName(), targetState ? "§a开启" : "§c关闭")
+                String.format("§a %s (%s) 已切换为 %s",
+                        rule.getDisplayName(), rule.getRegisterName(), SwitchComponentType.displayNameOf(state))
         ));
         return 1;
     }
@@ -260,18 +284,31 @@ public class EntityBinderCommand {
         return component;
     }
 
-    private static MutableComponent switchComponent(RuleType rule, SwitchComponentType type, boolean isEnable) {
-        boolean targetState = (type == SwitchComponentType.ENABLE);
-        boolean isMatch = (isEnable == targetState);
+    private static MutableComponent quickSwitchComponents(RuleType rule, SwitchComponentType currentState) {
+        MutableComponent result = Component.empty();
+        List<SwitchComponentType> switches = rule.getQuickSwitches();
+        for (int i = 0; i < switches.size(); i++) {
+            if (i > 0) {
+                result.append(" ");
+            }
+            result.append(switchComponent(rule, switches.get(i), currentState));
+        }
+        return result;
+    }
+
+    private static MutableComponent switchComponent(RuleType rule, SwitchComponentType state, SwitchComponentType currentState) {
+        boolean isMatch = (state == currentState);
+        boolean isOn = (state != SwitchComponentType.FALSE);
         int color;
         if (isMatch) {
-            color = targetState ? 0x2ecc71 : 0xe74c3c;
+            color = isOn ? 0x2ecc71 : 0xe74c3c;
         } else {
             color = 0xAAAAAA;
         }
-        String command = String.join(" ", COMMAND_BASE, rule.getRegisterName(), type.getCommandStr());
-        String hoverText = String.format(type.getOnClickMessage(), isEnable ? "已开启" : "已关闭");
-        return buildClickableButton("[" + type.getDisplayName() + "]", color, command, hoverText);
+        String displayName = state.getDisplayName();
+        String command = String.join(" ", COMMAND_BASE, rule.getRegisterName(), state.getCommandStr());
+        String hoverText = String.format(SwitchComponentType.INFO, currentState.getDisplayName());
+        return buildClickableButton("[" + displayName + "]", color, command, hoverText);
     }
 
     private static MutableComponent categoryDisplay(List<RuleCategoryType> ruleCategoryTypes) {

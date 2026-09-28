@@ -1,120 +1,158 @@
 package com.villagerdetails.config;
 
-import com.mojang.serialization.Codec;
+import com.google.gson.*;
 import com.villagerdetails.cache.RuleCache;
+import com.villagerdetails.command.SwitchComponentType;
 import com.villagerdetails.rule.type.RuleType;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.datafix.DataFixTypes;
-import net.minecraft.world.level.saveddata.SavedData;
-import net.minecraft.world.level.saveddata.SavedDataType;
+import net.minecraft.world.level.storage.LevelResource;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
-public class WorldBindingConfig extends SavedData {
+/**
+ * 每个存档一份的规则绑定配置，以 JSON 文件形式保存在存档根目录下：
+ *   <world>/villager_details_binding.json
+ * <p>
+ * 与 SavedData 相比：
+ *   · 人类可读、可手动编辑
+ *   · 不依赖 NBT / Codec / DataFixTypes
+ *   · 需要自己管理加载、保存、服务器关闭时的刷盘
+ */
+public class WorldBindingConfig {
 
-    private static final String DATA_ID = "villager_details:binding_config";
+    private static final Logger log = LogManager.getLogger(WorldBindingConfig.class);
 
-    /**
-     * 只存储“与默认配置不一致”的差异项。
-     * key = RuleType.getRegisterName()，value = 1(开启) / 0(关闭)。
-     * 与默认值相同的项不会被写入这里，因此持久化文件里只保留差异。
-     */
-    private final Map<String, Integer> bindingStates = new HashMap<>();
+    /** 文件名（放在存档根目录） */
+    private static final String FILE_NAME = "villager_details_binding.json";
 
-    private static final Codec<Map<String, Integer>> STATE_MAP_CODEC =
-            Codec.unboundedMap(Codec.STRING, Codec.INT);
+    private static final Gson GSON = new GsonBuilder()
+            .setPrettyPrinting()
+            .disableHtmlEscaping()
+            .create();
 
-    public static final Codec<WorldBindingConfig> CODEC = STATE_MAP_CODEC.xmap(
-            map -> {
-                WorldBindingConfig config = new WorldBindingConfig();
-                config.bindingStates.putAll(map);
-                return config;
-            },
-            config -> new HashMap<>(config.bindingStates)
-    );
+    /** 按服务器实例缓存，避免每次调用都读盘 */
+    private static final Map<MinecraftServer, WorldBindingConfig> INSTANCES = new ConcurrentHashMap<>();
 
-    public static final SavedDataType<WorldBindingConfig> TYPE = new SavedDataType<>(
-            Objects.requireNonNull(Identifier.tryParse(DATA_ID)),
-            WorldBindingConfig::new,
-            CODEC,
-            DataFixTypes.LEVEL
-    );
+    private final Path filePath;
+    private final Map<String, String> bindingStates = new HashMap<>();
+    private boolean dirty = false;
 
-    public WorldBindingConfig() {
-        super();
+    private WorldBindingConfig(Path filePath) {
+        this.filePath = filePath;
     }
 
-    /**
-     * 服务器级配置（全局唯一），存到 <world>/data/ 而不是某个维度下。
-     * 规则开关是全服共享的，必须使用 server 级数据存储，避免多维度各存一份导致互相覆盖。
-     */
+    // ------------------------------------------------------------------
+    //  生命周期
+    // ------------------------------------------------------------------
+
     public static WorldBindingConfig getOrCreate(MinecraftServer server) {
-        return server.getDataStorage().computeIfAbsent(TYPE);
+        return INSTANCES.computeIfAbsent(server, s -> {
+            Path worldRoot = s.getWorldPath(LevelResource.ROOT);
+            Path path = worldRoot.resolve(FILE_NAME);
+            WorldBindingConfig config = new WorldBindingConfig(path);
+            config.load();
+            return config;
+        });
     }
 
-    /**
-     * 设置规则的“生效状态”。只持久化与默认值不同的项：
-     * - 与默认一致 → 从差异表移除（持久化文件里不出现）
-     * - 与默认不同 → 记录到差异表
-     */
-    public void setBindingState(String key, boolean enabled) {
+    /** 在服务器停止事件里调用，把未落盘的改动写回文件 */
+    public static void onServerStopping(MinecraftServer server) {
+        WorldBindingConfig config = INSTANCES.remove(server);
+        if (config != null) {
+            config.save();
+        }
+    }
+
+    // ------------------------------------------------------------------
+    //  读写文件
+    // ------------------------------------------------------------------
+
+    private void load() {
+        if (!Files.exists(filePath)) {
+            return;
+        }
+        try {
+            String json = Files.readString(filePath);
+            JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
+            for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
+                if (entry.getValue().isJsonPrimitive()) {
+                    bindingStates.put(entry.getKey(), entry.getValue().getAsString());
+                }
+            }
+            log.info("[VillagerDetails] 已从 {} 加载绑定配置（{} 项）",
+                    filePath, bindingStates.size());
+        } catch (IOException | JsonParseException e) {
+            log.error("[VillagerDetails] 读取绑定配置失败：{}", filePath, e);
+        }
+    }
+
+    public void save() {
+        if (!dirty) {
+            return;
+        }
+        try {
+            Files.createDirectories(filePath.getParent());
+            JsonObject obj = new JsonObject();
+            for (Map.Entry<String, String> entry : bindingStates.entrySet()) {
+                obj.addProperty(entry.getKey(), entry.getValue());
+            }
+            Files.writeString(filePath, GSON.toJson(obj));
+            dirty = false;
+        } catch (IOException e) {
+            log.error("[VillagerDetails] 写入绑定配置失败：{}", filePath, e);
+        }
+    }
+
+    private void markDirty() {
+        this.dirty = true;
+    }
+
+    // ------------------------------------------------------------------
+    //  业务方法（与原来签名完全一致）
+    // ------------------------------------------------------------------
+
+    public void setBindingState(String key, String state) {
         RuleType type = RuleType.getRuleTypeByRegisterName(key);
-        if (type != null && type.isState() == enabled) {
+        if (type != null && type.getState().getCommandStr().equals(state)) {
             bindingStates.remove(key);
         } else {
-            bindingStates.put(key, enabled ? 1 : 0);
+            bindingStates.put(key, state);
         }
-        setDirty();
+        markDirty();
+        save();
     }
 
-    /**
-     * 读取规则的“生效状态”：差异表有记录取记录，否则取默认值。
-     */
-    public boolean getBindingState(String key) {
+    public String getBindingState(String key) {
         RuleType type = RuleType.getRuleTypeByRegisterName(key);
         if (bindingStates.containsKey(key)) {
-            return bindingStates.get(key) == 1;
+            return bindingStates.get(key);
         }
-        return type != null && type.isState();
-    }
-
-    public void toggleBindingState(String key) {
-        setBindingState(key, !getBindingState(key));
-    }
-
-    public void removeBindingState(String key) {
-        bindingStates.remove(key);
-        setDirty();
-    }
-
-    public Map<String, Boolean> getAllBindingStates() {
-        Map<String, Boolean> result = new HashMap<>();
-        bindingStates.forEach((k, v) -> result.put(k, v == 1));
-        return result;
+        return type != null ? type.getState().getCommandStr() : SwitchComponentType.FALSE.getCommandStr();
     }
 
     public void resetAll() {
         bindingStates.clear();
-        setDirty();
+        markDirty();
+        save();
     }
 
-    /**
-     * 将持久化配置同步到内存开关 RuleCache：
-     * - 差异表有记录 → 用差异表的值
-     * - 差异表无记录 → 用枚举默认值 type.isState()
-     * 同时清理历史遗留的未知键（旧版本规则名），保持持久化文件干净。
-     */
     public void syncToSwitch() {
-        Map<RuleType, Boolean> syncMap = new HashMap<>();
+        Map<RuleType, SwitchComponentType> syncMap = new HashMap<>();
         for (RuleType type : RuleType.values()) {
-            syncMap.put(type, getBindingState(type.getRegisterName()));
+            SwitchComponentType state = SwitchComponentType.getByCommandStr(getBindingState(type.getRegisterName()));
+            if (state != null) {
+                syncMap.put(type, state);
+            }
         }
 
-        // 清理历史遗留键（不再对应任何 RuleType 的旧规则名）
         Iterator<String> it = bindingStates.keySet().iterator();
         boolean removed = false;
         while (it.hasNext()) {
@@ -125,14 +163,10 @@ public class WorldBindingConfig extends SavedData {
             }
         }
         if (removed) {
-            setDirty();
+            markDirty();
         }
 
         RuleCache.syncRules(syncMap);
     }
 
-    public boolean isBindingEnabled(int id) {
-        RuleType type = RuleType.getRuleTypeById(id);
-        return type != null && getBindingState(type.getRegisterName());
-    }
 }

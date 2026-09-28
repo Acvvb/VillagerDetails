@@ -12,9 +12,7 @@ public class ServerStoppingListener implements ServerLifecycleEvents.ServerStopp
 
     @Override
     public void onServerStopping(net.minecraft.server.@NonNull MinecraftServer server) {
-        // 确保全局配置被标记为 dirty，触发一次保存
-        WorldBindingConfig config = WorldBindingConfig.getOrCreate(server);
-        config.setDirty();
+        WorldBindingConfig.onServerStopping(server);
         LOGGER.info("世界已卸载，配置已保存");
     }
 }

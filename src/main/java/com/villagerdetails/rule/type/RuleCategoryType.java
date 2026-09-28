@@ -2,7 +2,8 @@ package com.villagerdetails.rule.type;
 
 public enum RuleCategoryType {
 
-    VILLAGER(1,"villager" ,"村民");
+    MOD_SETTING("Setting", "设置"),
+    VILLAGER("villager" ,"村民");
 
     private final int id;
 
@@ -10,8 +11,8 @@ public enum RuleCategoryType {
 
     private final String displayName;
 
-    RuleCategoryType(int id, String registerName, String displayName) {
-        this.id = id;
+    RuleCategoryType(String registerName, String displayName) {
+        this.id = this.ordinal();
         this.registerName = registerName;
         this.displayName = displayName;
     }

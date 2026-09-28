@@ -29,14 +29,14 @@ public class BBSelectionListener {
     }
 
     private static boolean onLeftClickBlock(Level level, Player player, BlockPos blockPos, BlockState blockState, @Nullable BlockEntity blockEntity) {
-        if (!isEnableOfListener(BLOCK_RANGE_SELECTION)) return true;
         if (!(player instanceof ServerPlayer sp)) return true;
+        if (!isEnableOfListener(sp, BLOCK_RANGE_SELECTION)) return true;
         return !SelectionInteractionHandler.onLeftClickBlock(sp, blockPos);
     }
 
     private static InteractionResult onRightClickBlock(Player player, Level level, InteractionHand interactionHand, BlockHitResult blockHitResult) {
-        if (!isEnableOfListener(BLOCK_RANGE_SELECTION)) return InteractionResult.PASS;
         if (!(player instanceof ServerPlayer sp)) return InteractionResult.PASS;
+        if (!isEnableOfListener(sp,BLOCK_RANGE_SELECTION)) return InteractionResult.PASS;
         if (interactionHand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
         if (blockHitResult.getType() != HitResult.Type.BLOCK) return InteractionResult.PASS;
         if (SelectionInteractionHandler.onRightClickBlock(sp, blockHitResult.getBlockPos())) {

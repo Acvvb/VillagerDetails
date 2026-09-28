@@ -2,6 +2,7 @@ package com.villagerdetails.handler.binding;
 
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.handler.binding.type.BindingType;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -18,7 +19,7 @@ public class BindingUtil {
      */
     public static BindingType isHoldingAnyTool(Player player, InteractionHand hand, Entity entity) {
         for (BindingType type : BindingType.values()) {
-            if (!RuleCache.isEnabled(type.getRuleType())) continue;
+            if (!RuleCache.isEnabled((ServerPlayer)player,type.getRuleType())) continue;
             if (BindHandler.isHoldingTool(player, hand, type.getRequiredItem(), type.getRequiredToolName())) {
                 if (entity == null || type.getEntityClass().isInstance(entity)) {
                     return type;

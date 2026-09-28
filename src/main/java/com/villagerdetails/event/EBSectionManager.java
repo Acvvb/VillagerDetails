@@ -35,7 +35,7 @@ public class EBSectionManager {
     }
 
     public static InteractionResult onUseEntity(Player player, Level level, InteractionHand hand, Entity entity, EntityHitResult hitResult) {
-        if (!isEnableOfListener(ENTITY_BLOCK_SELECTION)) return InteractionResult.PASS;
+        if (!isEnableOfListener((ServerPlayer)player,ENTITY_BLOCK_SELECTION)) return InteractionResult.PASS;
         if (level.isClientSide()) return InteractionResult.PASS;
         if (hand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
 
@@ -63,7 +63,7 @@ public class EBSectionManager {
     }
 
     public static InteractionResult onUseBlock(Player player, Level level, InteractionHand hand, BlockHitResult hitResult) {
-        if (!isEnableOfListener(ENTITY_BLOCK_SELECTION)) return InteractionResult.PASS;
+        if (!isEnableOfListener((ServerPlayer)player,ENTITY_BLOCK_SELECTION)) return InteractionResult.PASS;
         if (level.isClientSide()) return InteractionResult.PASS;
         if (hand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
 
