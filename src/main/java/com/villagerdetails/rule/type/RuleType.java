@@ -2,6 +2,7 @@ package com.villagerdetails.rule.type;
 
 import com.villagerdetails.command.register.impl.BBSelectionServerImpl;
 import com.villagerdetails.command.register.server.RegisterServer;
+import com.villagerdetails.config.ServerLangConfig;
 import com.villagerdetails.event.type.ListenerType;
 
 import java.util.ArrayList;
@@ -13,7 +14,18 @@ import static com.villagerdetails.rule.type.RuleCategoryType.MOD_SETTING;
 import static com.villagerdetails.rule.type.RuleCategoryType.VILLAGER;
 
 public enum RuleType {
-    SETTING_EC_COMMAND_PERMISSION("ECCommand","/ec权限管理","管理除/ec c 以外的所有权限",List.of(MOD_SETTING),NONE,null,SETTING_PERMISSIONS,OWNER_STR),
+
+
+    //设置
+    SETTING_LANGUAGE("Language","模言","模组语言设置",List.of(MOD_SETTING),NONE,null, ServerLangConfig.getPreloadLanguages(),"en_us"),
+    SETTING_EC_COMMAND_PERMISSION("ECCommand","ec命令权限管理","管理除/ec c 以外的所有权限",List.of(MOD_SETTING),NONE,null,SETTING_PERMISSIONS,OWNER_STR),
+
+
+
+
+
+
+    //村民
     VILLAGER_BED_RESET("VillagerBedBinding", "村民床编辑器", "使用命名为bed的拴绳蹲下右键选择村民和床修改村民所绑定的床", List.of(VILLAGER), ENTITY_BLOCK_SELECTION, null, PERMISSIONS, FALSE_STR),
     VILLAGER_WORK_BLOCK_RESET( "VillagerWorkBlockBinding", "村民工作方块编辑器", "使用命名为work的拴绳蹲下右键选择村民和床修改村民所绑定的工作方块", List.of(VILLAGER), ENTITY_BLOCK_SELECTION, null, PERMISSIONS, FALSE_STR),
     VILLAGER_BATCH_BED_RESET( "VillagerBatchBedBinding", "批量村民床编辑器", "命名为tool的拴绳左右键选区，执行/entityCommand bindAreaBeds将范围内村民的床绑定为与其直线距离最近的床", List.of(VILLAGER), BLOCK_RANGE_SELECTION, new BBSelectionServerImpl(), PERMISSIONS, FALSE_STR),

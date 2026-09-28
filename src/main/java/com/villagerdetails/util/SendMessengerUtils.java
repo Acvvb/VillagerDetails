@@ -1,14 +1,10 @@
 package com.villagerdetails.util;
 
-import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.rule.type.RuleType;
+import com.villagerdetails.lang.ServerTranslations;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.util.List;
 
 /**
  * 消息发送工具类
@@ -26,22 +22,6 @@ public class SendMessengerUtils {
         if (player != null) {
             player.sendSystemMessage(message);
         }
-    }
-
-    /**
-     * 向指定维度的所有在线玩家广播消息（聊天框）
-     */
-    public static void broadcastToDimension(ServerLevel level, Component message) {
-        for (ServerPlayer player : level.players()) {
-            player.sendSystemMessage(message);
-        }
-    }
-
-    /**
-     * 向全服所有维度的所有在线玩家广播消息（聊天框）
-     */
-    public static void broadcastToAll(ServerLevel level, Component message) {
-        level.getServer().getPlayerList().getPlayers().forEach(player -> player.sendSystemMessage(message));
     }
 
     /**
@@ -66,7 +46,7 @@ public class SendMessengerUtils {
      */
     public static void sendOverlayOrBroadcast(ServerPlayer player, Component message) {
         if (player != null) {
-            player.sendSystemMessage(message, true);
+            player.sendSystemMessage(Component.literal(ServerTranslations.resolve(message)), true);
         } else {
             log.info("未找到操作玩家，消息内容: {}", message.getString());
         }
