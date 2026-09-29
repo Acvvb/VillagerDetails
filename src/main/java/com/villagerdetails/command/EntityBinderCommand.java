@@ -289,7 +289,21 @@ public class EntityBinderCommand {
         return 1;
     }
 
+    /** 单选：预定义列表必须匹配；自定义列表放行任意非空输入 */
     private static String canonicalSingleSelect(RuleType rule, String state, ServerPlayer player) {
+        // ★ 自定义列表 → 允许任意非空输入
+        if (SwitchComponentType.isCustomList(rule.getQuickSwitches())) {
+            String trimmed = state == null ? "" : state.trim();
+            if (trimmed.isEmpty()) {
+                if (state != null) {
+                    sendOrBroadcast(player, Component.translatable(K_ERR_INVALID_STATE, state));
+                }
+                return null;
+            }
+            return trimmed;
+        }
+
+        // 预定义列表 → 必须匹配
         String canonical = rule.getQuickSwitches().stream()
                 .filter(s -> s.equalsIgnoreCase(state))
                 .findFirst()
@@ -301,20 +315,30 @@ public class EntityBinderCommand {
         return canonical;
     }
 
+    /** 多选：预定义列表必须逐项匹配；自定义列表放行任意非空项 */
     private static String canonicalMultiSelect(RuleType rule, String state, ServerPlayer player) {
+        boolean custom = SwitchComponentType.isCustomList(rule.getQuickSwitches());
+
         java.util.Set<String> selected = new java.util.LinkedHashSet<>();
         for (String part : state.split(",")) {
             String trimmed = part.trim();
             if (trimmed.isEmpty()) continue;
-            String match = rule.getQuickSwitches().stream()
-                    .filter(s -> s.equalsIgnoreCase(trimmed))
-                    .findFirst()
-                    .orElse(null);
-            if (match == null) {
-                sendOrBroadcast(player, Component.translatable(K_ERR_INVALID_OPTION, trimmed));
-                return null;
+
+            if (custom) {
+                // ★ 自定义列表 → 直接接受
+                selected.add(trimmed);
+            } else {
+                // 预定义列表 → 必须匹配
+                String match = rule.getQuickSwitches().stream()
+                        .filter(s -> s.equalsIgnoreCase(trimmed))
+                        .findFirst()
+                        .orElse(null);
+                if (match == null) {
+                    sendOrBroadcast(player, Component.translatable(K_ERR_INVALID_OPTION, trimmed));
+                    return null;
+                }
+                selected.add(match);
             }
-            selected.add(match);
         }
         return String.join(",", selected);
     }

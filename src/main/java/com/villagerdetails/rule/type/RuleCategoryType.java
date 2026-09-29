@@ -1,12 +1,15 @@
 package com.villagerdetails.rule.type;
 
+import com.villagerdetails.lang.ServerTranslations;
+import net.minecraft.network.chat.Component;
+
 public enum RuleCategoryType {
 
-    MOD_SETTING("Setting", "设置"),
-    VILLAGER("villager" ,"村民"),
-    ENTITY("entity","实体"),
-    MONSTER("monster","怪物"),
-    ANIMAL("animal","动物")
+    MOD_SETTING("Setting",  "rule.category.mod_setting"),
+    VILLAGER   ("villager", "rule.category.villager"),
+    ENTITY     ("entity",   "rule.category.entity"),
+    MONSTER    ("monster",  "rule.category.monster"),
+    ANIMAL     ("animal",   "rule.category.animal"),
 
 
     ;
@@ -43,6 +46,6 @@ public enum RuleCategoryType {
     }
 
     public String getDisplayName() {
-        return displayName;
+        return ServerTranslations.resolve(Component.translatable(displayName));
     }
 }

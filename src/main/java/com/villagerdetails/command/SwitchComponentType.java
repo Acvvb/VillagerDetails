@@ -89,4 +89,20 @@ public enum SwitchComponentType {
         return type != null ? type.getPermissionLevel() : null;
     }
 
+    /**
+     * 判断一个 quickSwitches 列表是否为"自定义列表"。
+     * <p>
+     * 规则：只要列表里存在任何一个不属于本枚举定义的命令值（false / true / ops / master / admin / owner），
+     * 就视为自定义列表 —— 此时允许用户输入列表外的内容。
+     */
+    public static boolean isCustomList(List<String> switches) {
+        if (switches == null || switches.isEmpty()) return false;
+        for (String s : switches) {
+            if (getByCommandStr(s) == null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }

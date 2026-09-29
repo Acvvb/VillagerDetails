@@ -24,6 +24,13 @@
   "command.entity_binder.toggle.empty_value": "(empty)",
 
 
+  "rule.category.mod_setting": "Settings",
+  "rule.category.villager": "Villagers",
+  "rule.category.entity": "Entities",
+  "rule.category.monster": "Monsters",
+  "rule.category.animal": "Animals",
+
+
   "setting.language": "Language",
   "setting.language.desc": "Language setting for the mod",
   "setting.ec_command_permission": "ECCommand Permissions",

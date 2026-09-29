@@ -24,6 +24,14 @@
   "command.entity_binder.toggle.empty_value": "（空）",
 
 
+  "rule.category.mod_setting": "设置",
+  "rule.category.villager": "村民",
+  "rule.category.entity": "实体",
+  "rule.category.monster": "怪物",
+  "rule.category.animal": "动物",
+
+
+
   "setting.language": "模组语言",
   "setting.language.desc": "模组语言设置",
   "setting.ec_command_permission": "ec 命令权限",
