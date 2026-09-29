@@ -40,6 +40,22 @@
 
 
 
+
+  "setting.piglin_gold_block_multiply": "金块交易（九倍产出）",
+  "setting.piglin_gold_block_multiply.desc": "猪灵愿捡金块。1 金块只触发 1 次交易，但产出乘以 9 倍。",
+
+  "setting.piglin_barter_delay": "调整猪灵交易时间",
+  "setting.piglin_barter_delay.desc": "调整猪灵交易前欣赏金锭的等待时间（原版6秒）。金块的等待时间会自动变为该值的9倍。",
+
+
+
+
+  "setting.infinite_shear": "无限剪羊毛",
+  "setting.infinite_shear.desc": "羊被剪毛后立即恢复有毛状态，可以反复剪取羊毛。",
+
+
+
+
   "setting.villager_bed_reset": "村民床编辑器",
   "setting.villager_bed_reset.desc": "使用命名为 bed 的拴绳蹲下右键选择村民和床，修改村民所绑定的床。",
 

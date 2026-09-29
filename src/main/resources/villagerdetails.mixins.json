@@ -16,6 +16,8 @@
     "MerchantOfferMixin",
     "MobInterfaceMixin",
     "NameTagItemMixin",
+    "PiglinAiMixin",
+    "SheepMixin",
     "VillagerInterfaceTradesMixin",
     "VillagerMixin",
     "VillagerTradeMixin"

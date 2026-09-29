@@ -4,7 +4,13 @@ public enum RuleCategoryType {
 
     MOD_SETTING("Setting", "设置"),
     VILLAGER("villager" ,"村民"),
-    ENTITY("entity","实体");
+    ENTITY("entity","实体"),
+    MONSTER("monster","怪物"),
+    ANIMAL("animal","动物")
+
+
+    ;
+
 
     private final int id;
 

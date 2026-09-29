@@ -32,11 +32,23 @@
 
 
 
-
   "setting.villager_no_squeeze": "No Squeeze",
   "setting.villager_no_squeeze.desc": "Specified entities do not participate in entity squeezing and take no squeeze damage. Separate IDs with commas.",
   "setting.no_brain_on_portal": "Portal No-Brain",
   "setting.no_brain_on_portal.desc": "Monsters lose their AI after passing through a Nether portal.",
+
+
+
+  "setting.piglin_gold_block_multiply": "Gold Block Trade (Nine-Fold Output)",
+  "setting.piglin_gold_block_multiply.desc": "Piglins accept gold blocks. 1 block triggers a single trade, but the output is multiplied by 9.",
+
+  "setting.piglin_barter_delay": "Piglin Barter Delay",
+  "setting.piglin_barter_delay.desc": "Adjust the time piglins examine gold before bartering (vanilla: 6s). Gold blocks automatically use 9x this value.",
+
+
+  "setting.infinite_shear": "Infinite Sheep Shear",
+  "setting.infinite_shear.desc": "Sheep regain their wool immediately after being sheared, allowing infinite shearing.",
+
 
 
 
