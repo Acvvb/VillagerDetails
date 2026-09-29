@@ -29,7 +29,7 @@
   "rule.category.entity": "Entities",
   "rule.category.monster": "Monsters",
   "rule.category.animal": "Animals",
-
+  "rule.category.plant": "Plant",
 
   "setting.language": "Language",
   "setting.language.desc": "Language setting for the mod",
@@ -57,7 +57,8 @@
   "setting.infinite_shear.desc": "Sheep regain their wool immediately after being sheared, allowing infinite shearing.",
 
 
-
+  "villagerdetails.rule.villagerbonemealflower": "Bone Meal Overworld Flowers",
+  "villagerdetails.rule.villagerbonemealflower.desc": "Bone meal on grass blocks ignores biome and generates overworld flowers (Overworld only)",
 
 
   "setting.villager_bed_reset": "Villager Bed Binding",
@@ -135,5 +136,5 @@
   "msg.villager.work_block.traded": "Villagers who have already traded cannot change their profession",
   "msg.villager.work_block.owner_traded": "The villager who owns this work block has already traded, profession change is not allowed.",
   "msg.villager.work_block.already_bound": "The villager who owns this work block has already traded, profession change is not allowed.",
-  "msg.villager.move.success": "成功设置村民(%s)目的地%s,请确保路径通畅。"
+  "msg.villager.move.success": "Successfully set villager %1$s's destination to %2$s. Please ensure the path is clear."
 }

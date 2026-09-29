@@ -29,6 +29,7 @@
   "rule.category.entity": "实体",
   "rule.category.monster": "怪物",
   "rule.category.animal": "动物",
+  "rule.category.plant": "植物",
 
 
 
@@ -61,6 +62,11 @@
   "setting.infinite_shear": "无限剪羊毛",
   "setting.infinite_shear.desc": "羊被剪毛后立即恢复有毛状态，可以反复剪取羊毛。",
 
+
+
+
+    "villagerdetails.rule.villagerbonemealflower": "骨粉催熟主世界花",
+    "villagerdetails.rule.villagerbonemealflower.desc": "骨粉催熟草方块时无视生物群系生成主世界花（仅限主世界）",
 
 
 

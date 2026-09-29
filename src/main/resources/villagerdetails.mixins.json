@@ -9,6 +9,7 @@
     "BrainMixin",
     "EnchantRandomlyFunctionMixin",
     "EntityMixin",
+    "GrassBlockBoneMealMixin",
     "LivingEntityMixin",
     "MerchantMenuInterfaceMixin",
     "MerchantMenuProvisionMixin",

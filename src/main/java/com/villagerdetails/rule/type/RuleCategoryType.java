@@ -6,12 +6,11 @@ import net.minecraft.network.chat.Component;
 public enum RuleCategoryType {
 
     MOD_SETTING("Setting",  "rule.category.mod_setting"),
-    VILLAGER   ("villager", "rule.category.villager"),
-    ENTITY     ("entity",   "rule.category.entity"),
-    MONSTER    ("monster",  "rule.category.monster"),
-    ANIMAL     ("animal",   "rule.category.animal"),
-
-
+    VILLAGER("villager", "rule.category.villager"),
+    ENTITY("entity",   "rule.category.entity"),
+    MONSTER("monster",  "rule.category.monster"),
+    ANIMAL("animal",   "rule.category.animal"),
+    PLANT("Plant", "rule.category.plant"),
     ;
 
 

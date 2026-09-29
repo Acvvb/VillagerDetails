@@ -30,12 +30,18 @@ public enum RuleType {
 
     PIGLIN_BARTER_DELAY("PiglinBarterDelay", "setting.piglin_barter_delay", "setting.piglin_barter_delay.desc", List.of(ENTITY), NONE, null, false, List.of("3","6","12"), "6"),
 
+
     //怪物
     NO_BRAIN_ON_PORTAL("NoBrainOnPortal", "setting.no_brain_on_portal", "setting.no_brain_on_portal.desc", List.of(MONSTER), NONE, null, false, ON_OFF, FALSE_STR),
 
 
+    //植物
+    VILLAGER_BONE_MEAL_FLOWER("VillagerBoneMealFlower", "villagerdetails.rule.villagerbonemealflower", "villagerdetails.rule.villagerbonemealflower.desc", List.of(PLANT), NONE, null, false,ON_OFF, FALSE_STR),
+
+
     //动物
     INFINITE_SHEAR("InfiniteShear", "setting.infinite_shear", "setting.infinite_shear.desc", List.of(ANIMAL), NONE,null, false, ON_OFF, FALSE_STR),
+
 
     // 村民
     VILLAGER_BED_RESET("VillagerBedBinding", "setting.villager_bed_reset", "setting.villager_bed_reset.desc", List.of(VILLAGER), ENTITY_BLOCK_SELECTION, null, false, PERMISSIONS, FALSE_STR),
