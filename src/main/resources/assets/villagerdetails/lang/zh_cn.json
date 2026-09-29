@@ -1,7 +1,7 @@
 {
 
-  "command.entity_binder.reload.success": "§a[VillagerDetails] 映射配置已重新加载",
-  "command.entity_binder.reload.fail": "§c[VillagerDetails] 重新加载失败：%s",
+  "command.entity_binder.reload.success": "§a重载成功",
+  "command.entity_binder.reload.fail": "§c重载失败：%s",
 
   "command.entity_binder.status.enabled": "已经开启",
   "command.entity_binder.status.disabled": "已经关闭",

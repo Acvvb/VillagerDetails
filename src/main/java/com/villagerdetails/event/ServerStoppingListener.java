@@ -1,6 +1,6 @@
 package com.villagerdetails.event;
 
-import com.villagerdetails.config.WorldBindingConfig;
+import com.villagerdetails.config.impl.RuleConfig;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
@@ -12,7 +12,7 @@ public class ServerStoppingListener implements ServerLifecycleEvents.ServerStopp
 
     @Override
     public void onServerStopping(net.minecraft.server.@NonNull MinecraftServer server) {
-        WorldBindingConfig.onServerStopping(server);
+        RuleConfig.onServerStopping(server);
         LOGGER.info("世界已卸载，配置已保存");
     }
 }

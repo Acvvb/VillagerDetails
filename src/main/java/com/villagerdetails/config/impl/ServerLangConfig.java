@@ -1,6 +1,9 @@
-package com.villagerdetails.config;
+package com.villagerdetails.config.impl;
 
 import com.google.gson.*;
+import com.villagerdetails.config.ConfigRegistry;
+import com.villagerdetails.config.ReloadableConfig;
+import com.villagerdetails.lang.ServerTranslations;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 import org.apache.logging.log4j.LogManager;
@@ -14,9 +17,19 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class ServerLangConfig {
+public final class ServerLangConfig implements ReloadableConfig {
 
     private ServerLangConfig() {}
+
+    public static final ServerLangConfig INSTANCE = new ServerLangConfig();
+
+    @Override public String configName() { return "languageConfig"; }
+    @Override public void reload(MinecraftServer server) {
+        loadFromWorld(server);
+        ServerTranslations.reload();
+        ServerTranslations.switchTo(defaultLang);
+    }
+
 
     private static final Logger LOGGER = LogManager.getLogger(ServerLangConfig.class);
 

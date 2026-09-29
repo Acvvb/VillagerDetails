@@ -1,8 +1,9 @@
-package com.villagerdetails.config;
+package com.villagerdetails.config.impl;
 
 import com.google.gson.*;
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.command.SwitchComponentType;
+import com.villagerdetails.config.ReloadableConfig;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
@@ -26,9 +27,21 @@ import java.util.concurrent.ConcurrentHashMap;
  *   · 不依赖 NBT / Codec / DataFixTypes
  *   · 需要自己管理加载、保存、服务器关闭时的刷盘
  */
-public class WorldBindingConfig {
+public class RuleConfig implements ReloadableConfig {
 
-    private static final Logger log = LogManager.getLogger(WorldBindingConfig.class);
+    public static final RuleConfig INSTANCE = new RuleConfig();
+
+    private RuleConfig() { this.filePath = null; }
+
+    @Override public String configName() { return "RuleConfig"; }
+    @Override
+    public void reload(MinecraftServer server) {
+        RuleCache.setServer(server);
+        onServerStopping(server);
+        getOrCreate(server).syncToSwitch();
+    }
+
+    private static final Logger log = LogManager.getLogger(RuleConfig.class);
 
     /** 文件名（放在存档根目录） */
     private static final String FILE_NAME = "villager_details_binding.json";
@@ -39,13 +52,13 @@ public class WorldBindingConfig {
             .create();
 
     /** 按服务器实例缓存，避免每次调用都读盘 */
-    private static final Map<MinecraftServer, WorldBindingConfig> INSTANCES = new ConcurrentHashMap<>();
+    private static final Map<MinecraftServer, RuleConfig> INSTANCES = new ConcurrentHashMap<>();
 
     private final Path filePath;
     private final Map<String, String> bindingStates = new HashMap<>();
     private boolean dirty = false;
 
-    private WorldBindingConfig(Path filePath) {
+    private RuleConfig(Path filePath) {
         this.filePath = filePath;
     }
 
@@ -53,11 +66,11 @@ public class WorldBindingConfig {
     //  生命周期
     // ------------------------------------------------------------------
 
-    public static WorldBindingConfig getOrCreate(MinecraftServer server) {
+    public static RuleConfig getOrCreate(MinecraftServer server) {
         return INSTANCES.computeIfAbsent(server, s -> {
             Path worldRoot = s.getWorldPath(LevelResource.ROOT);
             Path path = worldRoot.resolve(FILE_NAME);
-            WorldBindingConfig config = new WorldBindingConfig(path);
+            RuleConfig config = new RuleConfig(path);
             config.load();
             return config;
         });
@@ -65,7 +78,7 @@ public class WorldBindingConfig {
 
     /** 在服务器停止事件里调用，把未落盘的改动写回文件 */
     public static void onServerStopping(MinecraftServer server) {
-        WorldBindingConfig config = INSTANCES.remove(server);
+        RuleConfig config = INSTANCES.remove(server);
         if (config != null) {
             config.save();
         }
@@ -76,7 +89,7 @@ public class WorldBindingConfig {
     // ------------------------------------------------------------------
 
     private void load() {
-        if (!Files.exists(filePath)) {
+        if (filePath == null || !Files.exists(filePath)) {
             return;
         }
         try {
@@ -98,13 +111,15 @@ public class WorldBindingConfig {
             return;
         }
         try {
-            Files.createDirectories(filePath.getParent());
-            JsonObject obj = new JsonObject();
-            for (Map.Entry<String, String> entry : bindingStates.entrySet()) {
-                obj.addProperty(entry.getKey(), entry.getValue());
+            if (filePath != null) {
+                Files.createDirectories(filePath.getParent());
+                JsonObject obj = new JsonObject();
+                for (Map.Entry<String, String> entry : bindingStates.entrySet()) {
+                    obj.addProperty(entry.getKey(), entry.getValue());
+                }
+                Files.writeString(filePath, GSON.toJson(obj));
+                dirty = false;
             }
-            Files.writeString(filePath, GSON.toJson(obj));
-            dirty = false;
         } catch (IOException e) {
             log.error("[VillagerDetails] 写入绑定配置失败：{}", filePath, e);
         }

@@ -1,15 +1,12 @@
 package com.villagerdetails;
 
-import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.command.EntityBinderCommand;
-import com.villagerdetails.config.ServerLangConfig;
+import com.villagerdetails.config.ConfigRegistry;
 import com.villagerdetails.event.BBSelectionListener;
 import com.villagerdetails.event.EBSectionManager;
 import com.villagerdetails.event.ServerLifecycleListener;
 import com.villagerdetails.event.ServerStoppingListener;
 import com.villagerdetails.handler.NoBrainOnPortalHandler;
-import com.villagerdetails.handler.villager.trader.refresh.IdTranslation;
-import com.villagerdetails.lang.ServerTranslations;
 import com.villagerdetails.network.VillagerBedPayload;
 import com.villagerdetails.network.VillagerTrackingHandler;
 import com.villagerdetails.rule.RuleModuleRegistry;
@@ -34,13 +31,7 @@ public class VillagerDetails implements ModInitializer {
 		ServerLifecycleEvents.SERVER_STARTED.register(ServerLifecycleListener::onServerStarted);
 		ServerLifecycleEvents.SERVER_STOPPING.register(new ServerStoppingListener());
 
-		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-			RuleCache.setServer(server);
-			ServerLangConfig.loadFromWorld(server);
-			ServerTranslations.preloadAll();
-			ServerTranslations.switchTo(ServerLangConfig.getDefaultLang());
-			IdTranslation.loadFromWorld(server);
-		});
+		ServerLifecycleEvents.SERVER_STARTED.register(ConfigRegistry::reloadAll);
 
 		RuleModuleRegistry.initAll();
 

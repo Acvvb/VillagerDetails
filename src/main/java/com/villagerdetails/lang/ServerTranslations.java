@@ -4,7 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.villagerdetails.VillagerDetails;
-import com.villagerdetails.config.ServerLangConfig;
+import com.villagerdetails.config.impl.ServerLangConfig;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.contents.KeybindContents;
@@ -61,6 +61,23 @@ public final class ServerTranslations {
         for (String lang : ServerLangConfig.getPreloadLanguages()) {
             preload(lang);
         }
+    }
+
+    /**
+     * 清空所有已加载语言的缓存，重新从 lang json 加载并切回原语言。
+     * <p>供 {@code ServerLangConfig.reload(server)} 调用。
+     */
+    public static void reload() {
+        String previousLang = currentLang;
+
+        ALL_LANGUAGES.clear();
+        current = Map.of();
+
+        preloadAll();
+
+        switchTo(previousLang);
+
+        log.info("[ServerTranslations] 已重载：{} 种语言，当前 = {}", ALL_LANGUAGES.size(), previousLang);
     }
 
     public static void preload(String lang) {

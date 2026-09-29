@@ -1,9 +1,10 @@
-package com.villagerdetails.handler.villager.trader.refresh;
+package com.villagerdetails.config.impl;
 
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.villagerdetails.config.ReloadableConfig;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
@@ -19,11 +20,18 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public final class IdTranslation {
+public final class IdTranslationConfig implements ReloadableConfig {
 
-    private IdTranslation() {}
+    private IdTranslationConfig() {}
 
-    private static final Logger log = LogManager.getLogger(IdTranslation.class);
+    private static final Logger log = LogManager.getLogger(IdTranslationConfig.class);
+
+
+    public static final IdTranslationConfig INSTANCE = new IdTranslationConfig();
+
+    @Override public String configName() { return "TradeIndexConfig"; }
+    @Override public void reload(MinecraftServer server) { loadFromWorld(server); }
+
 
     /** 存档内相对路径 */
     private static final String SAVE_RELATIVE_PATH = "villagerdetails/id_mappings.json";
@@ -198,11 +206,11 @@ public final class IdTranslation {
             JsonObject root = new JsonObject();
 
             JsonObject enchantObj = new JsonObject();
-            IdTranslation.DEFAULT_CN_TO_ENCHANT.forEach(enchantObj::addProperty);
+            IdTranslationConfig.DEFAULT_CN_TO_ENCHANT.forEach(enchantObj::addProperty);
             root.add("enchant", enchantObj);
 
             JsonObject itemObj = new JsonObject();
-            IdTranslation.DEFAULT_CN_TO_ITEM.forEach(itemObj::addProperty);
+            IdTranslationConfig.DEFAULT_CN_TO_ITEM.forEach(itemObj::addProperty);
             root.add("item", itemObj);
 
             try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {

@@ -2,7 +2,7 @@ package com.villagerdetails.cache;
 
 import com.villagerdetails.VillagerDetails;
 import com.villagerdetails.command.SwitchComponentType;
-import com.villagerdetails.config.WorldBindingConfig;
+import com.villagerdetails.config.impl.RuleConfig;
 import com.villagerdetails.event.type.ListenerType;
 import com.villagerdetails.rule.RuleCallbacks;
 import com.villagerdetails.rule.type.RuleType;
@@ -121,9 +121,9 @@ public class RuleCache {
         if (s == null) return;
 
         try {
-            WorldBindingConfig cfg = WorldBindingConfig.getOrCreate(s);
+            RuleConfig cfg = RuleConfig.getOrCreate(s);
             cfg.setBindingState(type.getRegisterName(), state);
-            // 如果 WorldBindingConfig 有显式 save 方法，在这里调：
+            // 如果 RuleConfig 有显式 save 方法，在这里调：
             // cfg.save(s);
         } catch (Exception e) {
             System.err.println("[RuleCache] 持久化失败 " + type.getRegisterName() + ": " + e);

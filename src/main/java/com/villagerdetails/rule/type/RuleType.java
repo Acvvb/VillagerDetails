@@ -2,7 +2,7 @@ package com.villagerdetails.rule.type;
 
 import com.villagerdetails.command.register.impl.BBSelectionServerImpl;
 import com.villagerdetails.command.register.server.RegisterServer;
-import com.villagerdetails.config.ServerLangConfig;
+import com.villagerdetails.config.impl.ServerLangConfig;
 import com.villagerdetails.event.type.ListenerType;
 import com.villagerdetails.lang.ServerTranslations;
 import net.minecraft.network.chat.Component;

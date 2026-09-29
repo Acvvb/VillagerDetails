@@ -9,8 +9,9 @@ import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.VillagerDetails;
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.command.register.server.RegisterServer;
-import com.villagerdetails.config.WorldBindingConfig;
-import com.villagerdetails.handler.villager.trader.refresh.IdTranslation;
+import com.villagerdetails.config.ConfigRegistry;
+import com.villagerdetails.config.ReloadableConfig;
+import com.villagerdetails.config.impl.RuleConfig;
 import com.villagerdetails.rule.type.RuleCategoryType;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.commands.CommandSourceStack;
@@ -60,10 +61,7 @@ public class EntityBinderCommand {
     private static final String K_TOGGLE_SUCCESS       = "command.entity_binder.toggle.success";
     private static final String K_TOGGLE_EMPTY_VALUE   = "command.entity_binder.toggle.empty_value";
 
-    // ============================================================
-    // 建议提供器
-    // ============================================================
-
+    //补全
     private static final SuggestionProvider<CommandSourceStack> RULE_SUGGESTER = (_, builder) ->
             SharedSuggestionProvider.suggest(
                     Arrays.stream(RuleType.values())
@@ -85,6 +83,12 @@ public class EntityBinderCommand {
         }
         return SharedSuggestionProvider.suggest(rule.getQuickSwitches(), builder);
     };
+
+    private static final SuggestionProvider<CommandSourceStack> CONFIG_SUGGESTER = (_, builder) ->
+            SharedSuggestionProvider.suggest(
+                    ConfigRegistry.getAllNames(),
+                    builder
+            );
 
     // ============================================================
     // 注册
@@ -139,7 +143,12 @@ public class EntityBinderCommand {
 
         c = c.then(Commands.literal("reload")
                 .requires(src -> src.checkPermission(PERM_BASE, PermissionLevel.OWNERS))
-                .executes(EntityBinderCommand::reloadMappings));
+                .executes(ctx -> reloadMappings(ctx, null))                    // /ec c reload
+                .then(Commands.argument("config", StringArgumentType.word())    // /ec c reload <name>
+                        .suggests(CONFIG_SUGGESTER)
+                        .executes(ctx -> reloadMappings(ctx, StringArgumentType.getString(ctx, "config")))
+                )
+        );
 
         return c;
     }
@@ -148,17 +157,35 @@ public class EntityBinderCommand {
     // /ec c reload
     // ============================================================
 
-    private static int reloadMappings(CommandContext<CommandSourceStack> ctx) {
+    private static int reloadMappings(CommandContext<CommandSourceStack> ctx, String configName) {
         CommandSourceStack src = ctx.getSource();
         MinecraftServer server = src.getServer();
         ServerPlayer player = src.getPlayer();
 
+        if (configName == null) {
+            ConfigRegistry.Result result = ConfigRegistry.reloadAll(server);
+            if (result.success()) {
+                sendOrBroadcast(player, Component.translatable(K_RELOAD_SUCCESS, String.join(", ", result.loaded())));
+                return 1;
+            } else {
+                sendOrBroadcast(player, Component.translatable(K_RELOAD_FAIL, String.join("; ", result.failed())));
+                return 0;
+            }
+        }
+
+        ReloadableConfig config = ConfigRegistry.get(configName);
+        if (config == null) {
+            sendOrBroadcast(player, Component.literal("§c未知的配置名: " + configName + "（可用：" + String.join(", ", ConfigRegistry.getAllNames()) + "）"));
+            return 0;
+        }
+
         try {
-            IdTranslation.loadFromWorld(server);
-            sendOrBroadcast(player, Component.translatable(K_RELOAD_SUCCESS));
+            config.reload(server);
+            sendOrBroadcast(player, Component.translatable(K_RELOAD_SUCCESS, config.configName()));
             return 1;
         } catch (Exception e) {
-            sendOrBroadcast(player, Component.translatable(K_RELOAD_FAIL, e.getMessage()));
+            sendOrBroadcast(player, Component.translatable(K_RELOAD_FAIL,
+                    config.configName() + ": " + e.getMessage()));
             return 0;
         }
     }
@@ -274,7 +301,7 @@ public class EntityBinderCommand {
 
         RuleCache.setState(rule, canonical);
 
-        WorldBindingConfig config = WorldBindingConfig.getOrCreate(context.getSource().getServer());
+        RuleConfig config = RuleConfig.getOrCreate(context.getSource().getServer());
         config.setBindingState(rule.getRegisterName(), canonical);
 
         Component valueComp = canonical.isEmpty()

@@ -1,6 +1,6 @@
 {
 
-  "command.entity_binder.reload.success": "§a[VillagerDetails] Mapping config reloaded",
+  "command.entity_binder.reload.success": "§aMapping config reloaded",
   "command.entity_binder.reload.fail": "§c[VillagerDetails] Reload failed: %s",
 
   "command.entity_binder.status.enabled": "enabled",

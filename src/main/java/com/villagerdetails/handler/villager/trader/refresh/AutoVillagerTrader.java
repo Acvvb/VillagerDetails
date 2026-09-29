@@ -1,6 +1,7 @@
 package com.villagerdetails.handler.villager.trader.refresh;
 
 import com.villagerdetails.cache.RuleCache;
+import com.villagerdetails.config.impl.IdTranslationConfig;
 import com.villagerdetails.mixin.AbstractVillagerInterfaceMixin;
 import com.villagerdetails.mixin.VillagerInterfaceTradesMixin;
 import net.minecraft.core.Holder;
@@ -53,7 +54,7 @@ public class AutoVillagerTrader {
 
         // 2) 需要 registry 才能判断
         if (!(villager.level() instanceof ServerLevel level)) return false;
-        Identifier id = IdTranslation.resolveEnchantId(raw);
+        Identifier id = IdTranslationConfig.resolveEnchantId(raw);
         if (id == null) return false;
 
         // 3) 附魔
@@ -204,7 +205,7 @@ public class AutoVillagerTrader {
 
     public static WantedResult parseWanted(Villager villager, String raw) {
         if (!(villager.level() instanceof ServerLevel level)) return null;
-        Identifier id = IdTranslation.resolveEnchantId(raw);
+        Identifier id = IdTranslationConfig.resolveEnchantId(raw);
         if (id == null) return null;
         Registry<Enchantment> enchRegistry = level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
         Enchantment enchantment = enchRegistry.getValue(id);
