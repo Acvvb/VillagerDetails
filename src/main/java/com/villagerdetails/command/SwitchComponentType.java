@@ -12,8 +12,8 @@ import java.util.List;
  */
 public enum SwitchComponentType {
 
-    FALSE("关闭", "false", null),
-    TRUE("开启", "true", PermissionLevel.ALL),
+    FALSE("false", "false", null),
+    TRUE("true", "true", PermissionLevel.ALL),
     OPS("ops", "ops", PermissionLevel.MODERATORS),
     MASTER("master", "master", PermissionLevel.GAMEMASTERS),
     ADMIN("admin", "admin", PermissionLevel.ADMINS),

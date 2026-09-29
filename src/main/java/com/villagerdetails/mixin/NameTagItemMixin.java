@@ -57,21 +57,24 @@ public class NameTagItemMixin {
 
         // 6) 反馈
         ServerPlayer sp = (ServerPlayer) player;
-        if (attempts > 0) {
-            sendOverlayOrBroadcast(sp, Component.literal(
-                    "§a命中！第 §e" + attempts + " §a次刷新就出了 " + name));
-        } else if (attempts == 0) {
-            sendOverlayOrBroadcast(sp, Component.literal(
-                    "§e刷了 §c" + count + " §e次都没命中，再命名一次试试"));
-        } else if (attempts == -1) {
-            sendOverlayOrBroadcast(sp, Component.literal(
-                    "§c该村民无法刷新（已锁定 / 小孩 / 无职业 / 无工作站）"));
-        } else if (attempts == -2) {
-            sendOverlayOrBroadcast(sp, Component.literal(
-                    "§c该村民刷不出 " + name));
-        } else if (attempts == -3) {
-            sendOverlayOrBroadcast(sp, Component.literal(
-                    "§c对应规则未开启，请先启用"));
+        switch (attempts) {
+            case -1 -> sendOverlayOrBroadcast(sp,
+                    Component.translatable("msg.auto_trader.locked"));
+
+            case -2 -> sendOverlayOrBroadcast(sp,
+                    Component.translatable("msg.auto_trader.no_match", name));
+
+            case -3 -> sendOverlayOrBroadcast(sp,
+                    Component.translatable("msg.auto_trader.rule_disabled"));
+
+            case 0 -> sendOverlayOrBroadcast(sp,
+                    Component.translatable("msg.auto_trader.no_hit", count));
+
+            default -> {
+                // attempts > 0（唯一剩下的可能）
+                sendOverlayOrBroadcast(sp,
+                        Component.translatable("msg.auto_trader.success", attempts, name));
+            }
         }
     }
 }

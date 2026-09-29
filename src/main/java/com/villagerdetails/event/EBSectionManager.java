@@ -53,7 +53,7 @@ public class EBSectionManager {
             return InteractionResult.SUCCESS;
         }
 
-        String entityName = Component.translatable(entity.getType().getDescriptionId()).getString();
+        Component entityName = Component.translatable(entity.getType().getDescriptionId());
         SendMessengerUtils.sendOverlayOrBroadcast(
                 (ServerPlayer) player,
                 Component.translatable("msg.entity.select.success", entityName, entityUuid.toString())
@@ -81,10 +81,11 @@ public class EBSectionManager {
             return InteractionResult.SUCCESS;
         }
 
+        Component blockName = level.getBlockState(clickedPos).getBlock().getName();
         SendMessengerUtils.sendOverlayOrBroadcast(
                 (ServerPlayer) player,
                 Component.translatable("msg.block.select.success",
-                        level.getBlockState(clickedPos).getBlock().getName(),
+                        blockName,
                         "%d, %d, %d".formatted(clickedPos.getX(), clickedPos.getY(), clickedPos.getZ())
                 )
         );

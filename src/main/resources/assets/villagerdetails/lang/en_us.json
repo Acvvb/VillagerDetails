@@ -1,5 +1,90 @@
 {
 
+  "command.entity_binder.reload.success": "§a[VillagerDetails] Mapping config reloaded",
+  "command.entity_binder.reload.fail": "§c[VillagerDetails] Reload failed: %s",
+
+  "command.entity_binder.status.enabled": "enabled",
+  "command.entity_binder.status.disabled": "disabled",
+
+  "command.entity_binder.list.header.status": "§6============== %s rules ===============",
+  "command.entity_binder.list.empty.status": "No more %s rules",
+  "command.entity_binder.list.header.all": "§6========== Controller rules (all) ==========",
+  "command.entity_binder.list.header.category": "§6========== Rules: %s ==========",
+
+  "command.entity_binder.help.categories": "Rule categories\n",
+
+  "command.entity_binder.error.unknown_category": "§cUnknown category: %s",
+  "command.entity_binder.error.unknown_rule": "§cUnknown rule: %s",
+  "command.entity_binder.error.invalid_state": "§cInvalid state value: %s",
+  "command.entity_binder.error.invalid_option": "§cInvalid option: %s",
+
+  "command.entity_binder.toggle.category_label": "\nCategory: ",
+  "command.entity_binder.toggle.value_label": "\nValue: ",
+  "command.entity_binder.toggle.success": "§a%s (%s) set to §e%s",
+  "command.entity_binder.toggle.empty_value": "(empty)",
+
+
+  "setting.language": "Language",
+  "setting.language.desc": "Language setting for the mod",
+  "setting.ec_command_permission": "ECCommand Permissions",
+  "setting.ec_command_permission.desc": "Manage all permissions except /ec c",
+
+  "setting.villager_no_squeeze": "No Squeeze",
+  "setting.villager_no_squeeze.desc": "Specified entities do not participate in entity squeezing and take no squeeze damage. Separate IDs with commas.",
+
+  "setting.villager_bed_reset": "Villager Bed Binding",
+  "setting.villager_bed_reset.desc": "Use a leash named 'bed' to sneak-right-click a villager and a bed to change the villager's bound bed.",
+
+  "setting.villager_work_block_reset": "Villager Work Block Binding",
+  "setting.villager_work_block_reset.desc": "Use a leash named 'work' to sneak-right-click a villager and a block to change the villager's bound work block.",
+
+  "setting.villager_batch_bed_reset": "Batch Villager Bed Binding",
+  "setting.villager_batch_bed_reset.desc": "Use a leash named 'tool' to select an area with left/right-click, then run /entityCommand bindAreaBeds to bind villagers to their nearest beds.",
+
+  "setting.villager_auto_trader": "Auto Refresh Trades",
+  "setting.villager_auto_trader.desc": "Write the target enchantment on a name tag and right-click a librarian to automatically refresh a max-level trade with that enchantment.",
+
+  "setting.villager_god_tools": "God Tools Refresh",
+  "setting.villager_god_tools.desc": "Use name tags '331a' / '331b' to spawn triple-enchanted diamond tools.",
+
+  "setting.villager_terracotta_trader": "Terracotta Refresh",
+  "setting.villager_terracotta_trader.desc": "Use a name tag named after a terracotta color to spawn both the corresponding terracotta and glazed terracotta.",
+
+  "setting.villager_auto_lock_hit_trader": "Auto Lock Villager Trades",
+  "setting.villager_auto_lock_hit_trader.desc": "Automatically lock the villager's trade after refreshing an enchanted book via the auto-refresh rule.",
+
+  "setting.villager_silent_auto_reroll_trader": "Silent Villager Trade Reroll",
+  "setting.villager_silent_auto_reroll_trader.desc": "Automatically remove the name tag after using the auto-refresh rule.",
+
+  "setting.villager_one_tick_trader_count": "Trades Refreshed per Tick",
+  "setting.villager_one_tick_trader_count.desc": "Adjust the per-tick refresh count of the auto-refresh trader.",
+
+  "setting.villager_hard_working": "Hard Working Villager",
+  "setting.villager_hard_working.desc": "Adjust the restock amount per villager (default is double restock).",
+
+  "setting.villager_infinite_trade": "Infinite Trades",
+  "setting.villager_infinite_trade.desc": "Villager trades never run out.",
+
+  "setting.villager_move_controller": "Villager Move Controller",
+  "setting.villager_move_controller.desc": "Use a leash named 'move' to sneak-right-click a villager and a target position to make the villager move there.",
+
+  "setting.villager_toolsmith_exchange": "Toolsmith Diamond Exchange",
+  "setting.villager_toolsmith_exchange.desc": "Change the toolsmith's diamond-for-emerald trade into emerald-for-diamond.",
+
+  "setting.villager_emerald_decompose": "Auto Emerald Block Decompose",
+  "setting.villager_emerald_decompose.desc": "Allow paying villagers with emerald blocks, automatically decomposed into emeralds.",
+
+  "setting.villager_bookshelf_decompose": "Auto Bookshelf Decompose",
+  "setting.villager_bookshelf_decompose.desc": "Allow paying villagers with bookshelves, automatically decomposed into books.",
+
+
+  "msg.auto_trader.success": "§aHit! Rolled §e%s §atime(s) and got %s",
+  "msg.auto_trader.no_hit": "§eRolled §c%s §etime(s) without a hit, try naming again",
+  "msg.auto_trader.locked": "§cThis villager cannot be refreshed (locked / baby / jobless / no work station)",
+  "msg.auto_trader.no_match": "§cThis villager cannot roll %s",
+  "msg.auto_trader.rule_disabled": "§cThe corresponding rule is disabled, please enable it first",
+
+
   "msg.villager.bind_area.no_villagers_or_beds": "No villagers or beds found in the area (found %s villagers, %s beds)",
   "msg.villager.bind_area.no_match": "Found %s villagers and %s beds in the area, but no bindings could be made",
   "msg.villager.bind_area.success": "Successfully bound %s beds (found %s villagers, %s beds, area: %s ~ %s)",

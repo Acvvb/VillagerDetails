@@ -35,15 +35,7 @@ public final class ServerTranslations {
 
     private static final Logger log = LogManager.getLogger(ServerTranslations.class);
 
-    // ==============================================================
-    // 加载的模组列表——想支持哪个模组就往这里加
-    // ==============================================================
-
     private static final List<String> MODS = List.of(VillagerDetails.MOD_ID);
-
-    // ==============================================================
-    // 状态
-    // ==============================================================
 
     /** 当前语言代码 */
     private static volatile String currentLang = "en_us";
@@ -54,13 +46,8 @@ public final class ServerTranslations {
     /** 当前生效的翻译表 */
     private static volatile Map<String, String> current = Map.of();
 
-    // ==============================================================
-    // 初始化 & 切换
-    // ==============================================================
-
     /** 预加载所有可用语言（服务器启动时调一次） */
     public static void preloadAll() {
-        preload("minecraft");
         for (String lang : ServerLangConfig.getPreloadLanguages()) {
             preload(lang);
         }
@@ -168,5 +155,99 @@ public final class ServerTranslations {
         } catch (Exception e) {
             log.error("[ServerTranslations] 加载失败：{}", path, e);
         }
+    }
+
+    /**
+     * 把 Component 翻译成"可直接发送"的 MutableComponent。
+     *
+     * 规则：
+     *   · 服务端表里有 key → 用模板渲染
+     *       - 模板里的 Component 参数：保留结构，客户端翻译
+     *       - 模板里的 String 参数：按 § 颜色继承，直接拼进字面量
+     *   · 服务端表里没有 key → 原样保留 translatable，交给客户端翻译
+     *   · 样式（ClickEvent / HoverEvent / 颜色 / 加粗）整套搬运
+     */
+    public static net.minecraft.network.chat.MutableComponent translateComponent(Component src) {
+        if (src == null) return Component.empty();
+
+        net.minecraft.network.chat.MutableComponent out;
+        var contents = src.getContents();
+
+        if (contents instanceof TranslatableContents trans) {
+            String key = trans.getKey();
+            Object[] args = trans.getArgs();
+            String template = current.get(key);
+
+            if (template == null) {
+                // ── 服务端表里没有这个 key → 保留 translatable，交给客户端 ──
+                Object[] copied = new Object[args.length];
+                for (int i = 0; i < args.length; i++) {
+                    Object a = args[i];
+                    copied[i] = (a instanceof Component c) ? translateComponent(c) : a;
+                }
+                out = Component.translatable(key, copied);
+
+            } else {
+                // ── 服务端表里有 key → 按 %s 拆分 ──
+                out = Component.empty();
+                String[] parts = template.split("%s", -1);
+
+                // 追踪"当前生效的 § 颜色码"，让它能延续到下一个参数
+                String pendingColor = "";
+
+                for (int i = 0; i < parts.length; i++) {
+                    String seg = parts[i];
+
+                    // 记下这段里最后一个 §X
+                    int lastIdx = -1;
+                    for (int j = seg.length() - 2; j >= 0; j--) {
+                        if (seg.charAt(j) == '§') { lastIdx = j; break; }
+                    }
+                    if (lastIdx >= 0) {
+                        pendingColor = seg.substring(lastIdx, lastIdx + 2);
+                    }
+
+                    // 把该段原样 append（里面自带的 § 码会被 Minecraft 解析）
+                    if (!seg.isEmpty()) {
+                        out.append(Component.literal(seg.replace("%%", "%")));
+                    }
+
+                    // 把参数 append
+                    if (i < args.length) {
+                        Object a = args[i];
+                        if (a instanceof Component c) {
+                            // ★ Component 参数：保留结构，客户端翻译
+                            //   为了颜色跟随，先把颜色码 append 出去
+                            if (!pendingColor.isEmpty()) {
+                                out.append(Component.literal(pendingColor));
+                            }
+                            out.append(translateComponent(c));
+                        } else {
+                            // String / 数字 参数：直接拼进带颜色码的字面量
+                            out.append(Component.literal(pendingColor + a));
+                        }
+                    }
+                }
+            }
+
+        } else if (contents instanceof PlainTextContents plain) {
+            out = Component.literal(plain.text());
+
+        } else if (contents instanceof KeybindContents keybind) {
+            out = Component.keybind(keybind.getName());
+
+        } else {
+            out = Component.literal(src.getString());
+        }
+
+        // 样式整套搬运（ClickEvent / HoverEvent / color / bold 等）
+        out.setStyle(src.getStyle());
+
+        // 递归 siblings
+        for (Component sibling : src.getSiblings()) {
+            out.append(translateComponent(sibling));
+        }
+
+        return out;
     }
 }

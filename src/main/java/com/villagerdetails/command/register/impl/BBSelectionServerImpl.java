@@ -14,7 +14,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 import static com.villagerdetails.rule.type.RuleType.VILLAGER_BATCH_BED_RESET;
-import static com.villagerdetails.util.SendMessengerUtils.sendToPlayer;
+import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
 
 public class BBSelectionServerImpl implements RegisterServer {
 
@@ -115,12 +115,12 @@ public class BBSelectionServerImpl implements RegisterServer {
         if (pos != null) {
             showPosSuccessMessage(player,pos,posSeter);
         } else {
-            sendToPlayer(player, Component.translatable("message.selection.pos_not_set",posSeter));
+            sendOrBroadcast(player, Component.translatable("message.selection.pos_not_set",posSeter));
         }
     }
 
     private void showPosSuccessMessage(ServerPlayer player, BlockPos pos, int posSeter) {
-        sendToPlayer(player, Component.translatable(
+        sendOrBroadcast(player, Component.translatable(
                 "message.selection.pos_set",
                 posSeter, pos.getX(), pos.getY(), pos.getZ()
         ));
