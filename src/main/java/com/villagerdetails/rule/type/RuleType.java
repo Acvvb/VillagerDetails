@@ -25,7 +25,7 @@ public enum RuleType {
 
     // 实体
     VILLAGER_NO_SQUEEZE("NoSqueeze", "setting.villager_no_squeeze", "setting.villager_no_squeeze.desc", List.of(ENTITY, VILLAGER), NONE, null, true, List.of("minecraft:villager", "minecraft:piglin"), ""),
-
+    NO_BRAIN_ON_PORTAL("NoBrainOnPortal", "setting.no_brain_on_portal", "setting.no_brain_on_portal.desc", List.of(ENTITY), NONE, null, false, ON_OFF, FALSE_STR),
 
     // 村民
     VILLAGER_BED_RESET("VillagerBedBinding", "setting.villager_bed_reset", "setting.villager_bed_reset.desc", List.of(VILLAGER), ENTITY_BLOCK_SELECTION, null, false, PERMISSIONS, FALSE_STR),

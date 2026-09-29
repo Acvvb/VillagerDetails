@@ -29,8 +29,17 @@
   "setting.ec_command_permission": "ECCommand Permissions",
   "setting.ec_command_permission.desc": "Manage all permissions except /ec c",
 
+
+
+
+
   "setting.villager_no_squeeze": "No Squeeze",
   "setting.villager_no_squeeze.desc": "Specified entities do not participate in entity squeezing and take no squeeze damage. Separate IDs with commas.",
+  "setting.no_brain_on_portal": "Portal No-Brain",
+  "setting.no_brain_on_portal.desc": "Monsters lose their AI after passing through a Nether portal.",
+
+
+
 
   "setting.villager_bed_reset": "Villager Bed Binding",
   "setting.villager_bed_reset.desc": "Use a leash named 'bed' to sneak-right-click a villager and a bed to change the villager's bound bed.",

@@ -7,6 +7,7 @@ import com.villagerdetails.event.BBSelectionListener;
 import com.villagerdetails.event.EBSectionManager;
 import com.villagerdetails.event.ServerLifecycleListener;
 import com.villagerdetails.event.ServerStoppingListener;
+import com.villagerdetails.handler.NoBrainOnPortalHandler;
 import com.villagerdetails.handler.villager.trader.refresh.IdTranslation;
 import com.villagerdetails.lang.ServerTranslations;
 import com.villagerdetails.network.VillagerBedPayload;
@@ -55,6 +56,8 @@ public class VillagerDetails implements ModInitializer {
 		//方块-实体选择工具
 		BBSelectionListener.init();
 
+		//穿过地狱门回调（暂时写死怪物去脑子）
+		NoBrainOnPortalHandler.register();
 	}
 
 	public static Identifier id(String path) {

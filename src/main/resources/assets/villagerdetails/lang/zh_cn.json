@@ -29,8 +29,16 @@
   "setting.ec_command_permission": "ec 命令权限",
   "setting.ec_command_permission.desc": "管理除 /ec c 以外的所有权限",
 
+
+
+
   "setting.villager_no_squeeze": "无挤压",
   "setting.villager_no_squeeze.desc": "指定实体不参与实体挤压、不受到挤压伤害。ID 用英文逗号分隔。",
+  "setting.no_brain_on_portal": "过门失智",
+  "setting.no_brain_on_portal.desc": "怪物穿过下界传送门后失去 AI（变成无大脑状态）。",
+
+
+
 
   "setting.villager_bed_reset": "村民床编辑器",
   "setting.villager_bed_reset.desc": "使用命名为 bed 的拴绳蹲下右键选择村民和床，修改村民所绑定的床。",
