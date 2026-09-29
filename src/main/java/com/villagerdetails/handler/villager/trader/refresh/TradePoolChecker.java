@@ -20,7 +20,10 @@ import net.minecraft.world.item.trading.VillagerTrade;
 import net.minecraft.world.level.storage.loot.functions.EnchantRandomlyFunction;
 import net.minecraft.world.level.storage.loot.functions.LootItemFunction;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Optional;
+import java.util.Set;
 
 public final class TradePoolChecker {
 

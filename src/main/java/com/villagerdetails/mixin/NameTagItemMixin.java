@@ -58,23 +58,15 @@ public class NameTagItemMixin {
         // 6) 反馈
         ServerPlayer sp = (ServerPlayer) player;
         switch (attempts) {
-            case -1 -> sendOverlayOrBroadcast(sp,
-                    Component.translatable("msg.auto_trader.locked"));
+            case -1 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.locked"));
 
-            case -2 -> sendOverlayOrBroadcast(sp,
-                    Component.translatable("msg.auto_trader.no_match", name));
+            case -2 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.no_match", name));
 
-            case -3 -> sendOverlayOrBroadcast(sp,
-                    Component.translatable("msg.auto_trader.rule_disabled"));
+            case -3 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.rule_disabled"));
 
-            case 0 -> sendOverlayOrBroadcast(sp,
-                    Component.translatable("msg.auto_trader.no_hit", count));
+            case 0 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.no_hit", count));
 
-            default -> {
-                // attempts > 0（唯一剩下的可能）
-                sendOverlayOrBroadcast(sp,
-                        Component.translatable("msg.auto_trader.success", attempts, name));
-            }
+            default -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.success", attempts, name));
         }
     }
 }

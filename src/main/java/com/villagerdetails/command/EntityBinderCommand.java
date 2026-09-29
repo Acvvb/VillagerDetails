@@ -20,8 +20,7 @@ import net.minecraft.network.chat.*;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionLevel;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+
 
 import java.util.Arrays;
 import java.util.List;
@@ -86,8 +85,6 @@ public class EntityBinderCommand {
         }
         return SharedSuggestionProvider.suggest(rule.getQuickSwitches(), builder);
     };
-
-    private static final Logger log = LogManager.getLogger(EntityBinderCommand.class);
 
     // ============================================================
     // 注册
@@ -198,7 +195,7 @@ public class EntityBinderCommand {
     }
 
     private static int listRules(CommandContext<CommandSourceStack> context) {
-        return listRulesByCategory(context, (RuleCategoryType) null);
+        return listRulesByCategory(context, null);
     }
 
     private static int listRulesByCategory(CommandContext<CommandSourceStack> context) {
