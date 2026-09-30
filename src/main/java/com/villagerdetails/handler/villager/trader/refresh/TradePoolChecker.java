@@ -1,7 +1,7 @@
 package com.villagerdetails.handler.villager.trader.refresh;
 
-import com.villagerdetails.mixin.EnchantRandomlyFunctionMixin;
-import com.villagerdetails.mixin.VillagerTradeMixin;
+import com.villagerdetails.mixin.villager.trader.autoTrader.VillagerTradeMixin;
+import com.villagerdetails.mixin.villager.trader.autoTrader.book.EnchantRandomlyFunctionMixin;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.Registry;

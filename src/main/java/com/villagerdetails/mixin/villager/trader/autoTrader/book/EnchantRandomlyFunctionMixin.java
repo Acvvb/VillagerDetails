@@ -1,4 +1,4 @@
-package com.villagerdetails.mixin;
+package com.villagerdetails.mixin.villager.trader.autoTrader.book;
 
 import net.minecraft.core.HolderSet;
 import net.minecraft.world.item.enchantment.Enchantment;

@@ -6,7 +6,7 @@ import com.villagerdetails.event.BBSelectionListener;
 import com.villagerdetails.event.EBSectionManager;
 import com.villagerdetails.event.ServerLifecycleListener;
 import com.villagerdetails.event.ServerStoppingListener;
-import com.villagerdetails.handler.NoBrainOnPortalHandler;
+import com.villagerdetails.handler.monster.noBrainOnPortal.NoBrainOnPortalHandler;
 import com.villagerdetails.network.VillagerBedPayload;
 import com.villagerdetails.network.VillagerTrackingHandler;
 import com.villagerdetails.rule.RuleModuleRegistry;

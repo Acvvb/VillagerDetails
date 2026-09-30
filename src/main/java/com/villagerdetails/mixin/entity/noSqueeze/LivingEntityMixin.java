@@ -1,6 +1,6 @@
-package com.villagerdetails.mixin;
+package com.villagerdetails.mixin.entity.noSqueeze;
 
-import com.villagerdetails.handler.noSqueeze.SqueezeHandler;
+import com.villagerdetails.handler.entity.noSqueeze.SqueezeHandler;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;

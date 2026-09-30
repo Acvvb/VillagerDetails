@@ -1,4 +1,4 @@
-package com.villagerdetails.mixin;
+package com.villagerdetails.mixin.monster.noBrainOnPortal;
 
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.GoalSelector;

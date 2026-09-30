@@ -1,4 +1,4 @@
-package com.villagerdetails.handler.noSqueeze;
+package com.villagerdetails.handler.entity.noSqueeze;
 
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.rule.type.RuleType;
@@ -15,13 +15,18 @@ import java.util.Set;
  */
 public final class SqueezeHandler {
 
-    private SqueezeHandler() {}
+    private SqueezeHandler() {
+    }
 
-    /** 缓存：state 字符串 → 解析后的 ID 集合 */
+    /**
+     * 缓存：state 字符串 → 解析后的 ID 集合
+     */
     private static volatile String cachedState = "";
     private static volatile Set<Identifier> cachedIds = Set.of();
 
-    /** 实体是否在"无挤压"名单里 */
+    /**
+     * 实体是否在"无挤压"名单里
+     */
     public static boolean isProtected(Entity entity) {
         if (entity == null) return false;
         Set<Identifier> ids = getIds();
@@ -29,14 +34,6 @@ public final class SqueezeHandler {
 
         Identifier entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
         return ids.contains(entityId);
-    }
-
-    /** 直接判断字符串 ID（用于列表预检） */
-    public static boolean isInList(String entityIdStr) {
-        if (entityIdStr == null || entityIdStr.isBlank()) return false;
-        Identifier id = Identifier.tryParse(entityIdStr.trim());
-        if (id == null) return false;
-        return getIds().contains(id);
     }
 
     private static Set<Identifier> getIds() {
@@ -65,8 +62,4 @@ public final class SqueezeHandler {
         return cachedIds;
     }
 
-    /** 供 RuleCallbacks 调用——手动清空缓存，下次读取时重新解析 */
-    public static void invalidate() {
-        cachedState = "\u0000";   // 设为不可能的值，强制下次重新解析
-    }
 }

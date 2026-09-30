@@ -121,7 +121,7 @@
   "msg.auto_trader.locked": "§c该村民无法刷新（已锁定 / 小孩 / 无职业 / 无工作站）",
   "msg.auto_trader.no_match": "§c该村民刷不出 %s",
   "msg.auto_trader.rule_disabled": "§c对应规则未开启，请先启用",
-
+  "msg.auto_trader.wrong_profession": "该村民职业不支持此刷新，仅工具匠可用",
 
 
   "msg.villager.bind_area.no_villagers_or_beds": "区域内未找到村民或床（找到 %s 个村民，%s 张床）",

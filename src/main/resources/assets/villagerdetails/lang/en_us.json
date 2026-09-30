@@ -112,7 +112,7 @@
   "msg.auto_trader.locked": "§cThis villager cannot be refreshed (locked / baby / jobless / no work station)",
   "msg.auto_trader.no_match": "§cThis villager cannot roll %s",
   "msg.auto_trader.rule_disabled": "§cThe corresponding rule is disabled, please enable it first",
-
+  "msg.auto_trader.wrong_profession": "This villager's profession is not supported for refresh (Toolsmith only)",
 
   "msg.villager.bind_area.no_villagers_or_beds": "No villagers or beds found in the area (found %s villagers, %s beds)",
   "msg.villager.bind_area.no_match": "Found %s villagers and %s beds in the area, but no bindings could be made",

@@ -1,4 +1,4 @@
-package com.villagerdetails.mixin;
+package com.villagerdetails.mixin.villager.move;
 
 import com.villagerdetails.cache.ModMemories;
 import com.villagerdetails.handler.villager.move.ModActivities;

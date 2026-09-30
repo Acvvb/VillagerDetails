@@ -1,4 +1,4 @@
-package com.villagerdetails.mixin;
+package com.villagerdetails.mixin.villager.trader.autoTrader.trigger;
 
 import com.villagerdetails.handler.villager.trader.refresh.AutoVillagerTrader;
 import com.villagerdetails.util.ParseUtils;
@@ -59,13 +59,10 @@ public class NameTagItemMixin {
         ServerPlayer sp = (ServerPlayer) player;
         switch (attempts) {
             case -1 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.locked"));
-
             case -2 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.no_match", name));
-
             case -3 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.rule_disabled"));
-
-            case 0 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.no_hit", count));
-
+            case -4 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.wrong_profession"));
+            case 0  -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.no_hit", count));
             default -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.success", attempts, name));
         }
     }

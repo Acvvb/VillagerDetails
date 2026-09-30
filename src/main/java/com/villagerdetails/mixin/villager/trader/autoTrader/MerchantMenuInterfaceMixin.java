@@ -1,4 +1,4 @@
-package com.villagerdetails.mixin;
+package com.villagerdetails.mixin.villager.trader.autoTrader;
 
 import net.minecraft.world.inventory.MerchantContainer;
 import net.minecraft.world.inventory.MerchantMenu;

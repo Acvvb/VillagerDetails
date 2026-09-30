@@ -1,4 +1,4 @@
-package com.villagerdetails.mixin;
+package com.villagerdetails.mixin.villager.trader.infiniteTrade;
 
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.rule.type.RuleType;

@@ -1,7 +1,7 @@
-package com.villagerdetails.handler;
+package com.villagerdetails.handler.monster.noBrainOnPortal;
 
 import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.mixin.MobInterfaceMixin;
+import com.villagerdetails.mixin.monster.noBrainOnPortal.MobInterfaceMixin;
 import com.villagerdetails.rule.type.RuleType;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
 import net.minecraft.world.entity.monster.Monster;

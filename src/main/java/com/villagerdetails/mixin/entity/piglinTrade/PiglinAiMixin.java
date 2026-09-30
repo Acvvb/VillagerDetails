@@ -1,4 +1,4 @@
-package com.villagerdetails.mixin;
+package com.villagerdetails.mixin.entity.piglinTrade;
 
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.util.ParseUtils;

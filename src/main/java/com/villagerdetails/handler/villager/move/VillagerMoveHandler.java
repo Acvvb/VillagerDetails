@@ -4,7 +4,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.mojang.datafixers.util.Pair;
 import com.villagerdetails.cache.ModMemories;
-import com.villagerdetails.mixin.BrainInterfaceMixin;
+import com.villagerdetails.mixin.villager.move.BrainInterfaceMixin;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.Brain;

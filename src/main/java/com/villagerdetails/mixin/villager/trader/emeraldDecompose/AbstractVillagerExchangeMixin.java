@@ -1,4 +1,4 @@
-package com.villagerdetails.mixin;
+package com.villagerdetails.mixin.villager.trader.emeraldDecompose;
 
 import com.villagerdetails.cache.RuleCache;
 import net.minecraft.world.entity.npc.villager.AbstractVillager;

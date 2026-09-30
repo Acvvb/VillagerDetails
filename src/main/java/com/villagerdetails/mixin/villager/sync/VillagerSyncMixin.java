@@ -1,15 +1,7 @@
-package com.villagerdetails.mixin;
+package com.villagerdetails.mixin.villager.sync;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.mojang.datafixers.util.Pair;
-import com.villagerdetails.cache.ModMemories;
-import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.handler.villager.move.ModActivities;
-import com.villagerdetails.handler.villager.move.MoveToDestination;
 import com.villagerdetails.network.VillagerBedPayload;
 import com.villagerdetails.network.VillagerPacket;
-import com.villagerdetails.util.ParseUtils;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
@@ -18,29 +10,24 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import net.minecraft.world.entity.npc.villager.Villager;
-import net.minecraft.world.item.trading.MerchantOffer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-import static com.villagerdetails.rule.type.RuleType.VILLAGER_HARD_WORKING;
-
 @Mixin(Villager.class)
-public class VillagerMixin {
+public class VillagerSyncMixin {
 
     @Unique
-    private static final Logger log = LogManager.getLogger(VillagerMixin.class);
+    private static final Logger log = LogManager.getLogger(VillagerSyncMixin.class);
 
     /** 记录上一次已发送的床位置，用于检测变化 */
     @Unique
@@ -88,33 +75,4 @@ public class VillagerMixin {
         }
     }
 
-    @Redirect(
-            method = "restock",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/world/item/trading/MerchantOffer;resetUses()V"
-            )
-    )
-    private void customResetUses(MerchantOffer offer) {
-        String state = RuleCache.getState(VILLAGER_HARD_WORKING);
-        String defaultValue = VILLAGER_HARD_WORKING.getState();
-        float multiple = ParseUtils.toFloat(state,ParseUtils.toFloat(defaultValue)) - 1.0F;
-        if (multiple <= 0) {
-            offer.resetUses();
-            return;
-        }
-        int maxUses = offer.getMaxUses();
-        int newUses = -(int) (multiple * maxUses);
-        ((MerchantOfferInterfaceMixin) offer).setUses(newUses);
-    }
-
-    @Inject(method = "registerBrainGoals", at = @At("RETURN"))
-    private void villagerdetails$addDestinationActivity(Brain<Villager> brain, CallbackInfo ci) {
-        brain.addActivity(
-                ModActivities.GO_TO_DESTINATION,
-                ImmutableList.of(Pair.of(0, new MoveToDestination())),
-                ImmutableSet.of(Pair.of(ModMemories.DESTINATION, MemoryStatus.VALUE_PRESENT)),
-                ImmutableSet.of()
-        );
-    }
 }

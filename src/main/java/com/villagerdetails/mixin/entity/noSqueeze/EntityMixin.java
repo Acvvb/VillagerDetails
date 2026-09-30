@@ -1,7 +1,7 @@
-package com.villagerdetails.mixin;
+package com.villagerdetails.mixin.entity.noSqueeze;
 
 
-import com.villagerdetails.handler.noSqueeze.SqueezeHandler;
+import com.villagerdetails.handler.entity.noSqueeze.SqueezeHandler;
 import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
