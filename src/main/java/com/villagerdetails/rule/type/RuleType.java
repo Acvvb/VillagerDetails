@@ -1,7 +1,9 @@
 package com.villagerdetails.rule.type;
 
 import com.villagerdetails.command.c.impl.rule.VillagerBatchBedBindingServerImpl;
+import com.villagerdetails.command.c.impl.suggestion.BlockResistanceSuggestionServer;
 import com.villagerdetails.command.c.impl.suggestion.EntityIdSuggestionServer;
+import com.villagerdetails.command.c.impl.suggestion.UncollectableBlockSuggestionServer;
 import com.villagerdetails.command.c.server.RegisterServer;
 import com.villagerdetails.command.c.server.RegisterTypeServer;
 import com.villagerdetails.command.c.server.StateSuggestionServer;
@@ -79,7 +81,13 @@ public enum RuleType implements RegisterTypeServer {
 
     VILLAGER_EMERALD_DECOMPOSE("VillagerEmeraldDecompose", "setting.villager_emerald_decompose", "setting.villager_emerald_decompose.desc", List.of(VILLAGER), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
 
-    VILLAGER_BOOKSHELF_DECOMPOSE("VillagerBookshelfDecompose", "setting.villager_bookshelf_decompose", "setting.villager_bookshelf_decompose.desc", List.of(VILLAGER), new ArrayList<>(), null, false, ON_OFF, FALSE_STR);
+    VILLAGER_BOOKSHELF_DECOMPOSE("VillagerBookshelfDecompose", "setting.villager_bookshelf_decompose", "setting.villager_bookshelf_decompose.desc", List.of(VILLAGER), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+
+
+    // 方块
+    BLOCK_MINING_RESISTANCE("BlockMiningResistance", "rule.block.mining_resistance", "rule.block.mining_resistance.desc", List.of(BLOCK), new ArrayList<>(), null, true, List.of(NONE), "", BlockResistanceSuggestionServer.INSTANCE),
+
+    BLOCK_COLLECTABLE("BlockCollectable", "rule.block.collectable", "rule.block.collectable.desc", List.of(BLOCK), new ArrayList<>(), null, true, List.of(NONE), "", UncollectableBlockSuggestionServer.INSTANCE);
 
     private final int id;
     private final String registerName;

@@ -11,6 +11,7 @@ public enum RuleCategoryType {
     MONSTER("monster",  "rule.category.monster"),
     ANIMAL("animal",   "rule.category.animal"),
     PLANT("Plant", "rule.category.plant"),
+    BLOCK("block", "rule.category.block"),
     ;
 
 

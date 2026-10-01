@@ -45,6 +45,10 @@ public class RuleCache {
         server = s;
     }
 
+    public static MinecraftServer getServer() {
+        return server;
+    }
+
     @FunctionalInterface
     public interface RuleChangeListener {
         void onRuleChanged(RuleType type, String oldValue, String newValue);

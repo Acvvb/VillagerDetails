@@ -35,7 +35,8 @@ public class EBSectionManager {
     }
 
     public static InteractionResult onUseEntity(Player player, Level level, InteractionHand hand, Entity entity, EntityHitResult hitResult) {
-        if (!isEnableOfListener((ServerPlayer)player,ENTITY_BLOCK_SELECTION)) return InteractionResult.PASS;
+        if (!(player instanceof ServerPlayer serverPlayer)) return InteractionResult.PASS;
+        if (!isEnableOfListener(serverPlayer, ENTITY_BLOCK_SELECTION)) return InteractionResult.PASS;
         if (level.isClientSide()) return InteractionResult.PASS;
         if (hand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
 
@@ -55,7 +56,7 @@ public class EBSectionManager {
 
         Component entityName = Component.translatable(entity.getType().getDescriptionId());
         SendMessengerUtils.sendOverlayOrBroadcast(
-                (ServerPlayer) player,
+                serverPlayer,
                 Component.translatable("msg.entity.select.success", entityName, entityUuid.toString())
         );
         log.debug("玩家 {} 选中了实体({}): {}", playerUuid, entityName, entityUuid);
@@ -63,7 +64,8 @@ public class EBSectionManager {
     }
 
     public static InteractionResult onUseBlock(Player player, Level level, InteractionHand hand, BlockHitResult hitResult) {
-        if (!isEnableOfListener((ServerPlayer)player,ENTITY_BLOCK_SELECTION)) return InteractionResult.PASS;
+        if (!(player instanceof ServerPlayer serverPlayer)) return InteractionResult.PASS;
+        if (!isEnableOfListener(serverPlayer, ENTITY_BLOCK_SELECTION)) return InteractionResult.PASS;
         if (level.isClientSide()) return InteractionResult.PASS;
         if (hand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
 

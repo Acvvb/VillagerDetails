@@ -7,6 +7,8 @@ import com.villagerdetails.event.EBSectionManager;
 import com.villagerdetails.event.ServerLifecycleListener;
 import com.villagerdetails.event.ServerStoppingListener;
 import com.villagerdetails.handler.monster.noBrainOnPortal.NoBrainOnPortalHandler;
+import com.villagerdetails.network.BlockRuleSyncHandler;
+import com.villagerdetails.network.BlockRuleSyncPayload;
 import com.villagerdetails.network.VillagerBedPayload;
 import com.villagerdetails.network.VillagerTrackingHandler;
 import com.villagerdetails.rule.RuleModuleRegistry;
@@ -27,6 +29,10 @@ public class VillagerDetails implements ModInitializer {
     public void onInitialize() {
 
         PayloadTypeRegistry.clientboundPlay().register(VillagerBedPayload.TYPE, VillagerBedPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(BlockRuleSyncPayload.TYPE, BlockRuleSyncPayload.CODEC);
+
+        // 方块规则（挖掘抗性 / 可采集）客户端同步
+        BlockRuleSyncHandler.register();
 
         ServerLifecycleEvents.SERVER_STARTED.register(ServerLifecycleListener::onServerStarted);
         ServerLifecycleEvents.SERVER_STOPPING.register(new ServerStoppingListener());

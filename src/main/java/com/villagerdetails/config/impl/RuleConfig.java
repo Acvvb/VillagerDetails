@@ -162,7 +162,12 @@ public class RuleConfig implements ReloadableConfig {
         Map<RuleType, String> syncMap = new HashMap<>();
         for (RuleType type : RuleType.values()) {
             String state = getBindingState(type.getRegisterName());
-            if (state != null && type.getQuickSwitches().contains(state)) {
+            if (state == null) continue;
+            // 自定义列表（如实体 id、方块 id、方块 id=抗性）允许任意非预定义值，原样同步；
+            // 预定义列表则必须命中 quickSwitches 才同步。
+            boolean valid = SwitchComponentType.isCustomList(type.getQuickSwitches())
+                    || type.getQuickSwitches().contains(state);
+            if (valid) {
                 syncMap.put(type, state);
             }
         }
