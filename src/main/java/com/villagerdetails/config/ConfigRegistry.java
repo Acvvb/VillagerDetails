@@ -1,5 +1,7 @@
 package com.villagerdetails.config;
 
+import com.villagerdetails.config.impl.BlockCollectableConfig;
+import com.villagerdetails.config.impl.BlockMiningResistanceConfig;
 import com.villagerdetails.config.impl.IdTranslationConfig;
 import com.villagerdetails.config.impl.RuleConfig;
 import com.villagerdetails.config.impl.ServerLangConfig;
@@ -25,6 +27,8 @@ public final class ConfigRegistry {
         register(IdTranslationConfig.INSTANCE);
         register(ServerLangConfig.INSTANCE);
         register(RuleConfig.INSTANCE);
+        register(BlockMiningResistanceConfig.INSTANCE);
+        register(BlockCollectableConfig.INSTANCE);
     }
 
     public static synchronized void register(ReloadableConfig config) {

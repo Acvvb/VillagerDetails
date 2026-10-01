@@ -5,24 +5,21 @@ import net.minecraft.network.chat.Component;
 
 public enum RuleCategoryType {
 
-    MOD_SETTING("Setting",  "rule.category.mod_setting"),
+    MOD_SETTING("Setting", "rule.category.mod_setting"),
     VILLAGER("villager", "rule.category.villager"),
-    ENTITY("entity",   "rule.category.entity"),
-    MONSTER("monster",  "rule.category.monster"),
-    ANIMAL("animal",   "rule.category.animal"),
+    ENTITY("entity", "rule.category.entity"),
+    MONSTER("monster", "rule.category.monster"),
+    ANIMAL("animal", "rule.category.animal"),
     PLANT("Plant", "rule.category.plant"),
     BLOCK("block", "rule.category.block"),
     ;
 
-
-    private final int id;
 
     private final String registerName;
 
     private final String displayName;
 
     RuleCategoryType(String registerName, String displayName) {
-        this.id = this.ordinal();
         this.registerName = registerName;
         this.displayName = displayName;
     }
@@ -35,10 +32,6 @@ public enum RuleCategoryType {
             }
         }
         return null;
-    }
-
-    public int getId() {
-        return id;
     }
 
     public String getRegisterName() {

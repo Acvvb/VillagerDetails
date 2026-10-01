@@ -85,7 +85,7 @@ public class EBSectionManager {
 
         Component blockName = level.getBlockState(clickedPos).getBlock().getName();
         SendMessengerUtils.sendOverlayOrBroadcast(
-                (ServerPlayer) player,
+                serverPlayer,
                 Component.translatable("msg.block.select.success",
                         blockName,
                         "%d, %d, %d".formatted(clickedPos.getX(), clickedPos.getY(), clickedPos.getZ())

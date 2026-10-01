@@ -1,9 +1,9 @@
 package com.villagerdetails.rule.type;
 
+import com.villagerdetails.command.c.impl.rule.BlockCollectableServerImpl;
+import com.villagerdetails.command.c.impl.rule.BlockMiningResistanceServerImpl;
 import com.villagerdetails.command.c.impl.rule.VillagerBatchBedBindingServerImpl;
-import com.villagerdetails.command.c.impl.suggestion.BlockResistanceSuggestionServer;
 import com.villagerdetails.command.c.impl.suggestion.EntityIdSuggestionServer;
-import com.villagerdetails.command.c.impl.suggestion.UncollectableBlockSuggestionServer;
 import com.villagerdetails.command.c.server.RegisterServer;
 import com.villagerdetails.command.c.server.RegisterTypeServer;
 import com.villagerdetails.command.c.server.StateSuggestionServer;
@@ -85,11 +85,10 @@ public enum RuleType implements RegisterTypeServer {
 
 
     // 方块
-    BLOCK_MINING_RESISTANCE("BlockMiningResistance", "rule.block.mining_resistance", "rule.block.mining_resistance.desc", List.of(BLOCK), new ArrayList<>(), null, true, List.of(NONE), "", BlockResistanceSuggestionServer.INSTANCE),
+    BLOCK_MINING_RESISTANCE("BlockMiningResistance", "rule.block.mining_resistance", "rule.block.mining_resistance.desc", List.of(BLOCK), new ArrayList<>(), BlockMiningResistanceServerImpl.INSTANCE, false, ON_OFF, FALSE_STR),
 
-    BLOCK_COLLECTABLE("BlockCollectable", "rule.block.collectable", "rule.block.collectable.desc", List.of(BLOCK), new ArrayList<>(), null, true, List.of(NONE), "", UncollectableBlockSuggestionServer.INSTANCE);
+    BLOCK_COLLECTABLE("BlockCollectable", "rule.block.collectable", "rule.block.collectable.desc", List.of(BLOCK), new ArrayList<>(), BlockCollectableServerImpl.INSTANCE, false, ON_OFF, FALSE_STR);
 
-    private final int id;
     private final String registerName;
     private final String displayName;
     private final String displayInfo;
@@ -109,7 +108,6 @@ public enum RuleType implements RegisterTypeServer {
         this.listenerType = listenerType;
         this.multiSelect = multiSelect;
         this.quickSwitches = quickSwitches;
-        this.id = this.ordinal();
         this.registerName = registerName;
         this.displayName = displayName;
         this.displayInfo = displayInfo;
@@ -117,10 +115,6 @@ public enum RuleType implements RegisterTypeServer {
         this.commandObject = commandClass;
         this.state = state;
         this.stateSuggestionServer = stateSuggestionServer;
-    }
-
-    public int getId() {
-        return id;
     }
 
     public String getRegisterName() {

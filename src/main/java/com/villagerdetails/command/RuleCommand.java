@@ -17,7 +17,6 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.*;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionLevel;
 
@@ -52,7 +51,6 @@ public class RuleCommand {
     private static final String K_ERR_UNKNOWN_RULE = "command.entity_binder.error.unknown_rule";
     private static final String K_ERR_INVALID_STATE = "command.entity_binder.error.invalid_state";
     private static final String K_ERR_INVALID_OPTION = "command.entity_binder.error.invalid_option";
-    private static final String K_ERR_INVALID_RESISTANCE = "command.entity_binder.error.invalid_resistance";
 
     private static final String K_TOGGLE_CATEGORY = "command.entity_binder.toggle.category_label";
     private static final String K_TOGGLE_VALUE = "command.entity_binder.toggle.value_label";
@@ -235,14 +233,9 @@ public class RuleCommand {
         }
 
         // 校验 state
-        String canonical;
-        if (rule == RuleType.BLOCK_MINING_RESISTANCE) {
-            canonical = canonicalResistance(state, player);
-        } else {
-            canonical = rule.isMultiSelect()
-                    ? canonicalMultiSelect(rule, state, player)
-                    : canonicalSingleSelect(rule, state, player);
-        }
+        String canonical = rule.isMultiSelect()
+                ? canonicalMultiSelect(rule, state, player)
+                : canonicalSingleSelect(rule, state, player);
         if (canonical == null) return 0;
 
         RuleCache.setState(rule, canonical);
@@ -327,61 +320,6 @@ public class RuleCommand {
                 }
                 selected.add(match);
             }
-        }
-        return String.join(",", selected);
-    }
-
-    /**
-     * 挖掘抗性：逐项校验 {@code 方块id=抗性}；none → 空。
-     */
-    private static String canonicalResistance(String state, ServerPlayer player) {
-        if (state == null) return null;
-        String trimmed = state.trim();
-        if (trimmed.isEmpty()) {
-            sendOrBroadcast(player, Component.translatable(K_ERR_INVALID_STATE, state));
-            return null;
-        }
-        if (SwitchComponentType.NONE.equalsIgnoreCase(trimmed)) {
-            return "";
-        }
-
-        java.util.Set<String> selected = new java.util.LinkedHashSet<>();
-        for (String part : trimmed.split(",")) {
-            String p = part.trim();
-            if (p.isEmpty()) continue;
-            if (SwitchComponentType.NONE.equalsIgnoreCase(p)) return "";
-
-            int eq = p.indexOf('=');
-            if (eq <= 0 || eq == p.length() - 1) {
-                sendOrBroadcast(player, Component.translatable(K_ERR_INVALID_RESISTANCE, p));
-                return null;
-            }
-
-            Identifier id = Identifier.tryParse(p.substring(0, eq).trim());
-            if (id == null) {
-                sendOrBroadcast(player, Component.translatable(K_ERR_INVALID_RESISTANCE, p));
-                return null;
-            }
-
-            float value;
-            try {
-                value = Float.parseFloat(p.substring(eq + 1).trim());
-            } catch (NumberFormatException e) {
-                sendOrBroadcast(player, Component.translatable(K_ERR_INVALID_RESISTANCE, p));
-                return null;
-            }
-
-            if (value < 0f) {
-                sendOrBroadcast(player, Component.translatable(K_ERR_INVALID_RESISTANCE, p));
-                return null;
-            }
-
-            selected.add(id + "=" + value);
-        }
-
-        if (selected.isEmpty()) {
-            sendOrBroadcast(player, Component.translatable(K_ERR_INVALID_STATE, state));
-            return null;
         }
         return String.join(",", selected);
     }
