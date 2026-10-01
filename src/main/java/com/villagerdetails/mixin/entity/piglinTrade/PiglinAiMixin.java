@@ -21,8 +21,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.villagerdetails.rule.type.RuleType.PIGLIN_BARTER_DELAY;
-import static com.villagerdetails.rule.type.RuleType.PIGLIN_GOLD_BLOCK_MULTIPLY;
+import static com.villagerdetails.rule.type.RuleType.*;
 
 /**
  * 猪灵金块交易 Mixin。
@@ -40,33 +39,23 @@ import static com.villagerdetails.rule.type.RuleType.PIGLIN_GOLD_BLOCK_MULTIPLY;
 @Mixin(PiglinAi.class)
 public abstract class PiglinAiMixin {
 
-    // ============================================================
-    // 常量
-    // ============================================================
-
-    /** 金块标记：拾取时打上，产出时消费 */
+    /**
+     * 金块标记：拾取时打上，产出时消费
+     */
     @Unique
     private static final String MULTIPLY_TAG = "VillagerDetailsGoldBlockMultiply";
 
-    /** 原版基准等待时间：6 秒（会被转换成 tick） */
-    @Unique
-    private static final int VANILLA_DELAY_SECONDS = 6;
-
-    /** 金块交易的时间倍数（固定 9，与金块 = 9 金锭对应） */
-    @Unique
-    private static final int GOLD_BLOCK_MULTIPLIER = 9;
-
-    /** 每秒 tick 数 */
+    /**
+     * 每秒 tick 数
+     */
     @Unique
     private static final int TICKS_PER_SECOND = 20;
 
-    /** 重入保护：避免在产出注入里调原方法时无限递归 */
+    /**
+     * 重入保护：避免在产出注入里调原方法时无限递归
+     */
     @Unique
     private static final ThreadLocal<Boolean> MULTIPLYING = ThreadLocal.withInitial(() -> false);
-
-    // ============================================================
-    // Shadow：声明原版方法，供产出阶段递归调用
-    // ============================================================
 
     @Shadow
     private static List<ItemStack> getBarterResponseItems(Piglin body) {
@@ -78,9 +67,7 @@ public abstract class PiglinAiMixin {
     // ============================================================
 
     @Inject(method = "pickUpItem", at = @At("HEAD"))
-    private static void villagerdetails$convertGoldBlock(ServerLevel level, Piglin body,
-                                                         ItemEntity itemEntity,
-                                                         CallbackInfo ci) {
+    private static void villagerdetails$convertGoldBlock(ServerLevel level, Piglin body, ItemEntity itemEntity, CallbackInfo ci) {
         if (!RuleCache.isEnabled(PIGLIN_GOLD_BLOCK_MULTIPLY)) return;
 
         ItemStack stack = itemEntity.getItem();
@@ -105,7 +92,7 @@ public abstract class PiglinAiMixin {
         if (MULTIPLYING.get()) return;
 
         if (!RuleCache.isEnabled(PIGLIN_GOLD_BLOCK_MULTIPLY)) return;
-        if (!body.entityTags().contains(MULTIPLY_TAG)) return;   // ★ 按 IDE 实际 API 替换
+        if (!body.entityTags().contains(MULTIPLY_TAG)) return;
 
         body.removeTag(MULTIPLY_TAG);
 
@@ -115,7 +102,7 @@ public abstract class PiglinAiMixin {
             List<ItemStack> merged = new ArrayList<>(cir.getReturnValue());
 
             // 第 2~9 次：独立再跑 8 次原版战利品表
-            for (int i = 0; i < GOLD_BLOCK_MULTIPLIER - 1; i++) {
+            for (int i = 0; i < 8; i++) {
                 List<ItemStack> one = getBarterResponseItems(body);
                 if (one != null && !one.isEmpty()) {
                     merged.addAll(one);
@@ -136,21 +123,27 @@ public abstract class PiglinAiMixin {
     private static void villagerdetails$modifyAdmireDuration(LivingEntity body, CallbackInfo ci) {
         // 读取用户配置的秒数，默认 6 秒；转成 tick 后减 1（对齐原版 119 语义）
         int baseDelay = ParseUtils.toInt(
-                RuleCache.getState(PIGLIN_BARTER_DELAY), VANILLA_DELAY_SECONDS)
+                RuleCache.getState(PIGLIN_BARTER_DELAY), ParseUtils.toInt(PIGLIN_BARTER_DELAY.getState()))
                 * TICKS_PER_SECOND - 1;
 
         long duration = isGoldBlockTrade(body)
-                ? (long) baseDelay * GOLD_BLOCK_MULTIPLIER
+                ? (long) baseDelay * getPunishment()
                 : baseDelay;
 
         body.getBrain().setMemoryWithExpiry(MemoryModuleType.ADMIRING_ITEM, true, duration);
         ci.cancel();
     }
 
-    /** 是否本次为"金块交易"：靠命令标签判断（拾取阶段已打上） */
+    /**
+     * 是否本次为"金块交易"：靠命令标签判断（拾取阶段已打上）
+     */
     @Unique
     private static boolean isGoldBlockTrade(LivingEntity body) {
-        return body instanceof Piglin piglin
-                && piglin.entityTags().contains(MULTIPLY_TAG);
+        return body instanceof Piglin piglin && piglin.entityTags().contains(MULTIPLY_TAG);
+    }
+
+    @Unique
+    private static int getPunishment() {
+        return ParseUtils.toInt(RuleCache.getState(PIGLIN_GOLD_BLOCK_MULTIPLY_PUNISHMENT), ParseUtils.toInt(PIGLIN_GOLD_BLOCK_MULTIPLY_PUNISHMENT.getState()));
     }
 }

@@ -8,6 +8,8 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
+import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
+
 /**
  * 选区物品交互处理器
  * <p>
@@ -18,41 +20,33 @@ import net.minecraft.world.item.Items;
  */
 public class SelectionInteractionHandler {
 
-    /**
-     * 处理玩家左键点击方块（设置 pos1）
-     *
-     * @param player 玩家
-     * @param pos    被点击的方块位置
-     * @return 是否处理了该事件
-     */
+    public static final int POS1_SETTER = 1;
+    public static final int POS2_SETTER = 2;
+
     public static boolean onLeftClickBlock(ServerPlayer player, BlockPos pos) {
-        ItemStack mainHand = player.getItemInHand(InteractionHand.MAIN_HAND);
-        if (checkSelectionTool(mainHand)) return false;
-        BBSectionStateCache.setPos1(player, pos);
-        player.sendSystemMessage(Component.literal(
-                String.format("§a[选区] pos1: [%d, %d, %d]", pos.getX(), pos.getY(), pos.getZ())
-        ));
-        return true;
+        return onBlockClick(player, pos, POS1_SETTER);
     }
 
-    /**
-     * 处理玩家右键点击方块（设置 pos2）
-     *
-     * @param player 玩家
-     * @param pos    被点击的方块位置
-     * @return 是否处理了该事件
-     */
     public static boolean onRightClickBlock(ServerPlayer player, BlockPos pos) {
+        return onBlockClick(player, pos, POS2_SETTER);
+    }
+
+    private static boolean onBlockClick(ServerPlayer player, BlockPos pos, int posSetter) {
         ItemStack mainHand = player.getItemInHand(InteractionHand.MAIN_HAND);
         if (checkSelectionTool(mainHand)) return false;
-        BBSectionStateCache.setPos2(player, pos);
-        player.sendSystemMessage(Component.literal(
-                String.format("§a[选区] pos2: [%d, %d, %d]", pos.getX(), pos.getY(), pos.getZ())
-        ));
 
+        if (posSetter == POS1_SETTER) {
+            BBSectionStateCache.setPos1(player, pos);
+        } else {
+            BBSectionStateCache.setPos2(player, pos);
+        }
+        showPosSuccessMessage(player, pos, posSetter);
         return true;
     }
 
+    public static void showPosSuccessMessage(ServerPlayer player, BlockPos pos, int posSeter) {
+        sendOrBroadcast(player, Component.translatable("message.selection.pos_set", posSeter, pos.getX(), pos.getY(), pos.getZ()));
+    }
 
     /**
      * 检查玩家手持的物品是否为选区工具（命名为"tool"的拴绳）

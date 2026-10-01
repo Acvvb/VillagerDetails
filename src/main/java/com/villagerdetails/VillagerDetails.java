@@ -1,6 +1,6 @@
 package com.villagerdetails;
 
-import com.villagerdetails.command.EntityBinderCommand;
+import com.villagerdetails.command.RuleCommand;
 import com.villagerdetails.config.ConfigRegistry;
 import com.villagerdetails.event.BBSelectionListener;
 import com.villagerdetails.event.EBSectionManager;
@@ -18,40 +18,40 @@ import net.minecraft.resources.Identifier;
 
 public class VillagerDetails implements ModInitializer {
 
-	public static final String BAST_COMMAND = "ec";
+    public static final String BAST_COMMAND = "ec";
 
-	public static final String MOD_ID = "villagerdetails";
+    public static final String MOD_ID = "villagerdetails";
 
 
-	@Override
-	public void onInitialize() {
+    @Override
+    public void onInitialize() {
 
-		PayloadTypeRegistry.clientboundPlay().register(VillagerBedPayload.TYPE, VillagerBedPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(VillagerBedPayload.TYPE, VillagerBedPayload.CODEC);
 
-		ServerLifecycleEvents.SERVER_STARTED.register(ServerLifecycleListener::onServerStarted);
-		ServerLifecycleEvents.SERVER_STOPPING.register(new ServerStoppingListener());
+        ServerLifecycleEvents.SERVER_STARTED.register(ServerLifecycleListener::onServerStarted);
+        ServerLifecycleEvents.SERVER_STOPPING.register(new ServerStoppingListener());
 
-		ServerLifecycleEvents.SERVER_STARTED.register(ConfigRegistry::reloadAll);
+        ServerLifecycleEvents.SERVER_STARTED.register(ConfigRegistry::reloadAll);
 
-		RuleModuleRegistry.initAll();
+        RuleModuleRegistry.initAll();
 
-		// 注册追踪事件(网络同步)
-		VillagerTrackingHandler.register();
+        // 注册追踪事件(网络同步)
+        VillagerTrackingHandler.register();
 
-		// 注册指令
-		CommandRegistrationCallback.EVENT.register((dispatcher, _, _) -> EntityBinderCommand.register(dispatcher));
+        // 注册指令
+        CommandRegistrationCallback.EVENT.register((dispatcher, _, _) -> RuleCommand.register(dispatcher));
 
-		//实体-方块选择工具
-		EBSectionManager.init();
+        //实体-方块选择工具
+        EBSectionManager.init();
 
-		//方块-实体选择工具
-		BBSelectionListener.init();
+        //方块-实体选择工具
+        BBSelectionListener.init();
 
-		//穿过地狱门回调（暂时写死怪物去脑子）
-		NoBrainOnPortalHandler.register();
-	}
+        //穿过地狱门回调（暂时写死怪物去脑子）
+        NoBrainOnPortalHandler.register();
+    }
 
-	public static Identifier id(String path) {
-		return Identifier.fromNamespaceAndPath(MOD_ID, path);
-	}
+    public static Identifier id(String path) {
+        return Identifier.fromNamespaceAndPath(MOD_ID, path);
+    }
 }

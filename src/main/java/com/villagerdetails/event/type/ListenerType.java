@@ -1,16 +1,20 @@
 package com.villagerdetails.event.type;
 
-public enum ListenerType {
+import com.villagerdetails.command.c.impl.tool.BBSelectionServerImpl;
+import com.villagerdetails.command.c.server.RegisterServer;
+import com.villagerdetails.command.c.server.RegisterTypeServer;
 
-    NONE("空"),
-    ENTITY_BLOCK_SELECTION("实体绑定选区工具"),
-    BLOCK_RANGE_SELECTION("选区工具")
-    ;
+public enum ListenerType implements RegisterTypeServer {
+
+    ENTITY_BLOCK_SELECTION("实体绑定选区工具", null),
+    BLOCK_RANGE_SELECTION("选区工具", BBSelectionServerImpl.INSTANCE);
 
     private final int id;
     private final String name;
+    private final RegisterServer commandObject;
 
-    ListenerType(String name) {
+    ListenerType(String name, RegisterServer registerServer) {
+        this.commandObject = registerServer;
         this.id = this.ordinal();
         this.name = name;
     }
@@ -21,5 +25,10 @@ public enum ListenerType {
 
     public String getName() {
         return name;
+    }
+
+
+    public RegisterServer getCommandObject() {
+        return commandObject;
     }
 }

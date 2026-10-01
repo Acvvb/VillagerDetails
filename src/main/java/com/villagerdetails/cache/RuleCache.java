@@ -22,19 +22,25 @@ public class RuleCache {
 
     private static final Map<RuleType, String> rules = new EnumMap<>(RuleType.class);
 
-    /** 通用监听器列表（线程安全） */
+    /**
+     * 通用监听器列表（线程安全）
+     */
     private static final List<RuleChangeListener> listeners = new CopyOnWriteArrayList<>();
 
-    /** 当前运行的服务器引用——用于持久化 */
+    /**
+     * 当前运行的服务器引用——用于持久化
+     */
     private static volatile MinecraftServer server;
 
     static {
         for (RuleType type : RuleType.values()) {
-            rules.put(type, type.getState());
+            setState(type, type.getState());
         }
     }
 
-    /** 服务器启动时调一次 */
+    /**
+     * 服务器启动时调一次
+     */
     public static void setServer(MinecraftServer s) {
         server = s;
     }
@@ -49,6 +55,7 @@ public class RuleCache {
     }
 
     public static String getState(RuleType type) {
+        // 允许 value 为空：none 已在 setState 中规范化为空字符串，这里直接返回原始值
         return rules.getOrDefault(type, type.getState());
     }
 
@@ -75,28 +82,18 @@ public class RuleCache {
 
     public static void setState(RuleType type, String state) {
         if (type == null || state == null) return;
-
-        String oldValue = rules.get(type);
+        // 占位符 none 统一规范化为空字符串，允许缓存中保存空值
+        if (SwitchComponentType.NONE.equalsIgnoreCase(state)) state = "";
+        String oldValue = getState(type);
         if (state.equals(oldValue)) return;
-
         rules.put(type, state);
-
-        // ★ 1. 持久化到配置文件
         persist(type, state);
-
-        // 2. 触发回调
         fireCallbacks(type, oldValue, state);
     }
 
     public static void resetAll() {
         for (RuleType type : RuleType.values()) {
-            String oldValue = rules.get(type);
-            String newValue = type.getState();
-            if (!newValue.equals(oldValue)) {
-                rules.put(type, newValue);
-                persist(type, newValue);          // ★
-                fireCallbacks(type, oldValue, newValue);
-            }
+            setState(type, type.getState());
         }
     }
 
@@ -106,13 +103,7 @@ public class RuleCache {
         for (RuleType type : RuleType.values()) {
             String newValue = newRules.get(type);
             if (newValue == null) continue;
-
-            String oldValue = rules.get(type);
-            if (!newValue.equals(oldValue)) {
-                rules.put(type, newValue);
-                persist(type, newValue);          // ★
-                fireCallbacks(type, oldValue, newValue);
-            }
+            setState(type, newValue);
         }
     }
 
@@ -123,8 +114,7 @@ public class RuleCache {
         try {
             RuleConfig cfg = RuleConfig.getOrCreate(s);
             cfg.setBindingState(type.getRegisterName(), state);
-            // 如果 RuleConfig 有显式 save 方法，在这里调：
-            // cfg.save(s);
+            cfg.save();
         } catch (Exception e) {
             System.err.println("[RuleCache] 持久化失败 " + type.getRegisterName() + ": " + e);
         }
@@ -148,8 +138,10 @@ public class RuleCache {
 
     public static boolean isEnableOfListener(ServerPlayer serverPlayer, ListenerType targetRuleType) {
         for (RuleType type : RuleType.values()) {
-            if (isEnabled(serverPlayer, type) && type.getListenerType().equals(targetRuleType)) {
-                return true;
+            if (isEnabled(serverPlayer, type)) {
+                for (ListenerType listenerType : type.getListenerType()) {
+                    if (listenerType.equals(targetRuleType)) return true;
+                }
             }
         }
         return false;

@@ -1,133 +1,104 @@
 {
-
   "command.entity_binder.reload.success": "§aMapping config reloaded",
   "command.entity_binder.reload.fail": "§c[VillagerDetails] Reload failed: %s",
-
   "command.entity_binder.status.enabled": "enabled",
   "command.entity_binder.status.disabled": "disabled",
-
   "command.entity_binder.list.header.status": "§6============== %s rules ===============",
   "command.entity_binder.list.empty.status": "No more %s rules",
   "command.entity_binder.list.header.all": "§6========== Controller rules (all) ==========",
   "command.entity_binder.list.header.category": "§6========== Rules: %s ==========",
-
   "command.entity_binder.help.categories": "Rule categories\n",
-
   "command.entity_binder.error.unknown_category": "§cUnknown category: %s",
   "command.entity_binder.error.unknown_rule": "§cUnknown rule: %s",
   "command.entity_binder.error.invalid_state": "§cInvalid state value: %s",
   "command.entity_binder.error.invalid_option": "§cInvalid option: %s",
-
   "command.entity_binder.toggle.category_label": "\nCategory: ",
   "command.entity_binder.toggle.value_label": "\nValue: ",
   "command.entity_binder.toggle.success": "§a%s (%s) set to §e%s",
   "command.entity_binder.toggle.empty_value": "(empty)",
-
-
+  "command.entity_binder.toggle.hover": "Click to toggle rule state\nCurrent state: %s",
+  "command.entity_binder.reload.unknown_config": "§cUnknown config: %s (available: %s)",
+  "command.entity_binder.batch_bed_binding.no_selection": "§cPlease set the selection with pos1/pos2 first",
+  "command.entity_binder.batch_bed_binding.success": "§aSuccessfully bound %s beds",
   "rule.category.mod_setting": "Settings",
   "rule.category.villager": "Villagers",
   "rule.category.entity": "Entities",
   "rule.category.monster": "Monsters",
   "rule.category.animal": "Animals",
   "rule.category.plant": "Plant",
-
   "setting.language": "Language",
   "setting.language.desc": "Language setting for the mod",
   "setting.ec_command_permission": "ECCommand Permissions",
   "setting.ec_command_permission.desc": "Manage all permissions except /ec c",
-
-
-
-
   "setting.villager_no_squeeze": "No Squeeze",
   "setting.villager_no_squeeze.desc": "Specified entities do not participate in entity squeezing and take no squeeze damage. Separate IDs with commas.",
   "setting.no_brain_on_portal": "Portal No-Brain",
   "setting.no_brain_on_portal.desc": "Monsters lose their AI after passing through a Nether portal.",
-
-
-
-  "setting.piglin_gold_block_multiply": "Gold Block Trade (Nine-Fold Output)",
+  "setting.piglin_gold_block_multiply": "Gold Block Trade",
   "setting.piglin_gold_block_multiply.desc": "Piglins accept gold blocks. 1 block triggers a single trade, but the output is multiplied by 9.",
-
   "setting.piglin_barter_delay": "Piglin Barter Delay",
   "setting.piglin_barter_delay.desc": "Adjust the time piglins examine gold before bartering (vanilla: 6s). Gold blocks automatically use 9x this value.",
-
-
+  "setting.piglin_gold_block_multiply_punishment": "Piglin Gold Block Barter Punishment Time",
+  "setting.piglin_gold_block_multiply_punishment.desc": "Controls the duration of the Piglin gold block barter punishment. Options: 1, 3, 9. Higher values mean longer punishment time. Default: 9.",
   "setting.infinite_shear": "Infinite Sheep Shear",
   "setting.infinite_shear.desc": "Sheep regain their wool immediately after being sheared, allowing infinite shearing.",
-
-
   "villagerdetails.rule.villagerbonemealflower": "Bone Meal Overworld Flowers",
   "villagerdetails.rule.villagerbonemealflower.desc": "Bone meal on grass blocks ignores biome and generates overworld flowers (Overworld only)",
-
-
   "setting.villager_bed_reset": "Villager Bed Binding",
   "setting.villager_bed_reset.desc": "Use a leash named 'bed' to sneak-right-click a villager and a bed to change the villager's bound bed.",
-
   "setting.villager_work_block_reset": "Villager Work Block Binding",
   "setting.villager_work_block_reset.desc": "Use a leash named 'work' to sneak-right-click a villager and a block to change the villager's bound work block.",
-
   "setting.villager_batch_bed_reset": "Batch Villager Bed Binding",
-  "setting.villager_batch_bed_reset.desc": "Use a leash named 'tool' to select an area with left/right-click, then run /entityCommand bindAreaBeds to bind villagers to their nearest beds.",
-
+  "setting.villager_batch_bed_reset.desc": "Use a leash named 'tool' to select an area with left/right-click, then run /ec c bindAreaBeds to bind villagers to their nearest beds.",
   "setting.villager_auto_trader": "Auto Refresh Trades",
   "setting.villager_auto_trader.desc": "Write the target enchantment on a name tag and right-click a librarian to automatically refresh a max-level trade with that enchantment.",
-
   "setting.villager_god_tools": "God Tools Refresh",
   "setting.villager_god_tools.desc": "Use name tags '331a' / '331b' to spawn triple-enchanted diamond tools.",
-
   "setting.villager_terracotta_trader": "Terracotta Refresh",
   "setting.villager_terracotta_trader.desc": "Use a name tag named after a terracotta color to spawn both the corresponding terracotta and glazed terracotta.",
-
   "setting.villager_auto_lock_hit_trader": "Auto Lock Villager Trades",
   "setting.villager_auto_lock_hit_trader.desc": "Automatically lock the villager's trade after refreshing an enchanted book via the auto-refresh rule.",
-
   "setting.villager_silent_auto_reroll_trader": "Silent Villager Trade Reroll",
   "setting.villager_silent_auto_reroll_trader.desc": "Automatically remove the name tag after using the auto-refresh rule.",
-
   "setting.villager_one_tick_trader_count": "Trades Refreshed per Tick",
   "setting.villager_one_tick_trader_count.desc": "Adjust the per-tick refresh count of the auto-refresh trader.",
-
   "setting.villager_hard_working": "Hard Working Villager",
   "setting.villager_hard_working.desc": "Adjust the restock amount per villager (default is double restock).",
-
   "setting.villager_infinite_trade": "Infinite Trades",
   "setting.villager_infinite_trade.desc": "Villager trades never run out.",
-
   "setting.villager_move_controller": "Villager Move Controller",
   "setting.villager_move_controller.desc": "Use a leash named 'move' to sneak-right-click a villager and a target position to make the villager move there.",
-
   "setting.villager_toolsmith_exchange": "Toolsmith Diamond Exchange",
   "setting.villager_toolsmith_exchange.desc": "Change the toolsmith's diamond-for-emerald trade into emerald-for-diamond.",
-
   "setting.villager_emerald_decompose": "Auto Emerald Block Decompose",
   "setting.villager_emerald_decompose.desc": "Allow paying villagers with emerald blocks, automatically decomposed into emeralds.",
-
   "setting.villager_bookshelf_decompose": "Auto Bookshelf Decompose",
   "setting.villager_bookshelf_decompose.desc": "Allow paying villagers with bookshelves, automatically decomposed into books.",
-
-
   "msg.auto_trader.success": "§aHit! Rolled §e%s §atime(s) and got %s",
   "msg.auto_trader.no_hit": "§eRolled §c%s §etime(s) without a hit, try naming again",
   "msg.auto_trader.locked": "§cThis villager cannot be refreshed (locked / baby / jobless / no work station)",
   "msg.auto_trader.no_match": "§cThis villager cannot roll %s",
   "msg.auto_trader.rule_disabled": "§cThe corresponding rule is disabled, please enable it first",
   "msg.auto_trader.wrong_profession": "This villager's profession is not supported for refresh (Toolsmith only)",
-
   "msg.villager.bind_area.no_villagers_or_beds": "No villagers or beds found in the area (found %s villagers, %s beds)",
   "msg.villager.bind_area.no_match": "Found %s villagers and %s beds in the area, but no bindings could be made",
   "msg.villager.bind_area.success": "Successfully bound %s beds (found %s villagers, %s beds, area: %s ~ %s)",
-
-  "message.selection.pos_set": "[Selection] pos%d : [%d, %d, %d]",
-  "message.selection.pos_not_set": "Pos%d : Not set",
-
-
+  "message.selection.help.header": "§6========== Selection Tool ==========",
+  "message.selection.help.pos1": "§e selection pos1 [pos]  §7Set pos1 (defaults to your feet)",
+  "message.selection.help.pos2": "§e selection pos2 [pos]  §7Set pos2 (defaults to your feet)",
+  "message.selection.help.show": "§e selection show        §7Show current selection",
+  "message.selection.help.clear": "§e selection clear       §7Clear selection",
+  "message.selection.pos_set": "§a[Selection] pos%s : [%s, %s, %s]",
+  "message.selection.pos_not_set": "§aPos%s : Not set",
+  "message.selection.no_selection": "§cNo selection set yet",
+  "message.selection.cleared": "§aSelection cleared",
   "msg.entity.select.success": "Selected %s %s",
   "msg.block.select.success": "Selected %s (%s)",
   "msg.system.bind.success": "Bound %s (%s) to %s (%s)",
   "msg.villager.not_allow_block": "%s is not a %s, please reselect!",
   "msg.villager.cross_dimension": "Cannot bind %s across dimensions!",
   "msg.villager.bed": "Bed",
+  "msg.villager.bed.bind.fail": "Binding failed, please check if the bed position is correct.",
   "msg.villager.bed.bind.success": "Bound villager %s to bed %s",
   "msg.villager.bed.already_bound": "This villager is already bound to this bed!",
   "msg.villager.work_block.bind.fail": "Binding failed, please check if the work block position is correct.",

@@ -1,142 +1,104 @@
 {
-
   "command.entity_binder.reload.success": "§a重载成功",
   "command.entity_binder.reload.fail": "§c重载失败：%s",
-
   "command.entity_binder.status.enabled": "已经开启",
   "command.entity_binder.status.disabled": "已经关闭",
-
   "command.entity_binder.list.header.status": "§6============== %s 规则列表 ===============",
   "command.entity_binder.list.empty.status": "没有更多%s规则",
   "command.entity_binder.list.header.all": "§6========== 控制器规则列表（全部） ==========",
   "command.entity_binder.list.header.category": "§6========== 规则列表: %s ==========",
-
   "command.entity_binder.help.categories": "规则分类\n",
-
   "command.entity_binder.error.unknown_category": "§c未知的分类名称: %s",
   "command.entity_binder.error.unknown_rule": "§c未知的规则名称: %s",
   "command.entity_binder.error.invalid_state": "§c无效的状态值: %s",
   "command.entity_binder.error.invalid_option": "§c无效的选项: %s",
-
   "command.entity_binder.toggle.category_label": "\n分类： ",
   "command.entity_binder.toggle.value_label": "\n值： ",
   "command.entity_binder.toggle.success": "§a%s (%s) 已设为 §e%s",
   "command.entity_binder.toggle.empty_value": "（空）",
-
-
+  "command.entity_binder.toggle.hover": "点击切换规则状态\n当前状态: %s",
+  "command.entity_binder.reload.unknown_config": "§c未知的配置名: %s（可用：%s）",
+  "command.entity_binder.batch_bed_binding.no_selection": "§c请先用 pos1/pos2 设置选区",
+  "command.entity_binder.batch_bed_binding.success": "§a成功绑定 %s 张床",
   "rule.category.mod_setting": "设置",
   "rule.category.villager": "村民",
   "rule.category.entity": "实体",
   "rule.category.monster": "怪物",
   "rule.category.animal": "动物",
   "rule.category.plant": "植物",
-
-
-
   "setting.language": "模组语言",
   "setting.language.desc": "模组语言设置",
   "setting.ec_command_permission": "ec 命令权限",
   "setting.ec_command_permission.desc": "管理除 /ec c 以外的所有权限",
-
-
-
-
   "setting.villager_no_squeeze": "无挤压",
   "setting.villager_no_squeeze.desc": "指定实体不参与实体挤压、不受到挤压伤害。ID 用英文逗号分隔。",
   "setting.no_brain_on_portal": "过门失智",
   "setting.no_brain_on_portal.desc": "怪物穿过下界传送门后失去 AI（变成无大脑状态）。",
-
-
-
-
-
-  "setting.piglin_gold_block_multiply": "金块交易（九倍产出）",
-  "setting.piglin_gold_block_multiply.desc": "猪灵愿捡金块。1 金块只触发 1 次交易，但产出乘以 9 倍。",
-
+  "setting.piglin_gold_block_multiply": "金块交易",
+  "setting.piglin_gold_block_multiply.desc": "猪灵愿捡金块。1 金块只触发 1 次交易，但9倍产出。",
   "setting.piglin_barter_delay": "调整猪灵交易时间",
   "setting.piglin_barter_delay.desc": "调整猪灵交易前欣赏金锭的等待时间（原版6秒）。金块的等待时间会自动变为该值的9倍。",
-
-
-
-
+  "setting.piglin_gold_block_multiply_punishment": "猪灵金块交易惩罚时间",
+  "setting.piglin_gold_block_multiply_punishment.desc": "控制猪灵金块交易惩罚的持续时间。可选：1、3、9。数值越高，惩罚时间越长。默认：9。",
   "setting.infinite_shear": "无限剪羊毛",
   "setting.infinite_shear.desc": "羊被剪毛后立即恢复有毛状态，可以反复剪取羊毛。",
-
-
-
-
-    "villagerdetails.rule.villagerbonemealflower": "骨粉催熟主世界花",
-    "villagerdetails.rule.villagerbonemealflower.desc": "骨粉催熟草方块时无视生物群系生成主世界花（仅限主世界）",
-
-
-
+  "villagerdetails.rule.villagerbonemealflower": "骨粉催熟主世界花",
+  "villagerdetails.rule.villagerbonemealflower.desc": "骨粉催熟草方块时无视生物群系生成主世界花（仅限主世界）",
   "setting.villager_bed_reset": "村民床编辑器",
   "setting.villager_bed_reset.desc": "使用命名为 bed 的拴绳蹲下右键选择村民和床，修改村民所绑定的床。",
-
   "setting.villager_work_block_reset": "村民工作方块编辑器",
   "setting.villager_work_block_reset.desc": "使用命名为 work 的拴绳蹲下右键选择村民和床，修改村民所绑定的工作方块。",
-
   "setting.villager_batch_bed_reset": "批量村民床编辑器",
-  "setting.villager_batch_bed_reset.desc": "命名为 tool 的拴绳左右键选区，执行 /entityCommand bindAreaBeds 将范围内村民的床绑定为与其直线距离最近的床。",
-
+  "setting.villager_batch_bed_reset.desc": "命名为 tool 的拴绳左右键选区，执行 /ec c bindAreaBeds 将范围内村民的床绑定为与其直线距离最近的床。",
   "setting.villager_auto_trader": "自动刷新交易",
   "setting.villager_auto_trader.desc": "用命名牌写上目标附魔，右键图书管理员即可自动刷新出该满级附魔交易。",
-
   "setting.villager_god_tools": "神装工具刷新",
   "setting.villager_god_tools.desc": "使用 331a / 331b 命名牌刷出三附魔钻石工具。",
-
   "setting.villager_terracotta_trader": "陶瓦刷新",
   "setting.villager_terracotta_trader.desc": "使用陶瓦名称命名牌同时刷出对应陶瓦和带釉陶瓦。",
-
   "setting.villager_auto_lock_hit_trader": "自动锁定村民交易",
   "setting.villager_auto_lock_hit_trader.desc": "使用自动刷新交易规则刷新出的附魔书自动锁定该村民交易。",
-
   "setting.villager_silent_auto_reroll_trader": "无感村民交易刷新",
   "setting.villager_silent_auto_reroll_trader.desc": "使用自动刷新交易规则后自动移除命名名称。",
-
   "setting.villager_one_tick_trader_count": "每 tick 刷新交易次数",
   "setting.villager_one_tick_trader_count.desc": "调整自动刷新交易单词刷新次数。",
-
   "setting.villager_hard_working": "勤劳的村民",
   "setting.villager_hard_working.desc": "调整村民每次补货的数量（默认两倍补货）。",
-
   "setting.villager_infinite_trade": "无限交易",
   "setting.villager_infinite_trade.desc": "村民交易永不耗尽。",
-
   "setting.villager_move_controller": "村民移动控制器",
   "setting.villager_move_controller.desc": "使用命名为 move 的拴绳蹲下右键选择村民和移动位置，控制村民移动到目的地。",
-
   "setting.villager_toolsmith_exchange": "村民可兑换钻石",
   "setting.villager_toolsmith_exchange.desc": "把工具匠的钻石换绿宝石改成绿宝石换钻石。",
-
   "setting.villager_emerald_decompose": "绿宝石块自动拆解",
   "setting.villager_emerald_decompose.desc": "允许使用绿宝石块支付村民交易，自动拆成绿宝石。",
-
   "setting.villager_bookshelf_decompose": "书架自动拆解",
   "setting.villager_bookshelf_decompose.desc": "允许使用书架支付村民交易，自动拆成书。",
-
-
   "msg.auto_trader.success": "§a命中！第 §e%s §a次刷新就出了 %s",
   "msg.auto_trader.no_hit": "§e刷了 §c%s §e次都没命中，再命名一次试试",
   "msg.auto_trader.locked": "§c该村民无法刷新（已锁定 / 小孩 / 无职业 / 无工作站）",
   "msg.auto_trader.no_match": "§c该村民刷不出 %s",
   "msg.auto_trader.rule_disabled": "§c对应规则未开启，请先启用",
   "msg.auto_trader.wrong_profession": "该村民职业不支持此刷新，仅工具匠可用",
-
-
   "msg.villager.bind_area.no_villagers_or_beds": "区域内未找到村民或床（找到 %s 个村民，%s 张床）",
   "msg.villager.bind_area.no_match": "区域内找到 %s 个村民和 %s 张床，但未能成功绑定",
   "msg.villager.bind_area.success": "成功绑定 %s 张床（找到 %s 个村民，%s 张床，区域: %s ~ %s）",
-
-  "message.selection.pos_set": "[选区] pos%d : [%d, %d, %d]",
-  "message.selection.pos_not_set": "Pos%d : 未设置",
-
+  "message.selection.help.header": "§6========== 选区工具 ==========",
+  "message.selection.help.pos1": "§e selection pos1 [pos]  §7设置 pos1（不写坐标则用当前脚下）",
+  "message.selection.help.pos2": "§e selection pos2 [pos]  §7设置 pos2（不写坐标则用当前脚下）",
+  "message.selection.help.show": "§e selection show        §7显示当前选区",
+  "message.selection.help.clear": "§e selection clear       §7清除选区",
+  "message.selection.pos_set": "§a[选区] pos%s : [%s, %s, %s]",
+  "message.selection.pos_not_set": "§aPos%s : 未设置",
+  "message.selection.no_selection": "§c尚未设置任何选点",
+  "message.selection.cleared": "§a选区已清除",
   "msg.entity.select.success": "已选中 %s %s",
   "msg.block.select.success": "已选中 %s(%s)",
   "msg.system.bind.success": "已将%s(%s)的%s(%s)",
   "msg.villager.not_allow_block": "%s 不是%s，请重新选择！",
   "msg.villager.cross_dimension": "无法跨维度绑定%s！",
   "msg.villager.bed": "床",
+  "msg.villager.bed.bind.fail": "绑定失败，请检查床的位置是否正确。",
   "msg.villager.bed.bind.success": "已将村民 %s 的绑定床设置为 %s",
   "msg.villager.bed.already_bound": "该村民已经绑定过这个床了！",
   "msg.villager.work_block.bind.fail": "绑定失败，请检查工作方块的位置是否正确。",

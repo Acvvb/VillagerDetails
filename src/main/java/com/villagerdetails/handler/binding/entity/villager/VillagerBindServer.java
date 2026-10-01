@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.villagerdetails.handler.binding.BindHandler.checkSameDimension;
+import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
 
 /**
  * 村民绑定服务类
@@ -89,11 +90,11 @@ public class VillagerBindServer {
         int villagerCount = villagers.size();
         int bedCount = (beds.size() + 1) / 2;
         if (successCount == 0) {
-            operator.sendSystemMessage(Component.translatable(
+            sendOrBroadcast(operator, Component.translatable(
                     "msg.villager.bind_area.no_match", villagerCount, bedCount
             ));
         } else {
-            operator.sendSystemMessage(Component.translatable(
+            sendOrBroadcast(operator, Component.translatable(
                     "msg.villager.bind_area.success", successCount, villagerCount, bedCount,
                     pos1.toShortString(), pos2.toShortString()
             ));

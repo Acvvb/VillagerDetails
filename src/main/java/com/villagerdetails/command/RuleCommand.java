@@ -8,20 +8,17 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.VillagerDetails;
 import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.command.register.server.RegisterServer;
-import com.villagerdetails.config.ConfigRegistry;
-import com.villagerdetails.config.ReloadableConfig;
+import com.villagerdetails.command.c.server.StateSuggestionServer;
 import com.villagerdetails.config.impl.RuleConfig;
+import com.villagerdetails.lang.ServerTranslations;
 import com.villagerdetails.rule.type.RuleCategoryType;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.*;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionLevel;
-
 
 import java.util.Arrays;
 import java.util.List;
@@ -30,36 +27,36 @@ import java.util.stream.Collectors;
 import static com.villagerdetails.cache.RuleCache.isEnabled;
 import static com.villagerdetails.command.CommandConstants.COMMAND_BASE;
 import static com.villagerdetails.command.CommandConstants.PERM_BASE;
+import static com.villagerdetails.command.c.CCommand.buildCSubcommand;
 import static com.villagerdetails.rule.type.RuleType.SETTING_EC_COMMAND_PERMISSION;
 import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
 
-public class EntityBinderCommand {
+public class RuleCommand {
 
     // ============================================================
     // 语言键
     // ============================================================
-    private static final String K_RELOAD_SUCCESS       = "command.entity_binder.reload.success";
-    private static final String K_RELOAD_FAIL          = "command.entity_binder.reload.fail";
 
-    private static final String K_STATUS_ENABLED       = "command.entity_binder.status.enabled";
-    private static final String K_STATUS_DISABLED      = "command.entity_binder.status.disabled";
+    private static final String K_STATUS_ENABLED = "command.entity_binder.status.enabled";
+    private static final String K_STATUS_DISABLED = "command.entity_binder.status.disabled";
 
-    private static final String K_LIST_HEADER_STATUS   = "command.entity_binder.list.header.status";
-    private static final String K_LIST_EMPTY_STATUS    = "command.entity_binder.list.empty.status";
-    private static final String K_LIST_HEADER_ALL      = "command.entity_binder.list.header.all";
+    private static final String K_LIST_HEADER_STATUS = "command.entity_binder.list.header.status";
+    private static final String K_LIST_EMPTY_STATUS = "command.entity_binder.list.empty.status";
+    private static final String K_LIST_HEADER_ALL = "command.entity_binder.list.header.all";
     private static final String K_LIST_HEADER_CATEGORY = "command.entity_binder.list.header.category";
 
-    private static final String K_HELP_CATEGORIES      = "command.entity_binder.help.categories";
+    private static final String K_HELP_CATEGORIES = "command.entity_binder.help.categories";
 
     private static final String K_ERR_UNKNOWN_CATEGORY = "command.entity_binder.error.unknown_category";
-    private static final String K_ERR_UNKNOWN_RULE     = "command.entity_binder.error.unknown_rule";
-    private static final String K_ERR_INVALID_STATE    = "command.entity_binder.error.invalid_state";
-    private static final String K_ERR_INVALID_OPTION   = "command.entity_binder.error.invalid_option";
+    private static final String K_ERR_UNKNOWN_RULE = "command.entity_binder.error.unknown_rule";
+    private static final String K_ERR_INVALID_STATE = "command.entity_binder.error.invalid_state";
+    private static final String K_ERR_INVALID_OPTION = "command.entity_binder.error.invalid_option";
 
-    private static final String K_TOGGLE_CATEGORY      = "command.entity_binder.toggle.category_label";
-    private static final String K_TOGGLE_VALUE         = "command.entity_binder.toggle.value_label";
-    private static final String K_TOGGLE_SUCCESS       = "command.entity_binder.toggle.success";
-    private static final String K_TOGGLE_EMPTY_VALUE   = "command.entity_binder.toggle.empty_value";
+    private static final String K_TOGGLE_CATEGORY = "command.entity_binder.toggle.category_label";
+    private static final String K_TOGGLE_VALUE = "command.entity_binder.toggle.value_label";
+    private static final String K_TOGGLE_SUCCESS = "command.entity_binder.toggle.success";
+    private static final String K_TOGGLE_EMPTY_VALUE = "command.entity_binder.toggle.empty_value";
+    private static final String K_TOGGLE_HOVER = "command.entity_binder.toggle.hover";
 
     //补全
     private static final SuggestionProvider<CommandSourceStack> RULE_SUGGESTER = (_, builder) ->
@@ -81,14 +78,12 @@ public class EntityBinderCommand {
         if (rule == null) {
             return builder.buildFuture();
         }
+        StateSuggestionServer stateSuggester = rule.getStateSuggestionServer();
+        if (stateSuggester != null) {
+            return stateSuggester.getStateSuggester().getSuggestions(ctx, builder);
+        }
         return SharedSuggestionProvider.suggest(rule.getQuickSwitches(), builder);
     };
-
-    private static final SuggestionProvider<CommandSourceStack> CONFIG_SUGGESTER = (_, builder) ->
-            SharedSuggestionProvider.suggest(
-                    ConfigRegistry.getAllNames(),
-                    builder
-            );
 
     // ============================================================
     // 注册
@@ -103,18 +98,18 @@ public class EntityBinderCommand {
                     return helpRules(ctx);
                 })
                 .then(Commands.literal("list")
-                        .requires(EntityBinderCommand::hasBasePermission)
-                        .executes(EntityBinderCommand::listRules)
+                        .requires(RuleCommand::hasBasePermission)
+                        .executes(RuleCommand::listRules)
                         .then(Commands.argument("category", StringArgumentType.word())
                                 .suggests(CATEGORY_SUGGESTER)
-                                .executes(EntityBinderCommand::listRulesByCategory))
+                                .executes(RuleCommand::listRulesByCategory))
                         .then(Commands.literal("enable")
                                 .executes(ctx -> listRulesByStatus(ctx, true)))
                         .then(Commands.literal("disable")
                                 .executes(ctx -> listRulesByStatus(ctx, false))))
                 .then(buildCSubcommand())
                 .then(Commands.argument("rule", StringArgumentType.word())
-                        .requires(EntityBinderCommand::hasBasePermission)
+                        .requires(RuleCommand::hasBasePermission)
                         .suggests(RULE_SUGGESTER)
                         .executes(ctx -> toggleRule(ctx, null))
                         .then(Commands.argument("state", StringArgumentType.greedyString())
@@ -128,66 +123,6 @@ public class EntityBinderCommand {
                 RuleCache.getState(SETTING_EC_COMMAND_PERMISSION));
         return src.checkPermission(PERM_BASE,
                 permissionLevel != null ? permissionLevel : PermissionLevel.OWNERS);
-    }
-
-    private static LiteralArgumentBuilder<CommandSourceStack> buildCSubcommand() {
-        LiteralArgumentBuilder<CommandSourceStack> c = Commands.literal("c");
-
-        for (RuleType ruleType : RuleType.values()) {
-            RegisterServer registerServer = ruleType.getCommandObject();
-            if (registerServer == null) continue;
-            LiteralArgumentBuilder<CommandSourceStack> subCommand = registerServer.register()
-                    .requires(src -> isEnabled(src, ruleType));
-            c = c.then(subCommand);
-        }
-
-        c = c.then(Commands.literal("reload")
-                .requires(src -> src.checkPermission(PERM_BASE, PermissionLevel.OWNERS))
-                .executes(ctx -> reloadMappings(ctx, null))                    // /ec c reload
-                .then(Commands.argument("config", StringArgumentType.word())    // /ec c reload <name>
-                        .suggests(CONFIG_SUGGESTER)
-                        .executes(ctx -> reloadMappings(ctx, StringArgumentType.getString(ctx, "config")))
-                )
-        );
-
-        return c;
-    }
-
-    // ============================================================
-    // /ec c reload
-    // ============================================================
-
-    private static int reloadMappings(CommandContext<CommandSourceStack> ctx, String configName) {
-        CommandSourceStack src = ctx.getSource();
-        MinecraftServer server = src.getServer();
-        ServerPlayer player = src.getPlayer();
-
-        if (configName == null) {
-            ConfigRegistry.Result result = ConfigRegistry.reloadAll(server);
-            if (result.success()) {
-                sendOrBroadcast(player, Component.translatable(K_RELOAD_SUCCESS, String.join(", ", result.loaded())));
-                return 1;
-            } else {
-                sendOrBroadcast(player, Component.translatable(K_RELOAD_FAIL, String.join("; ", result.failed())));
-                return 0;
-            }
-        }
-
-        ReloadableConfig config = ConfigRegistry.get(configName);
-        if (config == null) {
-            sendOrBroadcast(player, Component.literal("§c未知的配置名: " + configName + "（可用：" + String.join(", ", ConfigRegistry.getAllNames()) + "）"));
-            return 0;
-        }
-
-        try {
-            config.reload(server);
-            sendOrBroadcast(player, Component.translatable(K_RELOAD_SUCCESS, config.configName()));
-            return 1;
-        } catch (Exception e) {
-            sendOrBroadcast(player, Component.translatable(K_RELOAD_FAIL,
-                    config.configName() + ": " + e.getMessage()));
-            return 0;
-        }
     }
 
     // ============================================================
@@ -238,14 +173,18 @@ public class EntityBinderCommand {
         return listRulesByCategory(context, targetCategory);
     }
 
-    /** 逐条发送规则列表，每条都走 SendMessengerUtils */
+    /**
+     * 逐条发送规则列表，每条都走 SendMessengerUtils
+     */
     public static void sendRuleList(ServerPlayer player, List<RuleType> ruleTypeList) {
         for (RuleType rule : ruleTypeList) {
             String currentState = RuleCache.getState(rule);
             Component line = Component.empty()
+                    .append("\n")
                     .append(getRuleName(rule))
+                    .append("\n")
                     .append(quickSwitchComponents(rule, currentState));
-            sendOrBroadcast(player, line);   // ★ 统一走 SendMessengerUtils
+            sendOrBroadcast(player, line);
         }
     }
 
@@ -289,7 +228,7 @@ public class EntityBinderCommand {
                     .append(Component.translatable(rule.getDisplayInfo()))
                     .append(Component.translatable(K_TOGGLE_VALUE))
                     .append(quickSwitchComponents(rule, currentState));
-            sendOrBroadcast(player, mc);   // ★ 统一走 SendMessengerUtils
+            sendOrBroadcast(player, mc);
             return 1;
         }
 
@@ -316,9 +255,12 @@ public class EntityBinderCommand {
         return 1;
     }
 
-    /** 单选：预定义列表必须匹配；自定义列表放行任意非空输入 */
+    /**
+     * 单选：预定义列表必须匹配；自定义列表放行任意非空输入。
+     * NONE 一律规范化为空字符串。
+     */
     private static String canonicalSingleSelect(RuleType rule, String state, ServerPlayer player) {
-        // ★ 自定义列表 → 允许任意非空输入
+        // 自定义列表 → 允许任意非空输入
         if (SwitchComponentType.isCustomList(rule.getQuickSwitches())) {
             String trimmed = state == null ? "" : state.trim();
             if (trimmed.isEmpty()) {
@@ -326,6 +268,10 @@ public class EntityBinderCommand {
                     sendOrBroadcast(player, Component.translatable(K_ERR_INVALID_STATE, state));
                 }
                 return null;
+            }
+            // ★ NONE → 空
+            if (SwitchComponentType.NONE.equalsIgnoreCase(trimmed)) {
+                return "";
             }
             return trimmed;
         }
@@ -339,10 +285,17 @@ public class EntityBinderCommand {
             sendOrBroadcast(player, Component.translatable(K_ERR_INVALID_STATE, state));
             return null;
         }
+
+        // ★ NONE → 空
+        if (SwitchComponentType.NONE.equalsIgnoreCase(canonical)) {
+            return "";
+        }
         return canonical;
     }
 
-    /** 多选：预定义列表必须逐项匹配；自定义列表放行任意非空项 */
+    /**
+     * 多选：预定义列表必须逐项匹配；自定义列表放行任意非空项
+     */
     private static String canonicalMultiSelect(RuleType rule, String state, ServerPlayer player) {
         boolean custom = SwitchComponentType.isCustomList(rule.getQuickSwitches());
 
@@ -350,6 +303,7 @@ public class EntityBinderCommand {
         for (String part : state.split(",")) {
             String trimmed = part.trim();
             if (trimmed.isEmpty()) continue;
+            if (SwitchComponentType.NONE.equalsIgnoreCase(part)) return "";
 
             if (custom) {
                 // ★ 自定义列表 → 直接接受
@@ -414,26 +368,50 @@ public class EntityBinderCommand {
         boolean selected;
         String nextState;
 
+        boolean isNoneOption = SwitchComponentType.NONE.equalsIgnoreCase(option);
+        boolean isNoneState = currentState == null || currentState.isEmpty()
+                || SwitchComponentType.NONE.equalsIgnoreCase(currentState);
         if (rule.isMultiSelect()) {
-            selected = isSelectedIn(currentState, option);
-            nextState = selected ? removeFrom(currentState, option) : appendTo(currentState, option);
+
+            if (isNoneOption) {
+                selected = isNoneState;
+                nextState = SwitchComponentType.NONE;
+            } else {
+                selected = isSelectedIn(currentState, option);
+                nextState = selected ? removeFrom(currentState, option) : appendTo(currentState, option);
+                // 取消最后一个选中项后结果为空，改为发送 none，避免生成 /ec NoSqueeze （空 state）导致未知指令
+                if (nextState == null || nextState.isEmpty()) {
+                    nextState = SwitchComponentType.NONE;
+                }
+            }
         } else {
-            selected = option.equalsIgnoreCase(currentState);
-            nextState = option;
+
+            if (isNoneOption) {
+                selected = isNoneState;
+                nextState = SwitchComponentType.NONE;
+            } else {
+                selected = option.equalsIgnoreCase(currentState);
+                nextState = option;
+            }
         }
 
         int color;
         if (rule.isMultiSelect()) {
             color = selected ? 0x2ecc71 : 0xAAAAAA;
         } else {
-            boolean isOn = !SwitchComponentType.FALSE_STR.equalsIgnoreCase(option);
+            boolean isOn = !SwitchComponentType.FALSE_STR.equalsIgnoreCase(option)
+                    && !SwitchComponentType.NONE.equalsIgnoreCase(option);
             color = selected ? (isOn ? 0x2ecc71 : 0xe74c3c) : 0xAAAAAA;
         }
 
         String displayName = SwitchComponentType.displayNameOf(option);
         String command = String.join(" ", COMMAND_BASE, rule.getRegisterName(), nextState);
-        String hoverText = String.format(SwitchComponentType.INFO,
-                SwitchComponentType.displayNameOf(currentState));
+        // 当前值为空（none）时，提示里也显示 none，而不是空白
+        String currentDisplay = isNoneState
+                ? SwitchComponentType.NONE
+                : SwitchComponentType.displayNameOf(currentState);
+        String hoverText = ServerTranslations.resolve(
+                Component.translatable(K_TOGGLE_HOVER, currentDisplay));
         return buildClickableButton("[" + displayName + "]", color, command, hoverText);
     }
 

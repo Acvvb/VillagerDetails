@@ -12,17 +12,24 @@ import java.util.List;
  */
 public enum SwitchComponentType {
 
+
     FALSE("false", "false", null),
+
     TRUE("true", "true", PermissionLevel.ALL),
+
     OPS("ops", "ops", PermissionLevel.MODERATORS),
+
     MASTER("master", "master", PermissionLevel.GAMEMASTERS),
+
     ADMIN("admin", "admin", PermissionLevel.ADMINS),
-    OWNER("owner", "owner", PermissionLevel.OWNERS)
-    ;
 
-    public static final String INFO = "点击切换规则状态\n当前状态: %s";
+    OWNER("owner", "owner", PermissionLevel.OWNERS);
 
-    /** 关闭态命令字符串 */
+    public static final String NONE = "none";
+
+    /**
+     * 关闭态命令字符串
+     */
     public static final String FALSE_STR = "false";
     public static final String TRUE_STR = "true";
     public static final String OPS_STR = "ops";
@@ -30,13 +37,19 @@ public enum SwitchComponentType {
     public static final String ADMIN_STR = "admin";
     public static final String OWNER_STR = "owner";
 
-    /** 不含关闭态的权限开关（用于 /ec 权限管理这类“必须有一个等级”的设置） */
+    /**
+     * 不含关闭态的权限开关（用于 /ec 权限管理这类“必须有一个等级”的设置）
+     */
     public static final List<String> SETTING_PERMISSIONS = List.of(TRUE_STR, OPS_STR, MASTER_STR, ADMIN_STR, OWNER_STR);
 
-    /** 完整开关（关闭 + 各权限等级） */
+    /**
+     * 完整开关（关闭 + 各权限等级）
+     */
     public static final List<String> PERMISSIONS = List.of(FALSE_STR, TRUE_STR, OPS_STR, MASTER_STR, ADMIN_STR, OWNER_STR);
 
-    /** 简单开关（仅关闭/开启） */
+    /**
+     * 简单开关（仅关闭/开启）
+     */
     public static final List<String> ON_OFF = List.of(FALSE_STR, TRUE_STR);
 
     private final String displayName;
