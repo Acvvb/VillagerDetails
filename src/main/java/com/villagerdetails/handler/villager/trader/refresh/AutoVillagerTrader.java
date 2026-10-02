@@ -71,14 +71,15 @@ public class AutoVillagerTrader {
 
     /**
      * 村民职业是否在白名单内
+     * 返回 true 表示职业不在白名单里（即被禁止）
      */
-    private static boolean checkProfessionAllowed(Villager villager,
-                                                  Set<ResourceKey<VillagerProfession>> whitelist) {
-        if (villager == null) return true;
+    private static boolean isProfessionAllowed(Villager villager,
+                                               Set<ResourceKey<VillagerProfession>> whitelist) {
+        if (villager == null) return false;
         return villager.getVillagerData().profession()
                 .unwrapKey()
-                .map(whitelist::contains)
-                .orElse(false);
+                .map(key -> !whitelist.contains(key))   // 不在白名单 → true
+                .orElse(true);                           // 无职业 → 禁止
     }
 
     // ==============================================================
@@ -136,12 +137,12 @@ public class AutoVillagerTrader {
             // ===== 331 组合刷新：只认 331a（精准）/ 331b（时运）=====
             if (key.equals("331a")) {
                 if (!RuleCache.isEnabled(VILLAGER_GOD_TOOLS)) return -3;
-                if (checkProfessionAllowed(villager, GOD_TOOLS_PROFESSIONS)) return -4;
+                if (isProfessionAllowed(villager, GOD_TOOLS_PROFESSIONS)) return -4;
                 return tickGodTools(villager, true, maxAttempts, doLock);
             }
             if (key.equals("331b")) {
                 if (!RuleCache.isEnabled(VILLAGER_GOD_TOOLS)) return -3;
-                if (checkProfessionAllowed(villager, GOD_TOOLS_PROFESSIONS)) return -4;
+                if (isProfessionAllowed(villager, GOD_TOOLS_PROFESSIONS)) return -4;
                 return tickGodTools(villager, false, maxAttempts, doLock);
             }
         }
@@ -152,12 +153,12 @@ public class AutoVillagerTrader {
         return switch (wanted.route()) {
             case TERRACOTTA -> {
                 if (!RuleCache.isEnabled(VILLAGER_TERRACOTTA_TRADER)) yield -3;
-                if (checkProfessionAllowed(villager, TERRACOTTA_PROFESSIONS)) yield -6;   // ← 陶瓦职业限定
+                if (isProfessionAllowed(villager, TERRACOTTA_PROFESSIONS)) yield -6;   // ← 陶瓦职业限定
                 yield tickTerracotta(villager, maxAttempts,
                         wanted.predicate(), wanted.glazedPredicate(), doLock);
             }
             case ENCHANT -> {
-                if (checkProfessionAllowed(villager, ENCHANT_PROFESSIONS)) yield -5;      // ← 附魔书职业限定
+                if (isProfessionAllowed(villager, ENCHANT_PROFESSIONS)) yield -5;      // ← 附魔书职业限定
                 yield tickEnchant(villager, maxAttempts, wanted.predicate(), doLock);
             }
             case NORMAL -> tickNormalItem(villager, maxAttempts, wanted.predicate(), doLock);
@@ -171,7 +172,7 @@ public class AutoVillagerTrader {
     private static int tickGodTools(Villager villager, boolean silkTouch, int maxAttempts, boolean doLock) {
         if (isRerollable(villager)) return -1;
         if (!(villager.level() instanceof ServerLevel sl)) return -1;
-        if (checkProfessionAllowed(villager, GOD_TOOLS_PROFESSIONS)) return -4;   // ← 兜底
+        if (isProfessionAllowed(villager, GOD_TOOLS_PROFESSIONS)) return -4;   // ← 兜底
 
         AbstractVillagerInterfaceMixin acc = (AbstractVillagerInterfaceMixin) villager;
         VillagerInterfaceTradesMixin tradesInvoker = (VillagerInterfaceTradesMixin) villager;

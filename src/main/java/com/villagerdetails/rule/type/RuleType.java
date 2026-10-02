@@ -94,6 +94,8 @@ public enum RuleType implements RegisterTypeServer {
 
     TNT_NO_DESTROY_DROPS("TntNoDestroyDrops", "setting.tnt_no_destroy_drops", "setting.tnt_no_destroy_drops.desc", List.of(BLOCK), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
 
+    BOX_CRAFTING("BoxCrafting", "setting.box_crafting", "setting.box_crafting.desc", List.of(BLOCK), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+
     ;
 
 

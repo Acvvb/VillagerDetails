@@ -84,6 +84,8 @@
   "rule.block.explosion_resistance.desc": "When enabled, use /ec c BlockExplosionResistance <blockId> <resistance> to set a block's explosion resistance, or /ec c BlockExplosionResistance reset to restore all to vanilla.",
   "setting.tnt_no_destroy_drops": "TNT Does Not Destroy Drops",
   "setting.tnt_no_destroy_drops.desc": "When enabled, TNT explosions will not destroy dropped items on the ground. Default: OFF.",
+  "setting.box_crafting": "Box Crafting",
+  "setting.box_crafting.desc": "When enabled, a shulker box full of the same item can be used as that item in crafting; outputs are boxed and box count is conserved. If there aren't enough empty boxes, outputs are placed unboxed into your inventory (overflow drops). Default: OFF.",
   "command.block.mining_resistance.set": "§aSet %s mining resistance to %s",
   "command.block.mining_resistance.reset": "§aReset all block mining resistance",
   "command.block.mining_resistance.show.header": "§6===== Block Mining Resistance =====",

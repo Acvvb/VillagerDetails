@@ -84,6 +84,8 @@
   "rule.block.explosion_resistance.desc": "开启后，用 /ec c BlockExplosionResistance <方块id> <抗性> 设置单个方块的爆炸抗性；/ec c BlockExplosionResistance reset 清空全部恢复原版。",
   "setting.tnt_no_destroy_drops": "TNT不炸毁掉落物",
   "setting.tnt_no_destroy_drops.desc": "开启后，TNT爆炸不会摧毁地面上的掉落物。默认：关闭。",
+  "setting.box_crafting": "盒子合成",
+  "setting.box_crafting.desc": "开启后，装满同一物品的潜影盒可当作该物品在工作台合成，产物按盒装箱、盒子数量前后守恒。空盒不足时产物不装箱直接放入背包（溢出掉落）。默认：关闭。",
   "command.block.mining_resistance.set": "§a已设置 %s 的挖掘抗性为 %s",
   "command.block.mining_resistance.reset": "§a已重置所有方块挖掘抗性",
   "command.block.mining_resistance.show.header": "§6===== 方块挖掘抗性配置 =====",
