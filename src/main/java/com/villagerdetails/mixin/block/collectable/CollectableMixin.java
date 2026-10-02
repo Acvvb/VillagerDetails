@@ -26,10 +26,7 @@ import java.util.List;
 public abstract class CollectableMixin {
 
     @Inject(method = "getDrops", at = @At("RETURN"), cancellable = true)
-    private void villagerdetails$makeCollectable(LootParams.Builder builder,
-                                                 CallbackInfoReturnable<List<ItemStack>> cir) {
-        // 未安装本 mod 的客户端玩家 → 原版掉落
-        if (BlockRuleContext.isVanillaClient()) return;
+    private void villagerdetails$makeCollectable(LootParams.Builder params, CallbackInfoReturnable<List<ItemStack>> cir) {
 
         BlockState state = (BlockState) (Object) this;
         if (!CollectableHandler.isConfigured(state.getBlock())) return;

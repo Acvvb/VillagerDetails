@@ -22,14 +22,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class PlayerDestroyMixin {
 
     @Inject(method = "playerDestroy", at = @At("HEAD"))
-    private void villagerdetails$beginDestroyContext(Level level, Player player, BlockPos pos, BlockState state,
-                                                     BlockEntity blockEntity, ItemStack tool, CallbackInfo ci) {
+    private void villagerdetails$beginDestroyContext(Level level, Player player, BlockPos pos, BlockState state, BlockEntity blockEntity, ItemStack destroyedWith, CallbackInfo ci) {
         BlockRuleContext.begin(player instanceof ServerPlayer sp ? sp : null);
     }
 
     @Inject(method = "playerDestroy", at = @At("RETURN"))
-    private void villagerdetails$endDestroyContext(Level level, Player player, BlockPos pos, BlockState state,
-                                                   BlockEntity blockEntity, ItemStack tool, CallbackInfo ci) {
+    private void villagerdetails$endDestroyContext(Level level, Player player, BlockPos pos, BlockState state, BlockEntity blockEntity, ItemStack destroyedWith, CallbackInfo ci) {
         BlockRuleContext.end();
     }
 }

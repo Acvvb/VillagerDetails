@@ -1,6 +1,7 @@
 package com.villagerdetails.rule.type;
 
 import com.villagerdetails.command.c.impl.rule.BlockCollectableServerImpl;
+import com.villagerdetails.command.c.impl.rule.BlockExplosionResistanceServerImpl;
 import com.villagerdetails.command.c.impl.rule.BlockMiningResistanceServerImpl;
 import com.villagerdetails.command.c.impl.rule.VillagerBatchBedBindingServerImpl;
 import com.villagerdetails.command.c.impl.suggestion.EntityIdSuggestionServer;
@@ -57,7 +58,7 @@ public enum RuleType implements RegisterTypeServer {
 
     VILLAGER_WORK_BLOCK_RESET("VillagerWorkBlockBinding", "setting.villager_work_block_reset", "setting.villager_work_block_reset.desc", List.of(VILLAGER), List.of(ListenerType.ENTITY_BLOCK_SELECTION), null, false, PERMISSIONS, FALSE_STR),
 
-    VILLAGER_BATCH_BED_RESET("VillagerBatchBedBinding", "setting.villager_batch_bed_reset", "setting.villager_batch_bed_reset.desc", List.of(VILLAGER), List.of(ListenerType.BLOCK_RANGE_SELECTION), VillagerBatchBedBindingServerImpl.INSTANCE, false, PERMISSIONS, FALSE_STR),
+    VILLAGER_BATCH_BED_RESET("VillagerBatchBedBinding", "setting.villager_batch_bed_reset", "setting.villager_batch_bed_reset.desc", List.of(VILLAGER, COMMAND), List.of(ListenerType.BLOCK_RANGE_SELECTION), VillagerBatchBedBindingServerImpl.INSTANCE, false, PERMISSIONS, FALSE_STR),
 
     VILLAGER_AUTO_TRADER("VillagerAutoTrader", "setting.villager_auto_trader", "setting.villager_auto_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
 
@@ -85,9 +86,16 @@ public enum RuleType implements RegisterTypeServer {
 
 
     // 方块
-    BLOCK_MINING_RESISTANCE("BlockMiningResistance", "rule.block.mining_resistance", "rule.block.mining_resistance.desc", List.of(BLOCK), new ArrayList<>(), BlockMiningResistanceServerImpl.INSTANCE, false, ON_OFF, FALSE_STR),
+    BLOCK_MINING_RESISTANCE("BlockMiningResistance", "rule.block.mining_resistance", "rule.block.mining_resistance.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), BlockMiningResistanceServerImpl.INSTANCE, false, ON_OFF, FALSE_STR),
 
-    BLOCK_COLLECTABLE("BlockCollectable", "rule.block.collectable", "rule.block.collectable.desc", List.of(BLOCK), new ArrayList<>(), BlockCollectableServerImpl.INSTANCE, false, ON_OFF, FALSE_STR);
+    BLOCK_COLLECTABLE("BlockCollectable", "rule.block.collectable", "rule.block.collectable.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), BlockCollectableServerImpl.INSTANCE, false, ON_OFF, FALSE_STR),
+
+    BLOCK_EXPLOSION_RESISTANCE("BlockExplosionResistance", "rule.block.explosion_resistance", "rule.block.explosion_resistance.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), BlockExplosionResistanceServerImpl.INSTANCE, false, ON_OFF, FALSE_STR),
+
+    TNT_NO_DESTROY_DROPS("TntNoDestroyDrops", "setting.tnt_no_destroy_drops", "setting.tnt_no_destroy_drops.desc", List.of(BLOCK), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+
+    ;
+
 
     private final String registerName;
     private final String displayName;
