@@ -1,5 +1,6 @@
 package com.villagerdetails.command.c.impl.rule;
 
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.villagerdetails.command.c.impl.suggestion.BlockSuggestionData;
@@ -16,6 +17,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionLevel;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Predicate;
 
 import static com.villagerdetails.command.CommandConstants.PERM_BASE;
@@ -37,6 +39,7 @@ public final class BlockCollectableServerImpl implements RegisterServer {
     private static final String K_RESET = "command.block.collectable.reset";
     private static final String K_SHOW_HEADER = "command.block.collectable.show.header";
     private static final String K_SHOW_EMPTY = "command.block.collectable.show.empty";
+    private static final String K_INVALID_VALUE = "command.block.collectable.invalid_value";
 
     /** 强制最高权限（OWNERS）才能调用。 */
     private static final Predicate<CommandSourceStack> OWNER_REQUIREMENT =
@@ -54,24 +57,34 @@ public final class BlockCollectableServerImpl implements RegisterServer {
                 .then(Commands.argument("block", IdentifierArgument.id())
                         .requires(OWNER_REQUIREMENT)
                         .suggests(BlockSuggestionData.ALL_BLOCK_ID_SUGGESTER)
-                        .then(Commands.literal("true")
-                                .executes(ctx -> set(ctx, true)))
-                        .then(Commands.literal("false")
-                                .executes(ctx -> set(ctx, false))));
+                        .then(Commands.argument("value", StringArgumentType.word())
+                                .suggests(BlockSuggestionData.VANILLA_COLLECTABLE_SUGGESTER)
+                                .executes(BlockCollectableServerImpl::set)));
     }
 
-    private static int set(CommandContext<CommandSourceStack> ctx, boolean value) {
+    private static int set(CommandContext<CommandSourceStack> ctx) {
         ServerPlayer player = ctx.getSource().getPlayer();
         Identifier block = IdentifierArgument.getId(ctx, "block");
+        String value = StringArgumentType.getString(ctx, "value").trim().toLowerCase(Locale.ROOT);
 
-        if (value) {
+        boolean collectable;
+        if ("true".equals(value)) {
+            collectable = true;
+        } else if ("false".equals(value)) {
+            collectable = false;
+        } else {
+            sendOrBroadcast(player, Component.translatable(K_INVALID_VALUE, value));
+            return 0;
+        }
+
+        if (collectable) {
             BlockCollectableConfig.add(block);
         } else {
             BlockCollectableConfig.remove(block);
         }
         BlockRuleSyncHandler.broadcast();
 
-        sendOrBroadcast(player, Component.translatable(value ? K_SET : K_REMOVE, block.toString()));
+        sendOrBroadcast(player, Component.translatable(collectable ? K_SET : K_REMOVE, block.toString()));
         return 1;
     }
 

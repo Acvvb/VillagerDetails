@@ -25,9 +25,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class MiningResistanceMixin {
 
     @Inject(method = "getDestroyProgress", at = @At("HEAD"), cancellable = true)
-    private void villagerdetails$overrideDestroyProgress(BlockState state, Player player,
-                                                         BlockGetter level, BlockPos pos,
-                                                         CallbackInfoReturnable<Float> cir) {
+    private void villagerdetails$overrideDestroyProgress(BlockState state, Player player, BlockGetter level, BlockPos pos, CallbackInfoReturnable<Float> cir) {
+
         // 未安装本 mod 的客户端玩家 → 原版逻辑（对该玩家不生效）
         if (player instanceof ServerPlayer sp && !ServerPlayNetworking.canSend(sp, BlockRuleSyncPayload.TYPE)) {
             return;

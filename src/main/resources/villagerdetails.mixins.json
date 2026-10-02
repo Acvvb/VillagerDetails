@@ -3,35 +3,37 @@
   "package": "com.villagerdetails.mixin",
   "compatibilityLevel": "JAVA_25",
   "mixins": [
-    "villager.move.BrainInterfaceMixin",
-    "villager.move.BrainMixin",
     "animal.SheepMixin",
-    "entity.noSqueeze.EntityMixin",
-    "entity.noSqueeze.LivingEntityMixin",
-    "block.miningResistance.MiningResistanceMixin",
     "block.collectable.CollectableMixin",
     "block.collectable.PlayerDestroyMixin",
+    "block.explosionResistance.ExplosionResistanceMixin",
+    "block.miningResistance.MiningResistanceMixin",
+    "block.TntNoDestroyDrops.ExplosionMixin",
+    "entity.noSqueeze.EntityMixin",
+    "entity.noSqueeze.LivingEntityMixin",
     "entity.piglinTrade.MerchantMenuProvisionMixin",
     "entity.piglinTrade.PiglinAiMixin",
     "monster.noBrainOnPortal.MobInterfaceMixin",
     "plant.GrassBlockBoneMealMixin",
-    "villager.trader.emeraldDecompose.AbstractVillagerExchangeMixin",
-    "villager.trader.autoTrader.AbstractVillagerInterfaceMixin",
-    "villager.trader.autoTrader.book.EnchantRandomlyFunctionMixin",
-    "villager.trader.autoTrader.MerchantMenuInterfaceMixin",
-    "villager.trader.autoTrader.MerchantOfferInterfaceMixin",
-    "villager.trader.infiniteTrade.MerchantOfferMixin",
-    "villager.trader.autoTrader.trigger.NameTagItemMixin",
-    "villager.trader.autoTrader.VillagerInterfaceTradesMixin",
-    "villager.trader.autoTrader.VillagerTradeMixin",
+    "villager.move.BrainInterfaceMixin",
+    "villager.move.BrainMixin",
     "villager.move.VillagerBrainGoalsMixin",
     "villager.sync.VillagerSyncMixin",
-    "villager.trader.autoTrader.hardWork.MerchantOfferResetMixin"
+    "villager.trader.autoTrader.AbstractVillagerInterfaceMixin",
+    "villager.trader.autoTrader.MerchantMenuInterfaceMixin",
+    "villager.trader.autoTrader.MerchantOfferInterfaceMixin",
+    "villager.trader.autoTrader.VillagerInterfaceTradesMixin",
+    "villager.trader.autoTrader.VillagerTradeMixin",
+    "villager.trader.autoTrader.book.EnchantRandomlyFunctionMixin",
+    "villager.trader.autoTrader.hardWork.MerchantOfferResetMixin",
+    "villager.trader.autoTrader.trigger.NameTagItemMixin",
+    "villager.trader.emeraldDecompose.AbstractVillagerExchangeMixin",
+    "villager.trader.infiniteTrade.MerchantOfferMixin"
   ],
   "injectors": {
     "defaultRequire": 1
   },
   "overwrites": {
     "requireAnnotations": true
-	}
+  }
 }
