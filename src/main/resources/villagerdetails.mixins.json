@@ -11,6 +11,8 @@
     "block.TntNoDestroyDrops.ExplosionMixin",
     "craft.AbstractCraftingMenuAccessor",
     "craft.BoxCraftingMenuMixin",
+    "craft.CrafterBlockMixin",
+    "craft.InventoryMenuMixin",
     "craft.ResultSlotMixin",
     "entity.noSqueeze.EntityMixin",
     "entity.noSqueeze.LivingEntityMixin",

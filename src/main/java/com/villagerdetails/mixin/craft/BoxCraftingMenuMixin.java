@@ -1,5 +1,6 @@
 package com.villagerdetails.mixin.craft;
 
+import com.villagerdetails.handler.craft.BoxCraftPlan;
 import com.villagerdetails.handler.craft.BoxCraftingHandler;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.server.level.ServerLevel;
@@ -40,8 +41,7 @@ public abstract class BoxCraftingMenuMixin {
 
         if (!BoxCraftingHandler.isEnabled()) return;
 
-        BoxCraftingHandler.BoxCraftPlan plan =
-                BoxCraftingHandler.computePlan(level, container);
+        BoxCraftPlan plan = BoxCraftingHandler.computePlan(level, container);
         if (plan == null) return;
 
         ItemStack preview = plan.preview();
@@ -72,8 +72,7 @@ public abstract class BoxCraftingMenuMixin {
         ResultContainer resultSlots = acc.villagerdetails$getResultSlots();
         if (craftSlots == null || resultSlots == null) return;
 
-        BoxCraftingHandler.BoxCraftPlan plan =
-                BoxCraftingHandler.computePlan(sp.level(), craftSlots);
+        BoxCraftPlan plan = BoxCraftingHandler.computePlan(sp.level(), craftSlots);
         if (plan == null) return;
 
         // 先清空结果槽的 preview，阻止原版 moveItemStackTo
