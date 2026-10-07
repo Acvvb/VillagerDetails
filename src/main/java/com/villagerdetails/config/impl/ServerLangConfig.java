@@ -1,7 +1,6 @@
 package com.villagerdetails.config.impl;
 
 import com.google.gson.*;
-import com.villagerdetails.config.ConfigRegistry;
 import com.villagerdetails.config.ReloadableConfig;
 import com.villagerdetails.lang.ServerTranslations;
 import net.minecraft.server.MinecraftServer;

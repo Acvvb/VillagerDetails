@@ -9,6 +9,10 @@ import com.villagerdetails.event.ServerStoppingListener;
 import com.villagerdetails.handler.monster.noBrainOnPortal.NoBrainOnPortalHandler;
 import com.villagerdetails.network.BlockRuleSyncHandler;
 import com.villagerdetails.network.BlockRuleSyncPayload;
+import com.villagerdetails.network.ServerRuleRequestPayload;
+import com.villagerdetails.network.ServerRuleSetPayload;
+import com.villagerdetails.network.ServerRuleSyncHandler;
+import com.villagerdetails.network.ServerRuleSyncPayload;
 import com.villagerdetails.network.VillagerBedPayload;
 import com.villagerdetails.network.VillagerTrackingHandler;
 import com.villagerdetails.rule.RuleModuleRegistry;
@@ -30,9 +34,15 @@ public class VillagerDetails implements ModInitializer {
 
         PayloadTypeRegistry.clientboundPlay().register(VillagerBedPayload.TYPE, VillagerBedPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(BlockRuleSyncPayload.TYPE, BlockRuleSyncPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ServerRuleSyncPayload.TYPE, ServerRuleSyncPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ServerRuleRequestPayload.TYPE, ServerRuleRequestPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ServerRuleSetPayload.TYPE, ServerRuleSetPayload.CODEC);
 
         // 方块规则（挖掘抗性 / 可采集）客户端同步
         BlockRuleSyncHandler.register();
+
+        // 全部规则状态的同步 + 配置界面里的开关操作
+        ServerRuleSyncHandler.register();
 
         ServerLifecycleEvents.SERVER_STARTED.register(ServerLifecycleListener::onServerStarted);
         ServerLifecycleEvents.SERVER_STOPPING.register(new ServerStoppingListener());

@@ -139,6 +139,16 @@ public enum RuleType implements RegisterTypeServer {
         return ServerTranslations.resolve(Component.translatable(displayInfo));
     }
 
+    /** 显示名的翻译键（客户端界面用，保证和命令显示的是同一条文案） */
+    public String getDisplayNameKey() {
+        return displayName;
+    }
+
+    /** 显示描述的翻译键 */
+    public String getDisplayInfoKey() {
+        return displayInfo;
+    }
+
     public List<RuleCategoryType> getCategory() {
         return category;
     }

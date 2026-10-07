@@ -42,4 +42,9 @@ public enum RuleCategoryType {
     public String getDisplayName() {
         return ServerTranslations.resolve(Component.translatable(displayName));
     }
+
+    /** 显示名的翻译键（客户端界面用） */
+    public String getDisplayNameKey() {
+        return displayName;
+    }
 }

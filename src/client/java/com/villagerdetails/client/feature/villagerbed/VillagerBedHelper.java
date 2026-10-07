@@ -1,4 +1,4 @@
-package com.villagerdetails.client.helper;
+package com.villagerdetails.client.feature.villagerbed;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
@@ -30,20 +30,31 @@ public class VillagerBedHelper {
     }
 
     /**
-     * 客户端收到服务端发来的床位置时调用，更新缓存
+     * 客户端收到服务端发来的床位置时调用，更新缓存。
+     *
+     * <p>参数收<b>可空的</b>{@link BlockPos}：{@code Optional} 是给返回值用的，
+     * 当形参类型用属于反模式（IDEA 会报「Optional 用作形参类型」）。
+     * 传 {@code null} = 这个村民现在没有床，缓存里直接删掉。
      */
-    public static void updateBedPosition(int villagerId, Optional<BlockPos> bedPos) {
-        // 有值就 put，没值就 remove
-        bedPos.ifPresentOrElse(
-                pos -> CLIENT_BED_CACHE.put(villagerId, pos),
-                () -> CLIENT_BED_CACHE.remove(villagerId)
-        );
+    public static void updateBedPosition(int villagerId, BlockPos bedPos) {
+        if (bedPos == null) {
+            CLIENT_BED_CACHE.remove(villagerId);
+        } else {
+            CLIENT_BED_CACHE.put(villagerId, bedPos);
+        }
     }
 
     /**
-     * 清理已卸载实体的缓存（防止内存泄漏）
+     * 清理已卸载实体的缓存（防止内存泄漏，也防止实体ID被复用后连出错误的线）
      */
     public static void removeBedPosition(int villagerId) {
         CLIENT_BED_CACHE.remove(villagerId);
+    }
+
+    /**
+     * 断开连接 / 切换世界时整体清空
+     */
+    public static void clear() {
+        CLIENT_BED_CACHE.clear();
     }
 }

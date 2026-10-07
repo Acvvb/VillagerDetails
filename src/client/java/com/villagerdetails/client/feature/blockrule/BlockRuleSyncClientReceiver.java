@@ -1,4 +1,4 @@
-package com.villagerdetails.client.network;
+package com.villagerdetails.client.feature.blockrule;
 
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.config.impl.BlockCollectableConfig;

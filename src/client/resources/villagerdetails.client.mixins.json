@@ -11,6 +11,5 @@
 		"requireAnnotations": true
 	},
 	"mixins": [
-		"MinecraftGlowMixin"
 	]
 }
