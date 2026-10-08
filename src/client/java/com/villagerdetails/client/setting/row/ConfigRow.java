@@ -6,17 +6,18 @@ import net.minecraft.network.chat.Component;
 import java.util.List;
 
 /**
- * 配置界面里的一行。两种实现：
+ * 配置界面里的一行。实现就是「配置项 / 规则」本身：
  * <ul>
- *     <li>{@link ClientEntryRow}：本机配置项（{@code ConfigEntry}）</li>
+ *     <li>{@link com.villagerdetails.client.setting.type.ConfigEntry}：本机配置项（枚举自己实现这个接口）</li>
  *     <li>{@link ServerRuleRow}：服务器规则（{@code RuleType}）</li>
+ *     <li>{@link ServerRuleDataRow}：服务器规则的逐条配置（id → 值）</li>
  * </ul>
  * 行样式跟随所在二级分类；不支持的取值方式用默认实现兜底。
  */
 public interface ConfigRow {
 
-    /** 稳定 id（跨界面重建保持状态用） */
-    String getId();
+    /** 稳定 id（跨界面重建保持状态用）：就是配置 / 规则的注册名 */
+    String getRegisterName();
 
     Component getDisplayName();
 

@@ -3,6 +3,7 @@ package com.villagerdetails.command.c.impl.rule;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.command.c.impl.suggestion.BlockSuggestionData;
 import com.villagerdetails.config.impl.BlockExplosionResistanceConfig;
+import com.villagerdetails.network.sync.BlockRuleSyncChannel;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.resources.Identifier;
 
@@ -67,5 +68,10 @@ public final class BlockExplosionResistanceServerImpl extends AbstractBlockResis
     @Override
     protected Map<Identifier, Float> snapshot() {
         return BlockExplosionResistanceConfig.snapshot();
+    }
+
+    @Override
+    protected void afterChange() {
+        BlockRuleSyncChannel.INSTANCE.broadcastAll();
     }
 }

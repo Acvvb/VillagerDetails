@@ -4,7 +4,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
-
 import java.util.*;
 
 /**
@@ -100,6 +99,42 @@ public final class McIds {
      * 最大的匹配档位（见 {@link #rankOf}）
      */
     private static final int LAST_RANK = 3;
+
+    /**
+     * 只在某个注册表里的条目中搜（标签、注册表分类都不算）。
+     *
+     * <p>给「服务器配置项」的列表页用：方块规则只该补全方块 id，无挤压只该补全实体 id。
+     */
+    public static List<Entry> searchIn(String rawQuery, int limit, Registry<?> registry) {
+        String query = normalize(rawQuery);
+        if (query.isEmpty() || limit <= 0) {
+            return List.of();
+        }
+        List<Entry> entries = index().entries();
+        List<Entry> hits = new ArrayList<>(limit);
+        for (int rank = 0; rank <= LAST_RANK && hits.size() < limit; rank++) {
+            for (Entry entry : entries) {
+                if (hits.size() >= limit) {
+                    break;
+                }
+                if (entry.category() || entry.id().startsWith("#")) {
+                    continue;
+                }
+                if (rankOf(entry.id(), query) == rank && inRegistry(entry.id(), registry)) {
+                    hits.add(entry);
+                }
+            }
+        }
+        return hits;
+    }
+
+    private static boolean inRegistry(String id, Registry<?> registry) {
+        if (registry == null) {
+            return true;
+        }
+        Identifier identifier = Identifier.tryParse(id);
+        return identifier != null && registry.containsKey(identifier);
+    }
 
     /**
      * -1 = 不匹配；越小越匹配

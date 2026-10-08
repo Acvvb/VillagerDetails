@@ -1,16 +1,13 @@
 package com.villagerdetails.client.setting.screen;
 
+import com.villagerdetails.client.network.sync.ClientRequests;
 import com.villagerdetails.client.setting.component.*;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
 import com.villagerdetails.client.setting.config.ComponentLayout;
-import com.villagerdetails.client.setting.network.ServerRuleClientReceiver;
 import com.villagerdetails.client.setting.network.ServerRuleClientState;
-import com.villagerdetails.client.setting.row.ClientEntryRow;
 import com.villagerdetails.client.setting.row.ConfigRow;
-import com.villagerdetails.client.setting.type.ConfigEntry;
-import com.villagerdetails.client.setting.type.ConfigTabs;
-import com.villagerdetails.client.setting.type.MainCategory;
-import com.villagerdetails.client.setting.type.UiTab;
+import com.villagerdetails.client.setting.row.ServerRuleDataRow;
+import com.villagerdetails.client.setting.type.*;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
@@ -44,6 +41,9 @@ import static com.villagerdetails.client.setting.config.UiLayout.*;
  * <p>
  * 功能开关 / 服务器规则的行是：{@code 规则名 … [是/否] [快捷键] [重置]}
  * （服务器规则没有快捷键绑定框）。
+ *
+ * <p>内容行的分页 / 平滑滚动 / 滚动条 / 画布裁剪都在 {@link RowListPage} 里，
+ * 和两个详情页共用同一套。
  */
 public class VillagerBedConfigScreen extends Screen {
 
@@ -87,33 +87,10 @@ public class VillagerBedConfigScreen extends Screen {
     private boolean subTabScrollNeedsReveal = true;
 
     /**
-     * 每一行的控件（重建界面时全部建好，靠滚动偏移决定摆在哪里 / 显不显示）
+     * 内容行的「一页列表」：分页、平滑滚动、滚动条、行控件摆位、画布裁剪都归它
+     * （和两个详情页共用同一个组件）
      */
-    private final List<List<RowWidget>> rowWidgets = new ArrayList<>();
-
-    /**
-     * 一行里的一个控件，外加它<b>相对行顶的 y 偏移</b>。
-     *
-     * <p>光记控件是不够的：滚动时每帧都要按行位置重摆一遍，如果一律 {@code setY(行 y)}，
-     * 那些故意往下挪过的控件（比如颜色块要垂直居中）就会被摆回行顶。
-     * 以后要加别的需要偏移的控件，也在这里给偏移量，别在构造参数里加。
-     */
-    private record RowWidget(AbstractWidget widget, int yOffset) {
-    }
-
-    /**
-     * 行内控件：贴着行顶（默认）
-     */
-    private static RowWidget rowWidget(AbstractWidget widget) {
-        return new RowWidget(widget, 0);
-    }
-
-    /**
-     * 行内控件：相对行顶往下挪 {@code yOffset} 像素
-     */
-    private static RowWidget rowWidget(AbstractWidget widget, int yOffset) {
-        return new RowWidget(widget, yOffset);
-    }
+    private final RowListPage page = new RowListPage(() -> renderedRows.size(), MAX_ROWS_PER_PAGE);
 
     /**
      * 本次重建里创建的「重置」按钮，值变化后统一刷新灰 / 亮
@@ -124,16 +101,6 @@ public class VillagerBedConfigScreen extends Screen {
      * 底部的「全局重置」
      */
     private Button globalResetButton;
-
-    /**
-     * 内容行的滚动状态：滚动量单位是「行」，每帧朝目标平滑逼近（和列表详情页共用同一套）
-     */
-    private final RowScrollState rowScroll = new RowScrollState();
-
-    /**
-     * 内容区右侧的滚动条（内容不足一页时整条隐藏，那一列让给行控件）
-     */
-    private ScrollBar scrollBar;
 
     /**
      * 本次重建时算好的、实际可见的一级分类（面板高度要用，见 drawPanels）
@@ -149,7 +116,7 @@ public class VillagerBedConfigScreen extends Screen {
         restoreSelection();
 
         // 打开界面时向服务器要一份最新的规则状态（服务器没装本 mod 时内部会直接忽略）
-        ServerRuleClientReceiver.requestSync();
+        ClientRequests.requestRuleSync();
     }
 
     // ==============================================================
@@ -240,20 +207,10 @@ public class VillagerBedConfigScreen extends Screen {
     }
 
     /**
-     * 内容行的右边界。
-     *
-     * <p>需要滚动时会空出右侧滚动条那一列（滚动条宽 + 间距），所以行控件整体左移；
-     * 一页放得下时不用滚动条，这一列就让给行控件，行宽和以前一样。
+     * 内容行的右边界（需要滚动时给滚动条让出一列）
      */
     private int rowsRight() {
-        return rowScrollingNeeded() ? contentRight() - SCROLLBAR_WIDTH - SCROLLBAR_GAP : contentRight();
-    }
-
-    /**
-     * 滚动条所在的 x（贴着内容区右边界，仍在黑色面板里面）
-     */
-    private int scrollBarX() {
-        return contentRight() - SCROLLBAR_WIDTH;
+        return page.rowsRight();
     }
 
     /**
@@ -296,10 +253,6 @@ public class VillagerBedConfigScreen extends Screen {
      */
     private int sidebarEntryY(int index) {
         return SIDEBAR_TOP + SIDEBAR_ENTRY_HEIGHT + index * SIDEBAR_ENTRY_HEIGHT;
-    }
-
-    private int rowY(int index) {
-        return CONTENT_TOP + FIRST_ROW_OFFSET + index * ROW_HEIGHT;
     }
 
     // ---------------- 二级分类的宽度 / 滚动 ----------------
@@ -399,159 +352,6 @@ public class VillagerBedConfigScreen extends Screen {
         }
     }
 
-    // ---------------- 内容行的分页 / 平滑滚动 ----------------
-
-    /**
-     * 第一行内容的位置
-     */
-    private int rowsTop() {
-        return CONTENT_TOP + FIRST_ROW_OFFSET;
-    }
-
-    /**
-     * 内容区底部：页脚按钮上方留一点间距。只用来算「一页能放几行」，不是绘制边界
-     */
-    private int rowsBottom() {
-        return footerButtonY(this.height) - ROW_SCROLL_MARGIN;
-    }
-
-    /**
-     * 一页能放几行：受窗口高度和 {@code MAX_ROWS_PER_PAGE}（8 条）双重限制，至少 1 行。
-     */
-    private int rowsPerPage() {
-        // 上限先兜一次底，免得 clamp 的 min > max 抛异常
-        return Math.clamp((rowsBottom() - rowsTop()) / ROW_HEIGHT, 1, Math.max(1, MAX_ROWS_PER_PAGE));
-    }
-
-    /**
-     * 这一页的可见区下边界。
-     *
-     * <p>它由「一页的行数」决定，所以一屏最多只会完整显示 {@link #rowsPerPage()} 行 ——
-     * 窗口再高也不会多显示（多出来的行要滚动才上来），面板也按这个高度收边。
-     */
-    private int rowsViewportBottom() {
-        return rowsTop() + rowsPerPage() * ROW_HEIGHT;
-    }
-
-    /**
-     * 行控件的「画布」上边界：比第一行的位置再往上让出两行之间的那道空隙。
-     *
-     * <p>这样滚动时上面那半行能露出来，又不会画到分隔线（在 {@code CONTENT_TOP + HEADER_LINE_OFFSET}）
-     * 上面去；停在整行位置时正好没有任何残留的边。
-     */
-    private int rowsCanvasTop() {
-        return rowsTop() - ROW_GAP_Y;
-    }
-
-    /**
-     * 行控件的「画布」下边界：就是内容面板的底边（一页放满时等于这一页的下边界）
-     */
-    private int rowsCanvasBottom() {
-        return contentPanelBottom();
-    }
-
-    /**
-     * 内容是否超过一页
-     */
-    private boolean rowScrollingNeeded() {
-        return renderedRows.size() > rowsPerPage();
-    }
-
-    private void clampRowScroll() {
-        rowScroll.clampTo(renderedRows.size(), rowsPerPage());
-    }
-
-    /**
-     * 滚动指定行数（滚轮一次 ROW_SCROLL_STEP 行）
-     */
-    private void scrollRows(int deltaRows) {
-        rowScroll.scrollBy(deltaRows, renderedRows.size(), rowsPerPage());
-    }
-
-    /**
-     * 直接把滚动位置设到某一行，不做平滑动画。
-     *
-     * <p>拖滚动条 / 点滚动条轨道时用：这时候要求「手到哪、内容到哪」，动画反而会拖后腿。
-     */
-    private void setRowScroll(double rows) {
-        rowScroll.set(rows, renderedRows.size(), rowsPerPage());
-        updateRowPositions();
-    }
-
-    /**
-     * 这一行现在该摆在哪个 y（带滚动偏移）。
-     *
-     * <p>滚动量的单位是「行」，换算成像素由 {@link RowScrollState#offsetPx(int)} 负责 ——
-     * 别在别处直接拿它当像素用，否则滚到底也只能挪动几像素，下面的行永远上不来。
-     */
-    private float rowDrawY(int index) {
-        return rowY(index) - rowScroll.offsetPx(ROW_HEIGHT);
-    }
-
-    /**
-     * 这一行要不要画。
-     *
-     * <p>只要和这一页的画布有交集就画 —— 上下两端允许只露半个项，多出来的部分由
-     * {@link #drawRows} 里的画布（scissor）裁掉。
-     * 停在整行位置时，上下各正好不会有残留的半个项。
-     */
-    private boolean rowVisible(int index) {
-        float y = rowDrawY(index);
-        return y + WIDGET_HEIGHT > rowsCanvasTop() && y < rowsCanvasBottom();
-    }
-
-    /**
-     * 把所有行控件按当前滚动偏移摆好，并把滚出可视区的行藏起来
-     */
-    private void updateRowPositions() {
-        for (int i = 0; i < rowWidgets.size(); i++) {
-            int y = Math.round(rowDrawY(i));
-            boolean visible = rowVisible(i);
-            for (RowWidget entry : rowWidgets.get(i)) {
-                // 行顶 + 这个控件自己的偏移（色块之类的居中偏移就靠它保住）
-                entry.widget().setY(y + entry.yOffset());
-                entry.widget().visible = visible;
-            }
-        }
-        updateScrollBar();
-    }
-
-    /**
-     * 滚动条的显隐 / 位置。
-     *
-     * <p>内容超过一页才显示；不足一页时整条隐藏，它那一列由 {@link #rowsRight()} 还给行控件。
-     * 注意 26.2 的 {@code setRectangle} 参数顺序是 (width, height, x, y)，所以这里全用显式 setter。
-     */
-    private void updateScrollBar() {
-        if (scrollBar == null) {
-            return;
-        }
-        boolean needed = rowScrollingNeeded();
-        scrollBar.visible = needed;
-        scrollBar.active = needed;
-        scrollBar.setX(scrollBarX());
-        scrollBar.setY(rowsTop());
-        scrollBar.setWidth(SCROLLBAR_WIDTH);
-        // 轨道高度 = 一页的高度，和右边这一列行的高度对齐
-        scrollBar.setHeight(Math.max(1, rowsViewportBottom() - rowsTop()));
-    }
-
-    /**
-     * 平滑滚动：每帧朝目标位置逼近一点。
-     *
-     * <p>以前这段是放在 {@code tick()} 里的 —— 但 tick 只有 20Hz，而界面是按帧（60~200Hz）画的，
-     * 于是滚动位置每秒只变 20 次，看上去就是「一卡一卡」的跳跃。现在改到渲染阶段，
-     * 按引擎传进来的「这一帧过去了多少 tick」推进（细节在 {@link RowScrollState#advance}）。
-     *
-     * @param frameTicks 这一帧经过了多少个 tick（60fps ≈ 0.33，20fps ≈ 1.0）
-     */
-    private void applyRowScroll(float frameTicks) {
-        // 只有真的动了才重摆控件，动画停下来之后每帧什么都不做
-        if (rowScroll.advance(frameTicks)) {
-            updateRowPositions();
-        }
-    }
-
     // ==============================================================
     // 控件
     // ==============================================================
@@ -560,6 +360,12 @@ public class VillagerBedConfigScreen extends Screen {
     protected void init() {
         keyBindButtons.clear();
         resetButtons.clear();
+
+        // 先把几何交给列表组件：后面造行控件要用到 rowsRight()（它取决于「需不需要滚动条」）
+        page.setGeometry(contentX(), contentRight(), CONTENT_TOP + FIRST_ROW_OFFSET,
+                footerButtonY(this.height) - ROW_SCROLL_MARGIN);
+        page.setPanel(contentX() - PANEL_PADDING, CONTENT_TOP - PANEL_PADDING,
+                Math.min(contentRight() + PANEL_PADDING, this.width - PANEL_RIGHT_MARGIN));
 
         // 左侧：一级分类（服务器没装本 mod / 自己一条规则都没权限看时不会包含「服务器」）
         // 结果缓存起来：判断「服务器装没装 mod」要查网络通道，没必要每帧都查一遍
@@ -575,7 +381,7 @@ public class VillagerBedConfigScreen extends Screen {
         for (int i = 0; i < visibleMains.size(); i++) {
             MainCategory main = visibleMains.get(i);
             boolean selected = main == selectedMain;
-            addRenderableWidget(Button.builder(selectedLabel(main.getDisplayName(), selected), button -> {
+            addRenderableWidget(Button.builder(selectedLabel(main.getDisplayName(), selected), _ -> {
                         if (selectedMain != main) {
                             selectedMain = main;
                             selectedTabId = null;
@@ -613,7 +419,7 @@ public class VillagerBedConfigScreen extends Screen {
         for (int i = 0; i < visibleCount; i++) {
             UiTab tab = tabs.get(subTabScroll + i);
             boolean selected = tab == active;
-            addRenderableWidget(Button.builder(selectedLabel(tab.displayName(), selected), button -> {
+            addRenderableWidget(Button.builder(selectedLabel(tab.displayName(), selected), _ -> {
                         if (selectedTabId == null || !selectedTabId.equals(tab.id())) {
                             selectedTabId = tab.id();
                             rememberSelection();
@@ -626,14 +432,14 @@ public class VillagerBedConfigScreen extends Screen {
 
         // 二级分类放不下时，末尾放两个整页翻页按钮（滚轮仍然一格格滚）
         if (subTabScrollingNeeded()) {
-            Button previous = Button.builder(Component.literal("◀"), button -> pageSubTabs(-1))
+            Button previous = Button.builder(Component.literal("◀"), _ -> pageSubTabs(-1))
                     .bounds(subTabArrowX(0), CONTENT_TOP, SUBTAB_ARROW_WIDTH, WIDGET_HEIGHT)
                     .build();
             // 已经在最左边（没法再往左翻）就置灰
             previous.active = subTabScroll > 0;
             addRenderableWidget(previous);
 
-            Button next = Button.builder(Component.literal("▶"), button -> pageSubTabs(1))
+            Button next = Button.builder(Component.literal("▶"), _ -> pageSubTabs(1))
                     .bounds(subTabArrowX(1), CONTENT_TOP, SUBTAB_ARROW_WIDTH, WIDGET_HEIGHT)
                     .build();
             // 右边已经没有更多分类了就置灰
@@ -645,34 +451,30 @@ public class VillagerBedConfigScreen extends Screen {
         initSearchBox();
 
         // 内容行：一页最多 MAX_ROWS_PER_PAGE 行，塞不下就用滚轮 / 右侧滚动条（带平滑动画）
-        // 注意行控件用的是 addWidget（只进 children）：它们统一由 drawRows 画在画布里
+        // 注意行控件用的是 addWidget（只进 children）：它们统一由 RowListPage#drawRows 画在画布里
         this.renderedRows = filterRows(active == null ? List.of() : active.rows());
-        rowWidgets.clear();
+        page.clearRows();
         for (int i = 0; i < renderedRows.size(); i++) {
             ConfigRow row = renderedRows.get(i);
-            int y = rowY(i);
-            List<RowWidget> widgets = new ArrayList<>();
+            int y = page.rowY(i);
+            List<RowListPage.Widget> widgets = new ArrayList<>();
             switch (row.getStyle()) {
                 case TOGGLE -> addToggleRow(row, y, widgets);
                 case COLOR -> addColorRow(row, y, widgets);
                 case SLIDER -> addSliderRow(row, y, widgets);
                 case LIST -> addListRow(row, y, widgets);
             }
-            rowWidgets.add(widgets);
+            page.addRow(widgets);
         }
 
         // 滚动条放在行控件之后添加，这样它画在行控件上面
-        this.scrollBar = new ScrollBar(scrollBarX(), rowsTop(), SCROLLBAR_WIDTH,
-                Math.max(1, rowsViewportBottom() - rowsTop()),
-                () -> renderedRows.size(), this::rowsPerPage,
-                () -> (double) rowScroll.scroll(), this::setRowScroll);
-        addRenderableWidget(scrollBar);
+        page.installScrollBar(this::addRenderableWidget);
 
-        clampRowScroll();
-        updateRowPositions();
+        page.clamp();
+        page.updatePositions();
 
         // 底部：全局重置 + 完成（全都还是默认值时「全局重置」置灰）
-        this.globalResetButton = Button.builder(Component.translatable("villagerdetails.ui.reset_all"), button -> {
+        this.globalResetButton = Button.builder(Component.translatable("villagerdetails.ui.reset_all"), _ -> {
                     ClientRenderConfig.get().resetToDefaults();
                     rebuildWidgets();
                 })
@@ -682,7 +484,7 @@ public class VillagerBedConfigScreen extends Screen {
         globalResetButton.active = ClientRenderConfig.get().hasNonDefaultValues();
         addRenderableWidget(globalResetButton);
 
-        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> this.onClose())
+        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, _ -> this.onClose())
                 .bounds(footerRightButtonX(this.width), footerButtonY(this.height),
                         FOOTER_BUTTON_WIDTH, WIDGET_HEIGHT)
                 .build());
@@ -739,8 +541,8 @@ public class VillagerBedConfigScreen extends Screen {
      * <p>服务器规则用 {@link RuleSwitchGroup}（按 {@code RuleType#getQuickSwitches()} 渲染成一排状态按钮，
      * 显示 / 颜色 / 取值都和 {@code /ec} 一致，没有快捷键框）；本模组的功能开关则是「是/否」按钮 + 快捷键框。
      */
-    private void addToggleRow(ConfigRow row, int y, List<RowWidget> out) {
-        out.add(rowWidget(addWidget(labelWidget(row, y))));
+    private void addToggleRow(ConfigRow row, int y, List<RowListPage.Widget> out) {
+        out.add(RowListPage.at(addWidget(labelWidget(row, y))));
 
         List<AbstractWidget> switches = RuleSwitchGroup.build(row, this.font, resetX() - WIDGET_GAP, y, WIDGET_HEIGHT);
         if (switches.isEmpty()) {
@@ -748,21 +550,21 @@ public class VillagerBedConfigScreen extends Screen {
             switches = List.of(ToggleSwitchButton.create(switchX, y, SWITCH_WIDTH, WIDGET_HEIGHT, row, this::rebuildWidgets));
         }
         for (AbstractWidget widget : switches) {
-            out.add(rowWidget(addWidget(widget)));
+            out.add(RowListPage.at(addWidget(widget)));
         }
 
-        if (row.hasKeyBind() && row instanceof ClientEntryRow clientRow) {
+        if (row instanceof ConfigEntry entry && row.hasKeyBind()) {
             // 绑完（或按 ESC 清空）立刻落盘，别等到关界面才存
             KeyBindButton bindButton = KeyBindButton.create(keyBindX(), y, KEYBIND_WIDTH, WIDGET_HEIGHT,
-                    clientRow.entry(), keys -> {
+                    entry, keys -> {
                         row.setKeyBind(keys);
                         row.save();
                     });
             keyBindButtons.add(bindButton);
-            out.add(rowWidget(addWidget(bindButton)));
+            out.add(RowListPage.at(addWidget(bindButton)));
         }
 
-        out.add(rowWidget(addWidget(createResetButton(row, y))));
+        out.add(RowListPage.at(addWidget(createResetButton(row, y))));
     }
 
     /**
@@ -770,25 +572,24 @@ public class VillagerBedConfigScreen extends Screen {
      *
      * <p>点颜色值按钮进详情页（RGB 滑条 + 可输入的色值框）；重置按钮恢复默认色。
      *
-     * <p>色块比按钮矮，靠  往下挪，让两个的中心线对齐 ——
-     * 这个偏移必须通过 {@link #rowWidget(AbstractWidget, int)} 登记，
-     * 否则滚动重摆时会被摆回行顶（那就变成贴着上边了）。
+     * <p>色块比按钮矮，靠 {@link RowListPage#offset} 往下挪，让两个的中心线对齐 ——
+     * 这个偏移必须登记给列表组件，否则滚动重摆时会被摆回行顶（那就变成贴着上边了）。
      */
-    private void addColorRow(ConfigRow row, int y, List<RowWidget> out) {
-        out.add(rowWidget(addWidget(labelWidget(row, y))));
+    private void addColorRow(ConfigRow row, int y, List<RowListPage.Widget> out) {
+        out.add(RowListPage.at(addWidget(labelWidget(row, y))));
 
-        if (row instanceof ClientEntryRow(ConfigEntry entry)) {
+        if (row instanceof ConfigEntry) {
             int swatchX = coloredValueX() - WIDGET_GAP - SWATCH_WIDTH;
-            out.add(rowWidget(addWidget(new ColorSwatch(swatchX, y + SWATCH_Y_OFFSET,
+            out.add(RowListPage.offset(addWidget(new ColorSwatch(swatchX, y + SWATCH_Y_OFFSET,
                     SWATCH_WIDTH, SWATCH_HEIGHT, row::getColor)), SWATCH_Y_OFFSET));
 
-            out.add(rowWidget(addWidget(Button.builder(colorHex(row.getColor()),
-                            button -> openDetail(entry))
+            out.add(RowListPage.at(addWidget(Button.builder(Component.literal(ColorValueBox.hex(row.getColor())),
+                            _ -> openDetail(row))
                     .bounds(coloredValueX(), y, VALUE_WIDTH, WIDGET_HEIGHT)
                     .build())));
         }
 
-        out.add(rowWidget(addWidget(createResetButton(row, y))));
+        out.add(RowListPage.at(addWidget(createResetButton(row, y))));
     }
 
     /**
@@ -796,26 +597,26 @@ public class VillagerBedConfigScreen extends Screen {
      *
      * <p>按 ⚙ 在「滑条」和「直接填数值」之间切换；重置按钮恢复默认值。
      */
-    private void addSliderRow(ConfigRow row, int y, List<RowWidget> out) {
-        out.add(rowWidget(addWidget(labelWidget(row, y))));
-        boolean editing = numericEditing.contains(row.getId());
+    private void addSliderRow(ConfigRow row, int y, List<RowListPage.Widget> out) {
+        out.add(RowListPage.at(addWidget(labelWidget(row, y))));
+        boolean editing = numericEditing.contains(row.getRegisterName());
 
-        out.add(rowWidget(addWidget(SettingWidgets.gear(gearWithResetX(), y, GEAR_SIZE, WIDGET_HEIGHT, () -> {
-            if (numericEditing.contains(row.getId())) {
-                numericEditing.remove(row.getId());
+        out.add(RowListPage.at(addWidget(SettingWidgets.gear(gearWithResetX(), y, GEAR_SIZE, WIDGET_HEIGHT, () -> {
+            if (numericEditing.contains(row.getRegisterName())) {
+                numericEditing.remove(row.getRegisterName());
                 row.save();
             } else {
-                numericEditing.add(row.getId());
+                numericEditing.add(row.getRegisterName());
             }
             rebuildWidgets();
         }))));
 
         if (editing) {
             EditBox box = SettingWidgets.numberBox(coloredValueX(), y, VALUE_WIDTH, WIDGET_HEIGHT, row, this::refreshResetButtons);
-            out.add(rowWidget(addWidget(box)));
+            out.add(RowListPage.at(addWidget(box)));
             this.focusAfterInit = box;
         } else {
-            out.add(rowWidget(addWidget(new ValueSlider(coloredValueX(), y, VALUE_WIDTH, WIDGET_HEIGHT,
+            out.add(RowListPage.at(addWidget(new ValueSlider(coloredValueX(), y, VALUE_WIDTH, WIDGET_HEIGHT,
                     row.minNumber(), row.maxNumber(), row.stepNumber(),
                     row.getNumber(), row::setNumber, row::formatNumber, () -> {
                 row.save();
@@ -823,25 +624,34 @@ public class VillagerBedConfigScreen extends Screen {
             }))));
         }
 
-        out.add(rowWidget(addWidget(createResetButton(row, y))));
+        out.add(RowListPage.at(addWidget(createResetButton(row, y))));
     }
 
     /**
      * 列表行：标签 [ 值列表 ] [重置]
      *
-     * <p>按钮上显示这一项当前的值，例如 {@code [a,b]}（最多预览两个）、没有值就是 {@code []}；
-     * 点进去是列表的详情页（可以增删值）。
+     * <p>两种列表：
+     * <ul>
+     *     <li>本机配置项的列表（{@code ConfigEntry}）：按钮上显示 {@code [a,b]}，点进去增删值</li>
+     *     <li>「服务器配置项」的规则数据（{@link ServerRuleDataRow}）：按钮上显示 {@code [id=值,…]}，
+     *         点进去逐条配（值可能是数字，也可能是是/否）</li>
+     * </ul>
      */
-    private void addListRow(ConfigRow row, int y, List<RowWidget> out) {
-        out.add(rowWidget(addWidget(labelWidget(row, y))));
-        if (row instanceof ClientEntryRow clientRow) {
-            ConfigEntry entry = clientRow.entry();
-            out.add(rowWidget(addWidget(Button.builder(entry.listDisplay(),
-                            button -> openDetail(entry))
+    private void addListRow(ConfigRow row, int y, List<RowListPage.Widget> out) {
+        out.add(RowListPage.at(addWidget(labelWidget(row, y))));
+
+        Component label = switch (row) {
+            case ServerRuleDataRow dataRow -> dataRow.listDisplay();
+            case ConfigEntry entry -> entry.listDisplay();
+            default -> null;
+        };
+        if (label != null) {
+            out.add(RowListPage.at(addWidget(Button.builder(label, _ -> openDetail(row))
                     .bounds(coloredValueX(), y, VALUE_WIDTH, WIDGET_HEIGHT)
                     .build())));
         }
-        out.add(rowWidget(addWidget(createResetButton(row, y))));
+
+        out.add(RowListPage.at(addWidget(createResetButton(row, y))));
     }
 
     /**
@@ -857,19 +667,27 @@ public class VillagerBedConfigScreen extends Screen {
     }
 
     /**
-     * 进详情页：颜色项看 RGB 滑条那一页，列表项看列表那一页
+     * 进详情页：
+     * <ul>
+     *     <li>颜色项 → RGB 滑条那一页</li>
+     *     <li>列表项（本机配置项 / 服务器的纯名单规则）→ 同一个列表页，
+     *         只是数据来源不同（{@link com.villagerdetails.client.setting.type.ListSource}）</li>
+     *     <li>服务器的键值数据（抗性）→ id + 值那一页</li>
+     * </ul>
      */
-    private void openDetail(ConfigEntry entry) {
-        Screen detail = switch (entry.style()) {
-            case LIST -> new ListDetailScreen(this, entry);
-            default -> new OptionDetailScreen(this, entry);
+    private void openDetail(ConfigRow row) {
+        Screen detail = switch (row) {
+            case ServerRuleDataRow dataRow -> dataRow.kind().isPlainList()
+                    ? new ListDetailScreen(this, new ListSource.RuleList(dataRow.rule(), dataRow.kind()))
+                    : new RuleDataDetailScreen(this, dataRow);
+            case ConfigEntry entry -> entry.getStyle() == SubCategory.Style.LIST
+                    ? new ListDetailScreen(this, new ListSource.EntryList(entry))
+                    : new OptionDetailScreen(this, entry);
+            default -> null;
         };
-        this.minecraft.gui.setScreen(detail);
-    }
-
-
-    private static Component colorHex(int rgb) {
-        return Component.literal(String.format(Locale.ROOT, "#%06X", rgb & ClientRenderConfig.RGB_MASK));
+        if (detail != null) {
+            this.minecraft.gui.setScreen(detail);
+        }
     }
 
     /**
@@ -953,10 +771,8 @@ public class VillagerBedConfigScreen extends Screen {
             return true;
         }
         // 鼠标在内容区时，滚轮平滑滚动配置项（一格滚 ROW_SCROLL_STEP 行）
-        if (rowScrollingNeeded()
-                && mouseY >= rowsTop() && mouseY <= rowsViewportBottom()
-                && mouseX >= contentX() && mouseX <= contentRight()) {
-            scrollRows((scrollY > 0 ? -ROW_SCROLL_STEP : ROW_SCROLL_STEP));
+        if (page.scrollingNeeded() && page.isMouseOverRows(mouseX, mouseY)) {
+            page.scrollBy(scrollY > 0 ? -ROW_SCROLL_STEP : ROW_SCROLL_STEP);
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
@@ -981,7 +797,7 @@ public class VillagerBedConfigScreen extends Screen {
     @Override
     public void extractRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float frameTicks) {
         // 先按这一帧的进度把行摆好，再画面板和控件（这样滚动是逐帧平滑的）
-        applyRowScroll(frameTicks);
+        page.advance(frameTicks);
 
         drawPanels(graphics);
         ScreenDecorations.drawTitle(graphics, this, this.title);
@@ -989,40 +805,18 @@ public class VillagerBedConfigScreen extends Screen {
         ScreenDecorations.drawSeparatorLine(graphics, contentX(), CONTENT_TOP + HEADER_LINE_OFFSET, rowWidth());
         // 一页放满时，面板下面再补一条同款分割线收尾
         if (needsBottomSeparator()) {
-            ScreenDecorations.drawSeparatorLine(graphics, contentX(), contentPanelBottom(), rowWidth());
+            ScreenDecorations.drawSeparatorLine(graphics, contentX(), page.panelBottom(), rowWidth());
         }
 
-        // 行控件自己画在一个「画布」里（见 drawRows）
-        drawRows(graphics, mouseX, mouseY, frameTicks);
+        // 行控件自己画在一个「画布」里（见 RowListPage#drawRows）
+        page.drawRows(graphics, mouseX, mouseY, frameTicks, null);
 
         // 其余控件（左栏、二级分类、搜索框、滚动条、页脚按钮）照旧交给原版渲染
         super.extractRenderState(graphics, mouseX, mouseY, frameTicks);
     }
 
     /**
-     * 把内容行画在「一页」这块画布里。
-     *
-     * <p>行控件是用 {@code addWidget} 加的（只进 children，不进 renderables），所以不会被
-     * {@code super.extractRenderState} 再画一遍，而是统一在这里画：先开 scissor 当画布，
-     * 再让每一行自己渲染。滚动时上下两端那半个项照常渲染，超出画布的部分直接被裁掉 ——
-     * 看起来就是「列表被一个方框挡住」，而不是整行突然消失。
-     */
-    private void drawRows(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float frameTicks) {
-        graphics.enableScissor(rowsCanvasLeft(), rowsCanvasTop(), rowsCanvasRight(), rowsCanvasBottom());
-        try {
-            for (List<RowWidget> row : rowWidgets) {
-                for (RowWidget entry : row) {
-                    // visible=false 的行会自动跳过（内部判断），这里不用再筛
-                    entry.widget().extractRenderState(graphics, mouseX, mouseY, frameTicks);
-                }
-            }
-        } finally {
-            graphics.disableScissor();
-        }
-    }
-
-    /**
-     * 左侧分类栏和右侧内容区的半透明面板（纯色块，不依赖材质）
+     * 左侧分类栏的半透明面板（内容区那块由 {@link RowListPage#drawPanel} 画）
      */
     private void drawPanels(GuiGraphicsExtractor graphics) {
         // 左栏：搜索框 + 全部分类按钮（分类列表在 init 时算好，不用每帧去问服务器装没装 mod）
@@ -1030,21 +824,7 @@ public class VillagerBedConfigScreen extends Screen {
         graphics.fill(SIDEBAR_X - PANEL_PADDING, SIDEBAR_TOP - PANEL_PADDING,
                 SIDEBAR_X + SIDEBAR_WIDTH + PANEL_PADDING, sidebarBottom, ComponentLayout.PANEL_COLOR);
 
-        // 内容区：面板高度按「实际画出来的行数」收边（一页最多 rowsPerPage() 行）
-        graphics.fill(contentPanelLeft(), CONTENT_TOP - PANEL_PADDING,
-                contentPanelRight(), contentPanelBottom(), ComponentLayout.PANEL_COLOR);
-    }
-
-    /**
-     * 内容面板的下边缘（行数不足一页时就贴着最后一行收边）。
-     *
-     * <p>一页放满时它正好等于 {@link #rowsViewportBottom()}，也就是行画布的下边界。
-     */
-    private int contentPanelBottom() {
-        // 空列表也要撑出一行的位置，所以下限是 1；上限先兜一次底，免得 clamp 的 min > max 抛异常
-        int perPage = Math.max(1, rowsPerPage());
-        int shown = Math.clamp(renderedRows.size(), 1, perPage);
-        return rowY(shown - 1) + WIDGET_HEIGHT + PANEL_PADDING;
+        page.drawPanel(graphics);
     }
 
     /**
@@ -1054,34 +834,6 @@ public class VillagerBedConfigScreen extends Screen {
      * 需要像上面那条一样在末尾收个口；项少的时候面板本来就贴着最后一行结束，不用再加。
      */
     private boolean needsBottomSeparator() {
-        return renderedRows.size() >= rowsPerPage();
-    }
-
-    /**
-     * 内容面板左边缘：行控件画布的左边（比内容区再往外扩一点，和面板对齐）
-     */
-    private int contentPanelLeft() {
-        return contentX() - PANEL_PADDING;
-    }
-
-    /**
-     * 内容面板右边缘：至少离屏幕右边 PANEL_RIGHT_MARGIN
-     */
-    private int contentPanelRight() {
-        return Math.min(contentRight() + PANEL_PADDING, this.width - PANEL_RIGHT_MARGIN);
-    }
-
-    /**
-     * 行画布的左边界同上
-     */
-    private int rowsCanvasLeft() {
-        return contentPanelLeft();
-    }
-
-    /**
-     * 行画布的右边界同上（滚动条在画布外面单独渲染，所以不会被裁）
-     */
-    private int rowsCanvasRight() {
-        return contentPanelRight();
+        return renderedRows.size() >= page.rowsPerPage();
     }
 }

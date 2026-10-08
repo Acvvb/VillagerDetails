@@ -1,7 +1,6 @@
 package com.villagerdetails.rule.type;
 
 import com.villagerdetails.command.c.impl.rule.*;
-import com.villagerdetails.command.c.impl.suggestion.EntityIdSuggestionServer;
 import com.villagerdetails.command.c.server.RegisterServer;
 import com.villagerdetails.command.c.server.RegisterTypeServer;
 import com.villagerdetails.command.c.server.StateSuggestionServer;
@@ -29,7 +28,9 @@ public enum RuleType implements RegisterTypeServer {
 
 
     // 实体
-    VILLAGER_NO_SQUEEZE("NoSqueeze", "setting.villager_no_squeeze", "setting.villager_no_squeeze.desc", List.of(ENTITY, VILLAGER), new ArrayList<>(), null, true, List.of(NONE, "minecraft:villager", "minecraft:piglin"), NONE, EntityIdSuggestionServer.INSTANCE),
+    // 无挤压：规则状态就是普通的「是 / 否」；具体保护哪些实体由 /ec c NoSqueeze <实体id> true|false
+    // 存进 NoSqueezeConfig（以前是把这个实体 id 列表塞在状态里，现在状态只管开关）
+    VILLAGER_NO_SQUEEZE("NoSqueeze", "setting.villager_no_squeeze", "setting.villager_no_squeeze.desc", List.of(ENTITY, VILLAGER), new ArrayList<>(), NoSqueezeServerImpl.INSTANCE, false, ON_OFF, FALSE_STR),
 
     PIGLIN_GOLD_BLOCK_MULTIPLY("PiglinGoldBlockMultiply", "setting.piglin_gold_block_multiply", "setting.piglin_gold_block_multiply.desc", List.of(ENTITY), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
 

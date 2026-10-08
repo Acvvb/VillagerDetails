@@ -209,4 +209,15 @@ public final class UiLayout {
     public static final int DETAIL_DELETE_WIDTH = 20;
     /** 列表页的补全弹窗最多显示几条候选 */
     public static final int LIST_MAX_SUGGESTIONS = 8;
+
+    // ==============================================================
+    // 「服务器配置项」的键值列表页（id → 值）
+    // ==============================================================
+
+    /** 键值列表页：内容区最大宽度（比普通详情页宽一点，一行要放 id + 值 + 删除） */
+    public static final int RULE_DATA_CONTENT_MAX_WIDTH = 320;
+    /** 键值列表页：列表区域的上边界 */
+    public static final int RULE_DATA_LIST_TOP = 96;
+    /** 键值列表页：值控件（数字框 / 是-否按钮）的宽度 */
+    public static final int RULE_DATA_VALUE_WIDTH = 60;
 }

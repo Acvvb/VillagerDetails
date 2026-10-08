@@ -1,15 +1,10 @@
 package com.villagerdetails.mixin.villager.sync;
 
-import com.villagerdetails.network.VillagerBedPayload;
-import com.villagerdetails.network.VillagerPacket;
+import com.villagerdetails.network.sync.VillagerBedSyncChannel;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.ai.Brain;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.villager.Villager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,9 +14,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.Collection;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 
 @Mixin(Villager.class)
 public class VillagerSyncMixin {
@@ -47,14 +41,8 @@ public class VillagerSyncMixin {
             return;
         }
 
-        Brain<?> brain = villager.getBrain();
-        if (brain == null) {
-            return;
-        }
-
-        // 通过 Brain 的 getMemory 方法读取 HOME 记忆（这是公开 API，不需要反射）
-        Optional<GlobalPos> currentBedOpt = brain.getMemory(MemoryModuleType.HOME);
-        BlockPos currentPos = currentBedOpt.map(GlobalPos::pos).orElse(null);
+        // 从 Brain 的 HOME 记忆里读当前床位置（公开 API，不需要反射）
+        BlockPos currentPos = VillagerBedSyncChannel.bedPosOf(villager);
 
         // 对比上次记录的床位置，有变化才发包
         if (!Objects.equals(currentPos, villagerDetails$lastBedPos)) {
@@ -65,13 +53,11 @@ public class VillagerSyncMixin {
 
     @Unique
     private void sendUpdate(Villager villager, BlockPos bedPos) {
-        Set<ServerPlayer> viewers = (Set<ServerPlayer>) PlayerLookup.tracking(villager);
+        Collection<ServerPlayer> viewers = PlayerLookup.tracking(villager);
         for (ServerPlayer viewer : viewers) {
             log.debug("UUID:{},bedPos:{}", villager.getUUID(), bedPos);
-            ServerPlayNetworking.send(
-                    viewer,
-                    new VillagerBedPayload(new VillagerPacket(villager.getId(), Optional.ofNullable(bedPos)))
-            );
+            // 走同步通道（自带「对方装没装本 mod」判断）
+            VillagerBedSyncChannel.INSTANCE.sendBed(viewer, villager.getId(), bedPos);
         }
     }
 

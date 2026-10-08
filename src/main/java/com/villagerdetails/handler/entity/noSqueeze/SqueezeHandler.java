@@ -1,17 +1,19 @@
 package com.villagerdetails.handler.entity.noSqueeze;
 
 import com.villagerdetails.cache.RuleCache;
+import com.villagerdetails.config.impl.NoSqueezeConfig;
 import com.villagerdetails.rule.type.RuleType;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
-
 /**
- * 无挤压规则的过滤器：解析 state 里的实体 ID 列表，判断某实体是否受保护。
+ * 无挤压规则的过滤器：查这份「不会被挤压」的实体类型名单。
+ *
+ * <p>名单存在 {@link NoSqueezeConfig} 里（{@code /ec c NoSqueeze <实体id> true|false} 维护），
+ * 客户端那份是服务端同步过来的镜像 —— 以前是直接解析规则状态里的 id 列表，
+ * 现在规则状态只管开关，名单独立出来了。
+ *
+ * <p>和其他三条逐条配置的规则（可采集 / 挖掘抗性 / 爆炸抗性）一致：<b>规则没开就不生效</b>。
+ * 老存档的名单由 {@code NoSqueezeConfig} 迁移时会顺带把规则打开。
  */
 public final class SqueezeHandler {
 
@@ -19,47 +21,11 @@ public final class SqueezeHandler {
     }
 
     /**
-     * 缓存：state 字符串 → 解析后的 ID 集合
-     */
-    private static volatile String cachedState = "";
-    private static volatile Set<Identifier> cachedIds = Set.of();
-
-    /**
-     * 实体是否在"无挤压"名单里
+     * 这个实体是不是受保护（不会被挤压）
      */
     public static boolean isProtected(Entity entity) {
         if (entity == null) return false;
-        Set<Identifier> ids = getIds();
-        if (ids.isEmpty()) return false;
-
-        Identifier entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
-        return ids.contains(entityId);
+        if (!RuleCache.isEnabled(RuleType.VILLAGER_NO_SQUEEZE)) return false;
+        return NoSqueezeConfig.contains(entity.getType());
     }
-
-    private static Set<Identifier> getIds() {
-        String state = RuleCache.getState(RuleType.VILLAGER_NO_SQUEEZE);
-        if (state == null) state = "";
-        state = state.trim();
-
-        // 缓存命中
-        if (state.equals(cachedState)) return cachedIds;
-
-        // 重新解析
-        Set<Identifier> ids = new HashSet<>();
-        if (!state.isEmpty()) {
-            for (String part : state.split(",")) {
-                String trimmed = part.trim();
-                if (trimmed.isEmpty()) continue;
-                Identifier id = Identifier.tryParse(trimmed);
-                if (id != null) {
-                    ids.add(id);
-                }
-            }
-        }
-
-        cachedState = state;
-        cachedIds = Collections.unmodifiableSet(ids);
-        return cachedIds;
-    }
-
 }

@@ -26,7 +26,16 @@ public enum MainCategory {
     /**
      * 服务器规则：直接用服务端的 RuleType 分类；服务器没装本 mod 时这一项不显示
      */
-    SERVER("server");
+    SERVER("server"),
+
+    /**
+     * 服务器配置项：只放「需要逐条配置」的那几条规则
+     * （无挤压、方块挖掘抗性、方块可采集、方块爆炸抗性）。
+     *
+     * <p>还要求：有权限（服务端下发了这条规则）<b>并且</b>规则是开着的；
+     * 一条能配的都没有时这个分类整个不显示。
+     */
+    SERVER_CONFIG("server_config");
 
     private final String key;
 
@@ -56,11 +65,18 @@ public enum MainCategory {
      *
      * <p>「服务器」要同时满足：服务器装了本 mod，并且这个玩家至少有一条有权限看的规则。
      * 玩家被下 op 之后服务端就不再下发任何规则，这个分类会跟着整个消失。
+     *
+     * <p>「服务器配置项」在上述基础上还要求：那几条需要逐条配置的规则里至少有一条是开着的。
      */
     public static List<MainCategory> visibleValues() {
         boolean serverVisible = ServerRuleClientState.isServerCategoryVisible();
+        boolean configVisible = ServerRuleClientState.hasConfigurableRules();
         return Arrays.stream(values())
-                .filter(main -> main != SERVER || serverVisible)
+                .filter(main -> switch (main) {
+                    case SERVER -> serverVisible;
+                    case SERVER_CONFIG -> configVisible;
+                    default -> true;
+                })
                 .toList();
     }
 }

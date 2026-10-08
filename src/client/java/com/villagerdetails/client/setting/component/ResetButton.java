@@ -33,28 +33,36 @@ public class ResetButton extends Button.Plain {
      * 配置项行上的「重置」：重置该项并回调（一般是重建界面）
      */
     public static ResetButton forRow(ConfigRow row, int x, int y, int width, int height, Runnable onReset) {
-        ResetButton button = new ResetButton(x, y, width, height,
-                Component.translatable("villagerdetails.ui.reset_rule"),
+        return create("villagerdetails.ui.reset_rule", x, y, width, height,
                 row::isDefault,
                 () -> {
                     row.reset();
                     onReset.run();
                 });
-        button.refreshState();
-        return button;
     }
 
     /**
      * 详情页的「恢复默认」
      */
     public static ResetButton forEntry(ConfigEntry entry, int x, int y, int width, int height, Runnable onReset) {
-        ResetButton button = new ResetButton(x, y, width, height,
-                Component.translatable("villagerdetails.ui.reset_option"),
+        return create("villagerdetails.ui.reset_option", x, y, width, height,
                 entry::isDefault,
                 () -> {
                     entry.reset();
                     onReset.run();
                 });
+    }
+
+    /**
+     * 两个工厂的公共部分：造出来之后立刻刷一次灰 / 亮。
+     *
+     * <p>{@code refreshState()} 是公开方法（子类可以覆盖），所以不在构造里调 ——
+     * 那会让 {@code this} 在子类初始化完之前逸出；改由这里构造完再调。
+     */
+    private static ResetButton create(String labelKey, int x, int y, int width, int height,
+                                      BooleanSupplier isDefault, Runnable onReset) {
+        ResetButton button = new ResetButton(x, y, width, height,
+                Component.translatable(labelKey), isDefault, onReset);
         button.refreshState();
         return button;
     }

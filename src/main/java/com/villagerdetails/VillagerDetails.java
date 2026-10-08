@@ -7,19 +7,11 @@ import com.villagerdetails.event.EBSectionManager;
 import com.villagerdetails.event.ServerLifecycleListener;
 import com.villagerdetails.event.ServerStoppingListener;
 import com.villagerdetails.handler.monster.noBrainOnPortal.NoBrainOnPortalHandler;
-import com.villagerdetails.network.BlockRuleSyncHandler;
-import com.villagerdetails.network.BlockRuleSyncPayload;
-import com.villagerdetails.network.ServerRuleRequestPayload;
-import com.villagerdetails.network.ServerRuleSetPayload;
-import com.villagerdetails.network.ServerRuleSyncHandler;
-import com.villagerdetails.network.ServerRuleSyncPayload;
-import com.villagerdetails.network.VillagerBedPayload;
-import com.villagerdetails.network.VillagerTrackingHandler;
+import com.villagerdetails.network.channel.ServerChannels;
 import com.villagerdetails.rule.RuleModuleRegistry;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.resources.Identifier;
 
 public class VillagerDetails implements ModInitializer {
@@ -32,17 +24,8 @@ public class VillagerDetails implements ModInitializer {
     @Override
     public void onInitialize() {
 
-        PayloadTypeRegistry.clientboundPlay().register(VillagerBedPayload.TYPE, VillagerBedPayload.CODEC);
-        PayloadTypeRegistry.clientboundPlay().register(BlockRuleSyncPayload.TYPE, BlockRuleSyncPayload.CODEC);
-        PayloadTypeRegistry.clientboundPlay().register(ServerRuleSyncPayload.TYPE, ServerRuleSyncPayload.CODEC);
-        PayloadTypeRegistry.serverboundPlay().register(ServerRuleRequestPayload.TYPE, ServerRuleRequestPayload.CODEC);
-        PayloadTypeRegistry.serverboundPlay().register(ServerRuleSetPayload.TYPE, ServerRuleSetPayload.CODEC);
-
-        // 方块规则（挖掘抗性 / 可采集）客户端同步
-        BlockRuleSyncHandler.register();
-
-        // 全部规则状态的同步 + 配置界面里的开关操作
-        ServerRuleSyncHandler.register();
+        // 所有同步包（包类型注册 + 服务端收发 + 事件）统一在 ServerChannels 里登记，见那个类的表格
+        ServerChannels.registerAll();
 
         ServerLifecycleEvents.SERVER_STARTED.register(ServerLifecycleListener::onServerStarted);
         ServerLifecycleEvents.SERVER_STOPPING.register(new ServerStoppingListener());
@@ -50,9 +33,6 @@ public class VillagerDetails implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTED.register(ConfigRegistry::reloadAll);
 
         RuleModuleRegistry.initAll();
-
-        // 注册追踪事件(网络同步)
-        VillagerTrackingHandler.register();
 
         // 注册指令
         CommandRegistrationCallback.EVENT.register((dispatcher, _, _) -> RuleCommand.register(dispatcher));

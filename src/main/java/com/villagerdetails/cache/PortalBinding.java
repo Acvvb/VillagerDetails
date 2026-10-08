@@ -38,13 +38,6 @@ public record PortalBinding(
         return null;
     }
 
-    /**
-     * 判断当前维度 + 坐标是否落在绑定范围内
-     */
-    public boolean matches(ResourceKey<Level> currentDim, BlockPos pos) {
-        return resolve(currentDim, pos) != null;
-    }
-
     private static boolean inRange(BlockPos p, BlockPos min, BlockPos max) {
         return p.getX() >= min.getX() && p.getX() <= max.getX()
                 && p.getY() >= min.getY() && p.getY() <= max.getY()

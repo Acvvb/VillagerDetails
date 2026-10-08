@@ -2,8 +2,8 @@ package com.villagerdetails.client.setting.type;
 
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.client.setting.network.ServerRuleClientState;
-import com.villagerdetails.client.setting.row.ClientEntryRow;
 import com.villagerdetails.client.setting.row.ConfigRow;
+import com.villagerdetails.client.setting.row.ServerRuleDataRow;
 import com.villagerdetails.client.setting.row.ServerRuleRow;
 import com.villagerdetails.rule.type.RuleCategoryType;
 import com.villagerdetails.rule.type.RuleType;
@@ -35,7 +35,38 @@ public final class ConfigTabs {
         if (main == MainCategory.SERVER) {
             return serverTabs();
         }
+        if (main == MainCategory.SERVER_CONFIG) {
+            return ruleDataTabs();
+        }
         return clientTabs(main);
+    }
+
+    /**
+     * 「服务器配置项」的二级分类：依旧按规则分类（{@link RuleCategoryType}）走，
+     * 但只放「服务端下发了数据（= 支持逐条配置 + 有权限）+ 规则已开启」的那几条规则；
+     * 某个分类下一条都没有就跳过。
+     *
+     * <p>哪些规则能出现在这里<b>完全由服务端同步下来的内容决定</b>，客户端不写死规则名单。
+     * 这里也不加「开启 / 关闭」两个过滤页签 —— 能出现在这个分类里的规则全都是开着的。
+     */
+    private static List<UiTab> ruleDataTabs() {
+        List<RuleType> supported = ServerRuleClientState.configurableRules();
+
+        List<UiTab> tabs = new ArrayList<>();
+        for (RuleCategoryType category : RuleCategoryType.values()) {
+            List<RuleType> rules = supported.stream()
+                    .filter(rule -> rule.getCategory().contains(category))
+                    .toList();
+            if (rules.isEmpty()) {
+                continue;
+            }
+            tabs.add(new UiTab(category.name(), Component.translatable(category.getDisplayNameKey()),
+                    () -> rules.stream()
+                            .map(rule -> (ConfigRow) new ServerRuleDataRow(
+                                    rule, ServerRuleClientState.ruleData(rule).kind()))
+                            .toList()));
+        }
+        return tabs;
     }
 
     private static List<UiTab> clientTabs(MainCategory main) {
@@ -43,7 +74,7 @@ public final class ConfigTabs {
         for (SubCategory sub : main.subCategories()) {
             tabs.add(new UiTab(sub.name(), sub.getDisplayName(),
                     () -> sub.options().stream()
-                            .map(entry -> (ConfigRow) new ClientEntryRow(entry))
+                            .map(entry -> (ConfigRow) entry)
                             .toList()));
         }
         return tabs;

@@ -3,6 +3,7 @@ package com.villagerdetails.command.c.impl.suggestion;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.command.c.server.StateSuggestionServer;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
@@ -33,6 +34,20 @@ public class EntityIdSuggestionServer implements StateSuggestionServer {
      * 生物实体注册 id 缓存：注册表运行时固定，只计算一次。
      */
     private static volatile List<String> mobIds = List.of();
+
+    /**
+     * <b>所有</b>实体类型注册 id 的补全（不区分是不是生物）。
+     *
+     * <p>给 {@code /ec c NoSqueeze <实体id> true|false} 的 id 位置用：那条命令是「一个实体一个值」，
+     * 不像以前的状态那样是逗号分隔的多选，所以不需要 {@link #SUGGESTER} 里那套逗号续写逻辑。
+     */
+    public static final SuggestionProvider<CommandSourceStack> ALL_ENTITY_ID_SUGGESTER = (_, builder) -> {
+        List<String> ids = new ArrayList<>();
+        for (Identifier id : BuiltInRegistries.ENTITY_TYPE.keySet()) {
+            ids.add(id.toString());
+        }
+        return SharedSuggestionProvider.suggest(ids, builder);
+    };
 
     private static final SuggestionProvider<CommandSourceStack> SUGGESTER = (ctx, builder) -> {
         String remaining = builder.getRemaining();

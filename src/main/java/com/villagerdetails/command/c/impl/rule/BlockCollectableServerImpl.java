@@ -1,33 +1,20 @@
 package com.villagerdetails.command.c.impl.rule;
 
-import com.mojang.brigadier.arguments.StringArgumentType;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.villagerdetails.command.c.impl.base.AbstractRuleCommand;
 import com.villagerdetails.command.c.impl.suggestion.BlockSuggestionData;
-import com.villagerdetails.command.c.server.RegisterServer;
 import com.villagerdetails.config.impl.BlockCollectableConfig;
-import com.villagerdetails.network.BlockRuleSyncHandler;
 import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
-import net.minecraft.commands.arguments.IdentifierArgument;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.permissions.PermissionLevel;
 
 import java.util.List;
-import java.util.Locale;
-import java.util.function.Predicate;
-
-import static com.villagerdetails.command.CommandConstants.PERM_BASE;
-import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
 
 /**
  * /ec c BlockCollectable &lt;方块id&gt; true|false —— 设置/取消某个方块的「可采集」。
  * /ec c BlockCollectable reset —— 清空所有配置，恢复原版。
+ * /ec c BlockCollectable show  —— 显示当前名单。
  */
-public final class BlockCollectableServerImpl implements RegisterServer {
+public final class BlockCollectableServerImpl extends AbstractRuleCommand {
 
     public static final BlockCollectableServerImpl INSTANCE = new BlockCollectableServerImpl();
 
@@ -41,76 +28,73 @@ public final class BlockCollectableServerImpl implements RegisterServer {
     private static final String K_SHOW_EMPTY = "command.block.collectable.show.empty";
     private static final String K_INVALID_VALUE = "command.block.collectable.invalid_value";
 
-    /** 强制最高权限（OWNERS）才能调用。 */
-    private static final Predicate<CommandSourceStack> OWNER_REQUIREMENT =
-            src -> src.checkPermission(PERM_BASE, PermissionLevel.OWNERS);
+    @Override
+    protected String literalName() {
+        return "BlockCollectable";
+    }
 
     @Override
-    public LiteralArgumentBuilder<CommandSourceStack> register() {
-        return Commands.literal("BlockCollectable")
-                .then(Commands.literal("reset")
-                        .requires(OWNER_REQUIREMENT)
-                        .executes(BlockCollectableServerImpl::reset))
-                .then(Commands.literal("show")
-                        .requires(OWNER_REQUIREMENT)
-                        .executes(BlockCollectableServerImpl::show))
-                .then(Commands.argument("block", IdentifierArgument.id())
-                        .requires(OWNER_REQUIREMENT)
-                        .suggests(BlockSuggestionData.ALL_BLOCK_ID_SUGGESTER)
-                        .then(Commands.argument("value", StringArgumentType.word())
-                                .suggests(BlockSuggestionData.VANILLA_COLLECTABLE_SUGGESTER)
-                                .executes(BlockCollectableServerImpl::set)));
+    protected String argName() {
+        return "block";
     }
 
-    private static int set(CommandContext<CommandSourceStack> ctx) {
-        ServerPlayer player = ctx.getSource().getPlayer();
-        Identifier block = IdentifierArgument.getId(ctx, "block");
-        String value = StringArgumentType.getString(ctx, "value").trim().toLowerCase(Locale.ROOT);
-
-        boolean collectable;
-        if ("true".equals(value)) {
-            collectable = true;
-        } else if ("false".equals(value)) {
-            collectable = false;
-        } else {
-            sendOrBroadcast(player, Component.translatable(K_INVALID_VALUE, value));
-            return 0;
-        }
-
-        if (collectable) {
-            BlockCollectableConfig.add(block);
-        } else {
-            BlockCollectableConfig.remove(block);
-        }
-        BlockRuleSyncHandler.broadcast();
-
-        sendOrBroadcast(player, Component.translatable(collectable ? K_SET : K_REMOVE, block.toString()));
-        return 1;
+    @Override
+    protected SuggestionProvider<CommandSourceStack> idSuggester() {
+        return BlockSuggestionData.ALL_BLOCK_ID_SUGGESTER;
     }
 
-    private static int reset(CommandContext<CommandSourceStack> ctx) {
-        ServerPlayer player = ctx.getSource().getPlayer();
+    @Override
+    protected SuggestionProvider<CommandSourceStack> valueSuggester() {
+        return BlockSuggestionData.VANILLA_COLLECTABLE_SUGGESTER;
+    }
+
+    @Override
+    protected void add(Identifier id) {
+        BlockCollectableConfig.add(id);
+    }
+
+    @Override
+    protected void remove(Identifier id) {
+        BlockCollectableConfig.remove(id);
+    }
+
+    @Override
+    protected void resetConfig() {
         BlockCollectableConfig.reset();
-        BlockRuleSyncHandler.broadcast();
-
-        sendOrBroadcast(player, Component.translatable(K_RESET));
-        return 1;
     }
 
-    private static int show(CommandContext<CommandSourceStack> ctx) {
-        ServerPlayer player = ctx.getSource().getPlayer();
-        List<Identifier> ids = BlockCollectableConfig.snapshot();
+    @Override
+    protected List<Identifier> snapshot() {
+        return BlockCollectableConfig.snapshot();
+    }
 
-        MutableComponent msg = Component.translatable(K_SHOW_HEADER);
-        if (ids.isEmpty()) {
-            msg.append("\n").append(Component.translatable(K_SHOW_EMPTY));
-        } else {
-            for (Identifier id : ids) {
-                msg.append("\n").append(Component.literal("  " + id));
-            }
-        }
+    @Override
+    protected String kSet() {
+        return K_SET;
+    }
 
-        sendOrBroadcast(player, msg);
-        return 1;
+    @Override
+    protected String kRemove() {
+        return K_REMOVE;
+    }
+
+    @Override
+    protected String kReset() {
+        return K_RESET;
+    }
+
+    @Override
+    protected String kShowHeader() {
+        return K_SHOW_HEADER;
+    }
+
+    @Override
+    protected String kShowEmpty() {
+        return K_SHOW_EMPTY;
+    }
+
+    @Override
+    protected String kInvalidValue() {
+        return K_INVALID_VALUE;
     }
 }

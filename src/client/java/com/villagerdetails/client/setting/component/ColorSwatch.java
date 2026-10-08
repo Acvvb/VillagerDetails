@@ -7,7 +7,6 @@ import net.minecraft.client.gui.narration.NarratedElementType;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.Component;
 
-import java.util.Locale;
 import java.util.function.IntSupplier;
 
 /**
@@ -34,6 +33,6 @@ public class ColorSwatch extends AbstractWidget {
     @Override
     protected void updateWidgetNarration(NarrationElementOutput narration) {
         narration.add(NarratedElementType.TITLE,
-                Component.literal(String.format(Locale.ROOT, "#%06X", color.getAsInt() & ClientRenderConfig.RGB_MASK)));
+                Component.literal(ColorValueBox.hex(color.getAsInt())));
     }
 }

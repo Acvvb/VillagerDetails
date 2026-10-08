@@ -3,7 +3,7 @@ package com.villagerdetails.command.c.impl.rule;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.command.c.impl.suggestion.BlockSuggestionData;
 import com.villagerdetails.config.impl.BlockMiningResistanceConfig;
-import com.villagerdetails.network.BlockRuleSyncHandler;
+import com.villagerdetails.network.sync.BlockRuleSyncChannel;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.resources.Identifier;
 
@@ -72,6 +72,6 @@ public final class BlockMiningResistanceServerImpl extends AbstractBlockResistan
 
     @Override
     protected void afterChange() {
-        BlockRuleSyncHandler.broadcast();
+        BlockRuleSyncChannel.INSTANCE.broadcastAll();
     }
 }

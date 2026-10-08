@@ -2,6 +2,8 @@ package com.villagerdetails.client.setting.type;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
+import com.villagerdetails.client.setting.row.ConfigRow;
+import com.villagerdetails.client.setting.row.ListPreview;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 
@@ -22,8 +24,11 @@ import java.util.Locale;
  *     <li>{@code state}：默认值 —— 开关写 {@code true/false}；滑块写数值；颜色写 {@code #RRGGBB}；列表留空</li>
  *     <li>{@code defaultKeyBind}：默认快捷键（{@code "88+67"} 这种按键码组合，空串 = 未绑定）</li>
  * </ol>
+ *
+ * <p>枚举自己实现 {@link ConfigRow}，配置界面直接把它当行用 ——
+ * 不需要再套一层「把 entry 转成 row」的转发包装。
  */
-public enum ConfigEntry {
+public enum ConfigEntry implements ConfigRow {
 
     // ---------------- 配置项 / 颜色 ----------------
 
@@ -82,6 +87,7 @@ public enum ConfigEntry {
     // 信息显示（显示名 / 显示描述）
     // ==============================================================
 
+    @Override
     public String getRegisterName() {
         return registerName;
     }
@@ -94,10 +100,12 @@ public enum ConfigEntry {
         return displayInfo;
     }
 
+    @Override
     public Component getDisplayName() {
         return Component.translatable(displayName);
     }
 
+    @Override
     public Component getDisplayInfo() {
         return Component.translatable(displayInfo);
     }
@@ -111,8 +119,15 @@ public enum ConfigEntry {
     }
 
     /** 行样式：跟随所在的二级分类 */
-    public SubCategory.Style style() {
+    @Override
+    public SubCategory.Style getStyle() {
         return subCategory.getStyle();
+    }
+
+    /** 只有功能开关有快捷键绑定框 */
+    @Override
+    public boolean hasKeyBind() {
+        return getStyle() == SubCategory.Style.TOGGLE;
     }
 
     // ==============================================================
@@ -161,6 +176,7 @@ public enum ConfigEntry {
     // 取值 / 赋值
     // ==============================================================
 
+    @Override
     public boolean getToggle() {
         return getToggle(ClientRenderConfig.get());
     }
@@ -172,6 +188,7 @@ public enum ConfigEntry {
         };
     }
 
+    @Override
     public void setToggle(boolean value) {
         setToggle(ClientRenderConfig.get(), value);
     }
@@ -184,6 +201,7 @@ public enum ConfigEntry {
         }
     }
 
+    @Override
     public double getNumber() {
         return getNumber(ClientRenderConfig.get());
     }
@@ -196,6 +214,7 @@ public enum ConfigEntry {
         };
     }
 
+    @Override
     public void setNumber(double value) {
         setNumber(ClientRenderConfig.get(), value);
     }
@@ -209,6 +228,7 @@ public enum ConfigEntry {
         }
     }
 
+    @Override
     public double minNumber() {
         return switch (this) {
             case LINE_WIDTH -> ClientRenderConfig.MIN_LINE_WIDTH;
@@ -217,6 +237,7 @@ public enum ConfigEntry {
         };
     }
 
+    @Override
     public double maxNumber() {
         return switch (this) {
             case LINE_WIDTH -> ClientRenderConfig.MAX_LINE_WIDTH;
@@ -225,6 +246,7 @@ public enum ConfigEntry {
         };
     }
 
+    @Override
     public double stepNumber() {
         return switch (this) {
             case LINE_WIDTH, FAR_DISTANCE -> 0.5D;
@@ -233,11 +255,13 @@ public enum ConfigEntry {
     }
 
     /** 滑条的显示文本，例如「粗细：4.0」（翻译键 = 显示名 + {@code .value}） */
+    @Override
     public Component formatNumber(double value) {
         return Component.translatable(displayName + ".value",
                 String.format(Locale.ROOT, "%.1f", value));
     }
 
+    @Override
     public int getColor() {
         return getColor(ClientRenderConfig.get());
     }
@@ -263,15 +287,12 @@ public enum ConfigEntry {
         }
     }
 
-    public Component hexText() {
-        return Component.literal(String.format(Locale.ROOT, "#%06X", getColor() & ClientRenderConfig.RGB_MASK));
-    }
-
     // ==============================================================
     // 快捷键绑定（功能开关用）
     // ==============================================================
 
     /** 绑定的按键组合（GLFW keycode 数组），空数组表示未绑定 */
+    @Override
     public int[] getKeyBind() {
         return getKeyBind(ClientRenderConfig.get());
     }
@@ -280,6 +301,7 @@ public enum ConfigEntry {
         return config.getKeyBind(registerName);
     }
 
+    @Override
     public void setKeyBind(int[] keys) {
         setKeyBind(ClientRenderConfig.get(), keys);
     }
@@ -313,9 +335,6 @@ public enum ConfigEntry {
     // 列表值（列表类配置项用，例如床列表）
     // ==============================================================
 
-    /** 行上那个按钮最多预览几个值，多出来的用 {@code …} 收尾 */
-    public static final int LIST_PREVIEW_COUNT = 2;
-
     /** 完整的值列表（只读快照） */
     public List<String> getList() {
         return ClientRenderConfig.get().getList(registerName);
@@ -333,38 +352,19 @@ public enum ConfigEntry {
     }
 
     /**
-     * 行上那个按钮显示的文字，例如 {@code [a,b]}。
-     *
-     * <p>最多显示 {@link #LIST_PREVIEW_COUNT} 个值（还有更多就补个 {@code …}），
-     * 一个值都没有时显示 {@code []}。
+     * 行上那个按钮显示的文字，例如 {@code [a,b]}（最多预览两个，还有更多就补个 {@code …}）
      */
     public Component listDisplay() {
-        List<String> values = getList();
-        if (values.isEmpty()) {
-            return Component.literal("[]");
-        }
-        StringBuilder text = new StringBuilder("[");
-        int shown = Math.min(LIST_PREVIEW_COUNT, values.size());
-        for (int i = 0; i < shown; i++) {
-            if (i > 0) {
-                text.append(',');
-            }
-            text.append(values.get(i));
-        }
-        if (values.size() > shown) {
-            text.append(",…");
-        }
-        text.append(']');
-        return Component.literal(text.toString());
+        return ListPreview.of(getList());
     }
 
     // ==============================================================
-    // 重置
+    // 重置 / 落盘
     // ==============================================================
 
     /** 把这一项恢复成枚举里声明的默认值（含默认快捷键），不落盘 */
     public void applyDefaultTo(ClientRenderConfig config) {
-        switch (style()) {
+        switch (getStyle()) {
             case TOGGLE -> setToggle(config, defaultToggle());
             case COLOR -> setColor(config, defaultColor());
             case SLIDER -> setNumber(config, defaultNumber());
@@ -374,8 +374,9 @@ public enum ConfigEntry {
     }
 
     /** 当前值是否就是枚举里声明的默认值（是的话重置按钮置灰） */
+    @Override
     public boolean isDefault() {
-        return switch (style()) {
+        return switch (getStyle()) {
             // 开关项还要看快捷键：快捷键不是默认值（绑了键）时也算可重置
             case TOGGLE -> getToggle() == defaultToggle()
                     && Arrays.equals(getKeyBind(), defaultKeyBindKeys());
@@ -387,9 +388,16 @@ public enum ConfigEntry {
     }
 
     /** 单行「重置」按钮：恢复默认值 + 快捷键清空，并落盘 */
+    @Override
     public void reset() {
         ClientRenderConfig config = ClientRenderConfig.get();
         applyDefaultTo(config);
         config.save();
+    }
+
+    /** 本机配置项一改就要落盘（和右上角的功能开关一致，不等关界面） */
+    @Override
+    public void save() {
+        ClientRenderConfig.get().save();
     }
 }

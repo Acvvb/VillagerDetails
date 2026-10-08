@@ -1,8 +1,8 @@
 package com.villagerdetails.client.setting.row;
 
 import com.villagerdetails.cache.RuleCache;
+import com.villagerdetails.client.network.sync.ClientRequests;
 import com.villagerdetails.client.setting.type.SubCategory;
-import com.villagerdetails.client.setting.network.ServerRuleClientReceiver;
 import com.villagerdetails.rule.RuleSwitches;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.network.chat.Component;
@@ -20,7 +20,7 @@ import java.util.List;
 public record ServerRuleRow(RuleType rule) implements ConfigRow {
 
     @Override
-    public String getId() {
+    public String getRegisterName() {
         return rule.getRegisterName();
     }
 
@@ -47,7 +47,7 @@ public record ServerRuleRow(RuleType rule) implements ConfigRow {
 
     @Override
     public void setToggle(boolean value) {
-        ServerRuleClientReceiver.sendState(rule, Boolean.toString(value));
+        ClientRequests.sendRuleState(rule, Boolean.toString(value));
     }
 
     /**
@@ -71,7 +71,7 @@ public record ServerRuleRow(RuleType rule) implements ConfigRow {
                     Component.literal(RuleSwitches.displayNameOf(option)),
                     RuleSwitches.colorOf(rule, option, state),
                     tooltip,
-                    () -> ServerRuleClientReceiver.sendState(
+                    () -> ClientRequests.sendRuleState(
                             rule, RuleSwitches.nextState(rule, state, option))));
         }
         return result;
@@ -84,6 +84,6 @@ public record ServerRuleRow(RuleType rule) implements ConfigRow {
 
     @Override
     public void reset() {
-        ServerRuleClientReceiver.sendReset(rule);
+        ClientRequests.sendRuleReset(rule);
     }
 }

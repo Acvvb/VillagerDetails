@@ -11,6 +11,8 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionLevel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.EnumMap;
 import java.util.List;
@@ -28,6 +30,7 @@ public class RuleCache {
      * 通用监听器列表（线程安全）
      */
     private static final List<RuleChangeListener> listeners = new CopyOnWriteArrayList<>();
+    private static final Logger log = LoggerFactory.getLogger(RuleCache.class);
 
     /**
      * 当前运行的服务器引用——用于持久化
@@ -83,7 +86,9 @@ public class RuleCache {
         return src.checkPermission(permissionNode(ruleType), level);
     }
 
-    /** 规则自己的权限节点：{@code villagerdetails:c.<注册名小写>} */
+    /**
+     * 规则自己的权限节点：{@code villagerdetails:c.<注册名小写>}
+     */
     private static Identifier permissionNode(RuleType ruleType) {
         return VillagerDetails.id("c." + ruleType.getRegisterName().toLowerCase(Locale.ROOT));
     }
@@ -160,7 +165,7 @@ public class RuleCache {
             cfg.setBindingState(type.getRegisterName(), state);
             cfg.save();
         } catch (Exception e) {
-            System.err.println("[RuleCache] 持久化失败 " + type.getRegisterName() + ": " + e);
+            log.error("[RuleCache] 持久化失败 {}: {}", type.getRegisterName(), e);
         }
     }
 
@@ -175,7 +180,7 @@ public class RuleCache {
             try {
                 l.onRuleChanged(type, oldValue, newValue);
             } catch (Exception e) {
-                System.err.println("[RuleCache] 监听器执行失败: " + e);
+                log.error("[RuleCache] 监听器执行失败: {}", String.valueOf(e));
             }
         }
     }

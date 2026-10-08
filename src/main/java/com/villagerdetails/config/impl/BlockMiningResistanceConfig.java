@@ -69,6 +69,13 @@ public final class BlockMiningResistanceConfig implements ReloadableConfig {
         save();
     }
 
+    /** 删掉某个方块的覆盖值（客户端界面里按「×」时走这里） */
+    public static void remove(Identifier id) {
+        if (RESISTANCES.remove(id) != null) {
+            save();
+        }
+    }
+
     public static void reset() {
         RESISTANCES.clear();
         save();

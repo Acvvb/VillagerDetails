@@ -1,8 +1,5 @@
 package com.villagerdetails.client.setting.component;
 
-import com.villagerdetails.client.setting.config.ComponentLayout;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
@@ -40,13 +37,7 @@ public class SwitchButton extends Button.Plain {
     @Override
     protected void extractContents(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         extractDefaultSprite(graphics);
-
-        Font font = Minecraft.getInstance().font;
-        Component message = getMessage();
         // 只靠字色区分状态，不再额外描边
-        graphics.text(font, message,
-                getX() + (getWidth() - font.width(message)) / 2,
-                getY() + (getHeight() - ComponentLayout.BUTTON_TEXT_HEIGHT) / 2,
-                argb);
+        SettingWidgets.plainText(graphics, this, argb);
     }
 }

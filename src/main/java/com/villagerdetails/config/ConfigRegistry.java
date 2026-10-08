@@ -1,11 +1,6 @@
 package com.villagerdetails.config;
 
-import com.villagerdetails.config.impl.BlockCollectableConfig;
-import com.villagerdetails.config.impl.BlockExplosionResistanceConfig;
-import com.villagerdetails.config.impl.BlockMiningResistanceConfig;
-import com.villagerdetails.config.impl.IdTranslationConfig;
-import com.villagerdetails.config.impl.RuleConfig;
-import com.villagerdetails.config.impl.ServerLangConfig;
+import com.villagerdetails.config.impl.*;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,7 +12,8 @@ import java.util.Map;
 
 public final class ConfigRegistry {
 
-    private ConfigRegistry() {}
+    private ConfigRegistry() {
+    }
 
     // ★ 字段声明放最前
     private static final Logger log = LogManager.getLogger(ConfigRegistry.class);
@@ -31,6 +27,7 @@ public final class ConfigRegistry {
         register(BlockMiningResistanceConfig.INSTANCE);
         register(BlockCollectableConfig.INSTANCE);
         register(BlockExplosionResistanceConfig.INSTANCE);
+        register(NoSqueezeConfig.INSTANCE);
     }
 
     public static synchronized void register(ReloadableConfig config) {
@@ -45,12 +42,22 @@ public final class ConfigRegistry {
         log.debug("已注册：{}", name);
     }
 
-    public static ReloadableConfig get(String name) { return REGISTRY.get(name); }
-    public static List<ReloadableConfig> getAll() { return List.copyOf(REGISTRY.values()); }
-    public static List<String> getAllNames() { return List.copyOf(REGISTRY.keySet()); }
+    public static ReloadableConfig get(String name) {
+        return REGISTRY.get(name);
+    }
+
+    public static List<ReloadableConfig> getAll() {
+        return List.copyOf(REGISTRY.values());
+    }
+
+    public static List<String> getAllNames() {
+        return List.copyOf(REGISTRY.keySet());
+    }
 
     public record Result(List<String> loaded, List<String> failed) {
-        public boolean success() { return failed.isEmpty(); }
+        public boolean success() {
+            return failed.isEmpty();
+        }
     }
 
     public static Result reloadAll(MinecraftServer server) {

@@ -2,8 +2,7 @@ package com.villagerdetails.mixin.block.miningResistance;
 
 import com.villagerdetails.handler.block.collectable.CollectableHandler;
 import com.villagerdetails.handler.block.miningResistance.MiningResistanceHandler;
-import com.villagerdetails.network.BlockRuleSyncPayload;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import com.villagerdetails.network.sync.BlockRuleSyncChannel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
@@ -28,7 +27,7 @@ public abstract class MiningResistanceMixin {
     private void villagerdetails$overrideDestroyProgress(BlockState state, Player player, BlockGetter level, BlockPos pos, CallbackInfoReturnable<Float> cir) {
 
         // 未安装本 mod 的客户端玩家 → 原版逻辑（对该玩家不生效）
-        if (player instanceof ServerPlayer sp && !ServerPlayNetworking.canSend(sp, BlockRuleSyncPayload.TYPE)) {
+        if (player instanceof ServerPlayer sp && !BlockRuleSyncChannel.INSTANCE.canSendTo(sp)) {
             return;
         }
 

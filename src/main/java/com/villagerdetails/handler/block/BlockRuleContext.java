@@ -1,7 +1,6 @@
 package com.villagerdetails.handler.block;
 
-import com.villagerdetails.network.BlockRuleSyncPayload;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import com.villagerdetails.network.sync.BlockRuleSyncChannel;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
@@ -30,6 +29,6 @@ public final class BlockRuleContext {
     /** 当前操作者是否为「未安装本 mod 的客户端」，是则对其走原版逻辑。 */
     public static boolean isVanillaClient() {
         ServerPlayer player = MINING_PLAYER.get();
-        return player != null && !ServerPlayNetworking.canSend(player, BlockRuleSyncPayload.TYPE);
+        return player != null && !BlockRuleSyncChannel.INSTANCE.canSendTo(player);
     }
 }

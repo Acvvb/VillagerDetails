@@ -2,11 +2,8 @@ package com.villagerdetails.client.setting.component;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
-import com.villagerdetails.client.setting.config.ComponentLayout;
 import com.villagerdetails.client.setting.input.KeyBindConflicts;
 import com.villagerdetails.client.setting.type.ConfigEntry;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
@@ -231,13 +228,7 @@ public class KeyBindButton extends Button.Plain {
     protected void extractContents(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         // 自己画文字是为了按冲突等级上色（原版按钮默认只有白色）
         extractDefaultSprite(graphics);
-        Font font = Minecraft.getInstance().font;
-        Component message = getMessage();
-        int textWidth = font.width(message);
-        graphics.text(font, message,
-                getX() + (getWidth() - textWidth) / 2,
-                getY() + (getHeight() - ComponentLayout.BUTTON_TEXT_HEIGHT) / 2,
-                textColor());
+        SettingWidgets.plainText(graphics, this, textColor());
     }
 
     private static int[] toArray(List<Integer> values) {

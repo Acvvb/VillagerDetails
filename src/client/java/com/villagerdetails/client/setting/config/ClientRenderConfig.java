@@ -317,13 +317,6 @@ public final class ClientRenderConfig {
         return builder.toString();
     }
 
-    /**
-     * 当前所有绑定（只读快照，key → 按键码组合字符串）
-     */
-    public Map<String, String> getKeyBinds() {
-        return keyBinds == null ? Map.of() : Map.copyOf(keyBinds);
-    }
-
     // ==============================================================
     // 「列表」类配置项的值
     // ==============================================================
@@ -355,32 +348,6 @@ public final class ClientRenderConfig {
      */
     public static int toArgb(int rgb) {
         return OPAQUE | (rgb & RGB_MASK);
-    }
-
-    /**
-     * 把 RGB 拆成 0~1 的三个分量（界面里做颜色预览/滑条用）
-     */
-    public static float red(int rgb) {
-        return ((rgb >> 16) & 0xFF) / 255.0F;
-    }
-
-    public static float green(int rgb) {
-        return ((rgb >> 8) & 0xFF) / 255.0F;
-    }
-
-    public static float blue(int rgb) {
-        return (rgb & 0xFF) / 255.0F;
-    }
-
-    /**
-     * 把 0~1 的三个分量合成 RGB
-     */
-    public static int rgb(float red, float green, float blue) {
-        return (toByte(red) << 16) | (toByte(green) << 8) | toByte(blue);
-    }
-
-    private static int toByte(float component) {
-        return Math.round(Math.clamp(component, 0.0F, 1.0F) * 255.0F);
     }
 
     /**
@@ -430,14 +397,14 @@ public final class ClientRenderConfig {
         this.openKeyMigrated = value;
     }
 
-    public static float clampWidth(float value) {
+    private static float clampWidth(float value) {
         if (Float.isNaN(value)) {
             return 4.0F;
         }
         return Math.clamp(value, MIN_LINE_WIDTH, MAX_LINE_WIDTH);
     }
 
-    public static double clampDistance(double value) {
+    private static double clampDistance(double value) {
         if (Double.isNaN(value)) {
             return 5.0D;
         }

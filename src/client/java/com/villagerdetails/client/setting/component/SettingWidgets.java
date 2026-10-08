@@ -1,7 +1,11 @@
 package com.villagerdetails.client.setting.component;
 
+import com.villagerdetails.client.setting.config.ComponentLayout;
 import com.villagerdetails.client.setting.row.ConfigRow;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
@@ -9,7 +13,7 @@ import net.minecraft.network.chat.Component;
 import java.util.Locale;
 
 /**
- * 设置界面里那几种「小控件」的工厂：齿轮、数值输入框、占位按钮。
+ * 设置界面里那几种「小控件」的工厂：齿轮、数值输入框，以及若干组件共用的绘制小工具。
  */
 public final class SettingWidgets {
 
@@ -44,5 +48,22 @@ public final class SettingWidgets {
             }
         });
         return box;
+    }
+
+    /**
+     * 在原版按钮上自己画一行居中的彩色文字。
+     *
+     * <p>原版按钮的文字只有白色，所以「按状态变色」的按钮（{@link SwitchButton}、{@link KeyBindButton}）
+     * 都得先画按钮底图、再自己把文字画上去 —— 居中的算法是同一套，收在这里。
+     *
+     * @param argb 带不透明度的颜色（RGB 直接传进来会全透明）
+     */
+    public static void plainText(GuiGraphicsExtractor graphics, AbstractWidget button, int argb) {
+        Font font = Minecraft.getInstance().font;
+        Component message = button.getMessage();
+        graphics.text(font, message,
+                button.getX() + (button.getWidth() - font.width(message)) / 2,
+                button.getY() + (button.getHeight() - ComponentLayout.BUTTON_TEXT_HEIGHT) / 2,
+                argb);
     }
 }

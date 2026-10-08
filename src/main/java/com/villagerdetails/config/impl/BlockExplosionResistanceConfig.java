@@ -69,9 +69,50 @@ public final class BlockExplosionResistanceConfig implements ReloadableConfig {
         save();
     }
 
+    /** 删掉某个方块的覆盖值（客户端界面里按「×」时走这里） */
+    public static void remove(Identifier id) {
+        if (RESISTANCES.remove(id) != null) {
+            save();
+        }
+    }
+
     public static void reset() {
         RESISTANCES.clear();
         save();
+    }
+
+    /**
+     * 序列化为同步字符串：{@code id=value,id=value,...}
+     */
+    public static String toSyncString() {
+        if (RESISTANCES.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<Identifier, Float> e : RESISTANCES.entrySet()) {
+            if (!sb.isEmpty()) sb.append(',');
+            sb.append(e.getKey()).append('=').append(e.getValue());
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 客户端：用同步字符串覆盖内存（不落盘）。
+     */
+    public static void applyFromSyncString(String data) {
+        RESISTANCES.clear();
+        if (data == null || data.isEmpty()) return;
+        for (String part : data.split(",")) {
+            String p = part.trim();
+            if (p.isEmpty()) continue;
+            int eq = p.indexOf('=');
+            if (eq <= 0 || eq == p.length() - 1) continue;
+            Identifier id = Identifier.tryParse(p.substring(0, eq).trim());
+            if (id == null) continue;
+            try {
+                RESISTANCES.put(id, Float.parseFloat(p.substring(eq + 1).trim()));
+            } catch (NumberFormatException ignored) {
+                // 非法数值跳过
+            }
+        }
     }
 
     // ==============================================================
