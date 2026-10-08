@@ -8,6 +8,7 @@
     "block.collectable.PlayerDestroyMixin",
     "block.explosionResistance.ExplosionResistanceMixin",
     "block.miningResistance.MiningResistanceMixin",
+    "block.portalBinding.EntityPortalMixin",
     "block.TntNoDestroyDrops.ExplosionMixin",
     "craft.AbstractCraftingMenuAccessor",
     "craft.BoxCraftingMenuMixin",

@@ -44,8 +44,6 @@
   "setting.piglin_gold_block_multiply_punishment.desc": "控制猪灵金块交易惩罚的持续时间。可选：1、3、9。数值越高，惩罚时间越长。默认：9。",
   "setting.infinite_shear": "无限剪羊毛",
   "setting.infinite_shear.desc": "羊被剪毛后立即恢复有毛状态，可以反复剪取羊毛。",
-  "villagerdetails.rule.villagerbonemealflower": "骨粉催熟主世界花",
-  "villagerdetails.rule.villagerbonemealflower.desc": "骨粉催熟草方块时无视生物群系生成主世界花（仅限主世界）",
   "setting.villager_bed_reset": "村民床编辑器",
   "setting.villager_bed_reset.desc": "使用命名为 bed 的拴绳蹲下右键选择村民和床，修改村民所绑定的床。",
   "setting.villager_work_block_reset": "村民工作方块编辑器",
@@ -185,5 +183,17 @@
   "villagerdetails.ui.option.bed_list.desc": "床的列表。点右边的按钮进去增删，行上最多预览两个值。",
   "villagerdetails.ui.channel.red": "红：%s",
   "villagerdetails.ui.channel.green": "绿：%s",
-  "villagerdetails.ui.channel.blue": "蓝：%s"
+  "villagerdetails.ui.channel.blue": "蓝：%s",
+  "villagerdetails.rule.villagerbonemealflower": "骨粉催熟主世界花",
+  "villagerdetails.rule.villagerbonemealflower.desc": "骨粉催熟草方块时无视生物群系生成主世界花（仅限主世界）",
+  "setting.PortalBinding": "传送门绑定",
+  "setting.PortalBinding.desc": "把主世界选区与地狱选区强制绑定。任意一侧进入绑定区域都会被传送到对面，不再走原版传送门搜索。",
+  "command.portal_binding.set_success": "已缓存 §b%s§r 选区：%s %s %s ~ %s %s %s",
+  "command.portal_binding.bind_success": "§a主世界与地狱选区已强制绑定。",
+  "command.portal_binding.failure.not_player": "该指令必须由玩家执行。",
+  "command.portal_binding.failure.unsupported_dimension": "仅支持主世界和地狱。",
+  "command.portal_binding.failure.no_selection": "请先用拴绳选择一块区域。",
+  "command.portal_binding.failure.incomplete": "需要先在主世界和地狱各执行一次 set，再执行 bind。",
+  "setting.PortalBindingEnhanced": "地狱门增强绑定",
+  "setting.PortalBindingEnhanced.desc": "开启后，绑定传送不再检测目标位置是否有地狱门，直接传送到绑定坐标。"
 }

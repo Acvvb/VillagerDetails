@@ -185,5 +185,15 @@
   "villagerdetails.ui.option.bed_list.desc": "Placeholder: the list editor is not implemented yet, just an empty button for now.",
   "villagerdetails.ui.channel.red": "Red: %s",
   "villagerdetails.ui.channel.green": "Green: %s",
-  "villagerdetails.ui.channel.blue": "Blue: %s"
+  "villagerdetails.ui.channel.blue": "Blue: %s",
+  "setting.PortalBinding": "Portal Binding",
+  "setting.PortalBinding.desc": "Force-bind an Overworld region and a Nether region. Entering either side teleports to the other, skipping vanilla portal search.",
+  "command.portal_binding.set_success": "Cached §b%s§r region: %s %s %s ~ %s %s %s",
+  "command.portal_binding.bind_success": "§aOverworld and Nether regions are now force-bound.",
+  "command.portal_binding.failure.not_player": "This command must be run by a player.",
+  "command.portal_binding.failure.unsupported_dimension": "Only Overworld and Nether are supported.",
+  "command.portal_binding.failure.no_selection": "Please select a region with a lead first.",
+  "command.portal_binding.failure.incomplete": "Run 'set' in both Overworld and Nether before 'bind'.",
+  "setting.PortalBindingEnhanced": "Enhanced Portal Binding",
+  "setting.PortalBindingEnhanced.desc": "When enabled, bound teleportation skips the target portal check and teleports directly to the bound coordinates."
 }

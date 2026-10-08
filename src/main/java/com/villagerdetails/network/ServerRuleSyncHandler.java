@@ -47,7 +47,9 @@ public final class ServerRuleSyncHandler {
      */
     private static final int PERMISSION_RECHECK_TICKS = 20;
 
-    /** 每个玩家上一次同步过去的内容，用来判断「有没有变化」 */
+    /**
+     * 每个玩家上一次同步过去的内容，用来判断「有没有变化」
+     */
     private static final Map<UUID, List<ServerRuleSyncPayload.Entry>> LAST_SYNCED = new ConcurrentHashMap<>();
 
     private ServerRuleSyncHandler() {
@@ -63,13 +65,13 @@ public final class ServerRuleSyncHandler {
                 LAST_SYNCED.remove(handler.getPlayer().getUUID()));
 
         ServerPlayNetworking.registerGlobalReceiver(ServerRuleRequestPayload.TYPE,
-                (payload, context) -> context.server().execute(() -> syncTo(context.player())));
+                (_, context) -> context.server().execute(() -> syncTo(context.player())));
 
         ServerPlayNetworking.registerGlobalReceiver(ServerRuleSetPayload.TYPE,
                 (payload, context) -> context.server().execute(() -> handleSet(context.player(), payload)));
 
         // 任意规则状态变化 → 广播（方块规则那条广播由 BlockRuleSyncHandler 负责，这里管界面用的全量同步）
-        RuleCache.addListener((type, _, _) -> broadcast());
+        RuleCache.addListener((_, _, _) -> broadcast());
 
         // 定期复查权限：被下 op / 权限被改时，客户端那边会跟着刷新（没权限的规则消失）
         ServerTickEvents.END_SERVER_TICK.register(server -> {

@@ -1,9 +1,6 @@
 package com.villagerdetails.rule.type;
 
-import com.villagerdetails.command.c.impl.rule.BlockCollectableServerImpl;
-import com.villagerdetails.command.c.impl.rule.BlockExplosionResistanceServerImpl;
-import com.villagerdetails.command.c.impl.rule.BlockMiningResistanceServerImpl;
-import com.villagerdetails.command.c.impl.rule.VillagerBatchBedBindingServerImpl;
+import com.villagerdetails.command.c.impl.rule.*;
 import com.villagerdetails.command.c.impl.suggestion.EntityIdSuggestionServer;
 import com.villagerdetails.command.c.server.RegisterServer;
 import com.villagerdetails.command.c.server.RegisterTypeServer;
@@ -96,6 +93,10 @@ public enum RuleType implements RegisterTypeServer {
 
     BOX_CRAFTING("BoxCrafting", "setting.box_crafting", "setting.box_crafting.desc", List.of(BLOCK), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
 
+    PORTAL_BINDING("PortalBinding", "setting.PortalBinding", "setting.PortalBinding.desc", List.of(BLOCK), List.of(ListenerType.BLOCK_RANGE_SELECTION), PortalBindingServerImpl.INSTANCE, false, ON_OFF, FALSE_STR),
+
+    PORTAL_BINDING_ENHANCED("PortalBindingEnhanced", "setting.PortalBindingEnhanced", "setting.PortalBindingEnhanced.desc", List.of(BLOCK), List.of(ListenerType.BLOCK_RANGE_SELECTION), PortalBindingServerImpl.INSTANCE, false, ON_OFF, FALSE_STR),
+
     ;
 
 
@@ -139,12 +140,16 @@ public enum RuleType implements RegisterTypeServer {
         return ServerTranslations.resolve(Component.translatable(displayInfo));
     }
 
-    /** 显示名的翻译键（客户端界面用，保证和命令显示的是同一条文案） */
+    /**
+     * 显示名的翻译键（客户端界面用，保证和命令显示的是同一条文案）
+     */
     public String getDisplayNameKey() {
         return displayName;
     }
 
-    /** 显示描述的翻译键 */
+    /**
+     * 显示描述的翻译键
+     */
     public String getDisplayInfoKey() {
         return displayInfo;
     }

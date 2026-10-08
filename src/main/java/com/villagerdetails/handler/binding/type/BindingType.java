@@ -10,8 +10,7 @@ public enum BindingType {
     // 构造参数顺序：id, 实体Class, 工具物品, 工具名称, 国际化消息前缀
     BED(RuleType.VILLAGER_BED_RESET, Villager.class, Items.LEAD, "bed", "msg.villager.bed"),
     WORK_BLOCK(RuleType.VILLAGER_WORK_BLOCK_RESET, Villager.class, Items.LEAD, "work", "msg.villager.work_block"),
-    MOVE(RuleType.VILLAGER_MOVE_CONTROLLER,Villager.class,Items.LEAD,"move","")
-    ;
+    MOVE(RuleType.VILLAGER_MOVE_CONTROLLER, Villager.class, Items.LEAD, "move", "");
 
     private final int id;
     private final RuleType ruleType;

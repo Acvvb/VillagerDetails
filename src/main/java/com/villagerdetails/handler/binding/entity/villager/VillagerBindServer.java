@@ -88,7 +88,7 @@ public class VillagerBindServer {
 
         }
         int villagerCount = villagers.size();
-        int bedCount = (beds.size() + 1) / 2;
+        int bedCount = beds.size();
         if (successCount == 0) {
             sendOrBroadcast(operator, Component.translatable(
                     "msg.villager.bind_area.no_match", villagerCount, bedCount
