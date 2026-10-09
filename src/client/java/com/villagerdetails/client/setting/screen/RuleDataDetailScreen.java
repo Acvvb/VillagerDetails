@@ -5,11 +5,11 @@ import com.villagerdetails.client.setting.component.OptionLabel;
 import com.villagerdetails.client.setting.component.RowListPage;
 import com.villagerdetails.client.setting.component.SuggestionPopup;
 import com.villagerdetails.client.setting.component.SwitchButton;
-import com.villagerdetails.client.setting.config.ComponentLayout;
+import com.villagerdetails.client.setting.config.ui.ComponentLayout;
 import com.villagerdetails.client.setting.row.ServerRuleDataRow;
-import com.villagerdetails.rule.RuleDataKind;
-import com.villagerdetails.rule.RuleDataRegistry;
 import com.villagerdetails.rule.RuleSwitches;
+import com.villagerdetails.rule.registry.RuleDataRegistry;
+import com.villagerdetails.rule.type.RuleDataKind;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -22,7 +22,7 @@ import org.jspecify.annotations.NonNull;
 
 import java.util.*;
 
-import static com.villagerdetails.client.setting.config.UiLayout.*;
+import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
 
 /**
  * 「服务器配置项」里某条规则的数据详情页：一个「id → 值」的列表。

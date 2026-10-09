@@ -1,7 +1,7 @@
 package com.villagerdetails.client.setting.component;
 
 import com.villagerdetails.client.setting.row.ConfigRow;
-import com.villagerdetails.client.setting.type.ConfigEntry;
+import com.villagerdetails.client.setting.type.ConfigEntryType;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 
@@ -44,7 +44,7 @@ public class ResetButton extends Button.Plain {
     /**
      * 详情页的「恢复默认」
      */
-    public static ResetButton forEntry(ConfigEntry entry, int x, int y, int width, int height, Runnable onReset) {
+    public static ResetButton forEntry(ConfigEntryType entry, int x, int y, int width, int height, Runnable onReset) {
         return create("villagerdetails.ui.reset_option", x, y, width, height,
                 entry::isDefault,
                 () -> {

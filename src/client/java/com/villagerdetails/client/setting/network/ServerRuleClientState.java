@@ -2,7 +2,7 @@ package com.villagerdetails.client.setting.network;
 
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.client.network.sync.ClientRequests;
-import com.villagerdetails.rule.RuleDataKind;
+import com.villagerdetails.rule.type.RuleDataKind;
 import com.villagerdetails.rule.type.RuleType;
 
 import java.util.*;

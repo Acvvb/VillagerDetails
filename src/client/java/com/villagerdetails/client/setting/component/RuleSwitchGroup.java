@@ -1,6 +1,6 @@
 package com.villagerdetails.client.setting.component;
 
-import com.villagerdetails.client.setting.config.ComponentLayout;
+import com.villagerdetails.client.setting.config.ui.ComponentLayout;
 import com.villagerdetails.client.setting.row.ConfigRow;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.AbstractWidget;

@@ -1,6 +1,6 @@
 package com.villagerdetails.client.setting.component;
 
-import com.villagerdetails.client.setting.config.ComponentLayout;
+import com.villagerdetails.client.setting.config.ui.ComponentLayout;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import org.jspecify.annotations.NonNull;
@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
-import static com.villagerdetails.client.setting.config.UiLayout.*;
+import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
 
 /**
  * 「一页行列表」组件：配置主界面的内容行和两个详情页的列表行共用的那一整套东西。

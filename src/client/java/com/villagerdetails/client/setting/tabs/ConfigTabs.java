@@ -1,10 +1,13 @@
-package com.villagerdetails.client.setting.type;
+package com.villagerdetails.client.setting.tabs;
 
 import com.villagerdetails.cache.RuleCache;
+import com.villagerdetails.client.setting.dto.UiTabsSource;
 import com.villagerdetails.client.setting.network.ServerRuleClientState;
 import com.villagerdetails.client.setting.row.ConfigRow;
 import com.villagerdetails.client.setting.row.ServerRuleDataRow;
 import com.villagerdetails.client.setting.row.ServerRuleRow;
+import com.villagerdetails.client.setting.type.FirstCategoryType;
+import com.villagerdetails.client.setting.type.SecondCategoryType;
 import com.villagerdetails.rule.type.RuleCategoryType;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.network.chat.Component;
@@ -16,26 +19,30 @@ import java.util.List;
 /**
  * 二级分类的构建：
  * <ul>
- *     <li>本机的一级分类 → 用 {@link SubCategory} 枚举</li>
+ *     <li>本机的一级分类 → 用 {@link SecondCategoryType} 枚举</li>
  *     <li>「服务器」一级分类 → 用 {@link RuleCategoryType}（和 {@code /ec} 命令的分类一致），
  *         末尾再补「开启」「关闭」两个按状态过滤的分类</li>
  * </ul>
  */
 public final class ConfigTabs {
 
-    /** 「开启」过滤分类的 id */
+    /**
+     * 「开启」过滤分类的 id
+     */
     public static final String FILTER_ENABLED = "filter:enabled";
-    /** 「关闭」过滤分类的 id */
+    /**
+     * 「关闭」过滤分类的 id
+     */
     public static final String FILTER_DISABLED = "filter:disabled";
 
     private ConfigTabs() {
     }
 
-    public static List<UiTab> build(MainCategory main) {
-        if (main == MainCategory.SERVER) {
+    public static List<UiTabsSource> build(FirstCategoryType main) {
+        if (main == FirstCategoryType.SERVER) {
             return serverTabs();
         }
-        if (main == MainCategory.SERVER_CONFIG) {
+        if (main == FirstCategoryType.SERVER_CONFIG) {
             return ruleDataTabs();
         }
         return clientTabs(main);
@@ -49,10 +56,10 @@ public final class ConfigTabs {
      * <p>哪些规则能出现在这里<b>完全由服务端同步下来的内容决定</b>，客户端不写死规则名单。
      * 这里也不加「开启 / 关闭」两个过滤页签 —— 能出现在这个分类里的规则全都是开着的。
      */
-    private static List<UiTab> ruleDataTabs() {
+    private static List<UiTabsSource> ruleDataTabs() {
         List<RuleType> supported = ServerRuleClientState.configurableRules();
 
-        List<UiTab> tabs = new ArrayList<>();
+        List<UiTabsSource> tabs = new ArrayList<>();
         for (RuleCategoryType category : RuleCategoryType.values()) {
             List<RuleType> rules = supported.stream()
                     .filter(rule -> rule.getCategory().contains(category))
@@ -60,7 +67,7 @@ public final class ConfigTabs {
             if (rules.isEmpty()) {
                 continue;
             }
-            tabs.add(new UiTab(category.name(), Component.translatable(category.getDisplayNameKey()),
+            tabs.add(new UiTabsSource(category.name(), Component.translatable(category.getDisplayNameKey()),
                     () -> rules.stream()
                             .map(rule -> (ConfigRow) new ServerRuleDataRow(
                                     rule, ServerRuleClientState.ruleData(rule).kind()))
@@ -69,10 +76,10 @@ public final class ConfigTabs {
         return tabs;
     }
 
-    private static List<UiTab> clientTabs(MainCategory main) {
-        List<UiTab> tabs = new ArrayList<>();
-        for (SubCategory sub : main.subCategories()) {
-            tabs.add(new UiTab(sub.name(), sub.getDisplayName(),
+    private static List<UiTabsSource> clientTabs(FirstCategoryType main) {
+        List<UiTabsSource> tabs = new ArrayList<>();
+        for (SecondCategoryType sub : main.subCategories()) {
+            tabs.add(new UiTabsSource(sub.name(), sub.getDisplayName(),
                     () -> sub.options().stream()
                             .map(entry -> (ConfigRow) entry)
                             .toList()));
@@ -80,8 +87,8 @@ public final class ConfigTabs {
         return tabs;
     }
 
-    private static List<UiTab> serverTabs() {
-        List<UiTab> tabs = new ArrayList<>();
+    private static List<UiTabsSource> serverTabs() {
+        List<UiTabsSource> tabs = new ArrayList<>();
 
         // 和 /ec 命令一致：按 RuleType 上的分类字段分组
         for (RuleCategoryType category : RuleCategoryType.values()) {
@@ -89,14 +96,14 @@ public final class ConfigTabs {
             if (rules.isEmpty()) {
                 continue;
             }
-            tabs.add(new UiTab(category.name(), Component.translatable(category.getDisplayNameKey()),
+            tabs.add(new UiTabsSource(category.name(), Component.translatable(category.getDisplayNameKey()),
                     () -> toRows(rules)));
         }
 
         // 再加上按状态过滤的两个分类
-        tabs.add(new UiTab(FILTER_ENABLED, Component.translatable("villagerdetails.ui.rule_filter.enabled"),
+        tabs.add(new UiTabsSource(FILTER_ENABLED, Component.translatable("villagerdetails.ui.rule_filter.enabled"),
                 () -> rowsByState(true)));
-        tabs.add(new UiTab(FILTER_DISABLED, Component.translatable("villagerdetails.ui.rule_filter.disabled"),
+        tabs.add(new UiTabsSource(FILTER_DISABLED, Component.translatable("villagerdetails.ui.rule_filter.disabled"),
                 () -> rowsByState(false)));
 
         return tabs;

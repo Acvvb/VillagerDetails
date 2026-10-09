@@ -2,7 +2,7 @@ package com.villagerdetails.client.setting.screen;
 
 import com.villagerdetails.client.setting.component.*;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
-import com.villagerdetails.client.setting.type.ConfigEntry;
+import com.villagerdetails.client.setting.type.ConfigEntryType;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -13,7 +13,7 @@ import org.jspecify.annotations.NonNull;
 
 import java.util.function.DoubleFunction;
 
-import static com.villagerdetails.client.setting.config.UiLayout.*;
+import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
 
 /**
  * 颜色项的详情界面：说明 + 红/绿/蓝三条滑条 + 预览色块 + 可输入的色值框。
@@ -24,7 +24,7 @@ import static com.villagerdetails.client.setting.config.UiLayout.*;
 public class OptionDetailScreen extends Screen {
 
     private final Screen parent;
-    private final ConfigEntry entry;
+    private final ConfigEntryType entry;
 
     private int contentX;
     private int contentWidth;
@@ -40,7 +40,7 @@ public class OptionDetailScreen extends Screen {
      */
     private boolean syncing;
 
-    public OptionDetailScreen(Screen parent, ConfigEntry entry) {
+    public OptionDetailScreen(Screen parent, ConfigEntryType entry) {
         super(Component.literal("[ ").append(entry.getDisplayName()).append(" ]"));
         this.parent = parent;
         this.entry = entry;

@@ -1,6 +1,6 @@
 package com.villagerdetails.client.setting.component;
 
-import com.villagerdetails.client.setting.config.UiLayout;
+import com.villagerdetails.client.setting.config.ui.UiLayout;
 
 /**
  * 一页行列表的滚动状态（配置主界面的内容行、列表项的详情页共用同一套）。
@@ -13,13 +13,19 @@ import com.villagerdetails.client.setting.config.UiLayout;
  */
 public final class RowScrollState {
 
-    /** 当前显示出来的滚动位置（行） */
+    /**
+     * 当前显示出来的滚动位置（行）
+     */
     private float scroll;
 
-    /** 滚动目标：滚轮 / 拖滚动条改的是它，{@link #scroll} 随后平滑地追上去 */
+    /**
+     * 滚动目标：滚轮 / 拖滚动条改的是它，{@link #scroll} 随后平滑地追上去
+     */
     private float target;
 
-    /** 总共 total 行、一页 perPage 行时，最多能滚几行 */
+    /**
+     * 总共 total 行、一页 perPage 行时，最多能滚几行
+     */
     public static float maxScroll(int total, int perPage) {
         return Math.max(0, total - perPage);
     }
@@ -40,12 +46,16 @@ public final class RowScrollState {
         this.target = this.scroll;
     }
 
-    /** 滚指定行数（滚轮 / 翻页按钮），走平滑动画 */
+    /**
+     * 滚指定行数（滚轮 / 翻页按钮），走平滑动画
+     */
     public void scrollBy(int rows, int total, int perPage) {
         this.target = clamp(this.target + rows, total, perPage);
     }
 
-    /** 把当前位置夹回合法范围（行数变了之后调，比如删掉了一项） */
+    /**
+     * 把当前位置夹回合法范围（行数变了之后调，比如删掉了一项）
+     */
     public void clampTo(int total, int perPage) {
         this.scroll = clamp(this.scroll, total, perPage);
         this.target = clamp(this.target, total, perPage);
@@ -72,7 +82,9 @@ public final class RowScrollState {
         return scroll != before;
     }
 
-    /** 换算成像素：内容整体往上移这么多 */
+    /**
+     * 换算成像素：内容整体往上移这么多
+     */
     public float offsetPx(int rowHeight) {
         return scroll * rowHeight;
     }

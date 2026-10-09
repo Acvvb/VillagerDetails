@@ -2,8 +2,8 @@ package com.villagerdetails.network.sync;
 
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.network.channel.SyncChannel;
-import com.villagerdetails.rule.RuleDataKind;
-import com.villagerdetails.rule.RuleDataRegistry;
+import com.villagerdetails.rule.type.RuleDataKind;
+import com.villagerdetails.rule.registry.RuleDataRegistry;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -68,7 +68,7 @@ public final class RuleDataChannel extends SyncChannel<RuleDataPayload> {
         RuleDataKind kind = entry.kind();
 
         if (payload.reset()) {
-            entry.store().resetter().run();
+            entry.store().register().run();
             return true;
         }
 

@@ -1,9 +1,10 @@
-package com.villagerdetails.rule;
+package com.villagerdetails.rule.registry;
 
 import com.villagerdetails.config.impl.BlockCollectableConfig;
 import com.villagerdetails.config.impl.BlockExplosionResistanceConfig;
 import com.villagerdetails.config.impl.BlockMiningResistanceConfig;
 import com.villagerdetails.config.impl.NoSqueezeConfig;
+import com.villagerdetails.rule.type.RuleDataKind;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -41,7 +42,7 @@ public final class RuleDataRegistry {
                             Consumer<String> deserializer,
                             Setter setter,
                             Consumer<Identifier> remover,
-                            Runnable resetter) {
+                            Runnable register) {
     }
 
     /**

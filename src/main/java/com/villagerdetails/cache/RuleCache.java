@@ -4,7 +4,7 @@ import com.villagerdetails.VillagerDetails;
 import com.villagerdetails.command.SwitchComponentType;
 import com.villagerdetails.config.impl.RuleConfig;
 import com.villagerdetails.event.type.ListenerType;
-import com.villagerdetails.rule.RuleCallbacks;
+import com.villagerdetails.rule.callback.RuleCallbacks;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.resources.Identifier;

@@ -4,8 +4,8 @@ import com.villagerdetails.client.setting.component.OptionLabel;
 import com.villagerdetails.client.setting.component.RowListPage;
 import com.villagerdetails.client.setting.component.SuggestionPopup;
 import com.villagerdetails.client.setting.component.SwitchButton;
-import com.villagerdetails.client.setting.config.ComponentLayout;
-import com.villagerdetails.client.setting.type.ListSource;
+import com.villagerdetails.client.setting.config.ui.ComponentLayout;
+import com.villagerdetails.client.setting.type.server.ListSourceServer;
 import com.villagerdetails.rule.RuleSwitches;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -19,7 +19,7 @@ import org.jspecify.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.villagerdetails.client.setting.config.UiLayout.*;
+import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
 
 /**
  * 列表类配置项的详情界面：一个可以滚动的值列表。
@@ -36,7 +36,7 @@ import static com.villagerdetails.client.setting.config.UiLayout.*;
  *
  * <p>分页滚动 / 滚动条 / 画布裁剪 / 面板 / 页脚 / 补全弹窗都在基类
  * {@link AbstractDetailScreen} 和那两个组件里，这里只剩这张表自己的东西：
- * 每一行长什么样、点「+」之后的输入框、以及「完成」时写回哪儿（{@link ListSource}）。
+ * 每一行长什么样、点「+」之后的输入框、以及「完成」时写回哪儿（{@link ListSourceServer}）。
  *
  * <p>点「+」会在那一行出现一个输入框，<b>点空白处</b>（或按回车）就把它收进那份副本 ——
  * 和绑定快捷键一个手感；按 ESC 或再点一下「+」则放弃这次输入。
@@ -51,7 +51,7 @@ public class ListDetailScreen extends AbstractDetailScreen {
     /**
      * 这一页在编辑谁：本机配置项的列表，还是服务器规则的名单
      */
-    private final ListSource source;
+    private final ListSourceServer source;
 
     /**
      * 本次编辑的<b>工作副本</b>（界面显示的就是它，最后一行永远是「添加」那一行）。
@@ -72,7 +72,7 @@ public class ListDetailScreen extends AbstractDetailScreen {
     private boolean adding;
     private EditBox addBox;
 
-    public ListDetailScreen(Screen parent, ListSource source) {
+    public ListDetailScreen(Screen parent, ListSourceServer source) {
         super(Component.literal("[ ").append(source.title()).append(" ]"), parent);
         this.source = source;
         // 进来时拷一份工作副本；之后增删都只改它，按「完成」才写回

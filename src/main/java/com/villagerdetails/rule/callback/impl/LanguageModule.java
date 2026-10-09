@@ -1,8 +1,8 @@
-package com.villagerdetails.rule.module.impl;
+package com.villagerdetails.rule.callback.impl;
 
 import com.villagerdetails.lang.ServerTranslations;
-import com.villagerdetails.rule.RuleCallbacks;
-import com.villagerdetails.rule.module.RuleModule;
+import com.villagerdetails.rule.callback.RuleCallbacks;
+import com.villagerdetails.rule.callback.RuleModule;
 import com.villagerdetails.rule.type.RuleType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

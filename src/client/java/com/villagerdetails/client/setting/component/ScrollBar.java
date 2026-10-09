@@ -1,6 +1,6 @@
 package com.villagerdetails.client.setting.component;
 
-import com.villagerdetails.client.setting.config.ComponentLayout;
+import com.villagerdetails.client.setting.config.ui.ComponentLayout;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.narration.NarratedElementType;
@@ -32,27 +32,45 @@ import java.util.function.IntSupplier;
  */
 public class ScrollBar extends AbstractWidget {
 
-    /** 原版滚动条轨道材质 */
+    /**
+     * 原版滚动条轨道材质
+     */
     private static final Identifier BACKGROUND_SPRITE =
             Identifier.withDefaultNamespace("widget/scroller_background");
-    /** 原版滚动条滑块材质 */
+    /**
+     * 原版滚动条滑块材质
+     */
     private static final Identifier THUMB_SPRITE =
             Identifier.withDefaultNamespace("widget/scroller");
 
-    /** 一共几行 */
+    /**
+     * 一共几行
+     */
     private final IntSupplier totalRows;
-    /** 一页能放几行 */
+    /**
+     * 一页能放几行
+     */
     private final IntSupplier pageRows;
-    /** 当前滚动到第几行（读） */
+    /**
+     * 当前滚动到第几行（读）
+     */
     private final DoubleSupplier scroll;
-    /** 请求把滚动位置设到第几行（写，界面自己决定要不要做平滑动画） */
+    /**
+     * 请求把滚动位置设到第几行（写，界面自己决定要不要做平滑动画）
+     */
     private final DoubleConsumer onScroll;
 
-    /** 正在拖动滑块 */
+    /**
+     * 正在拖动滑块
+     */
     private boolean dragging;
-    /** 按下时鼠标的 y，用来算拖动位移 */
+    /**
+     * 按下时鼠标的 y，用来算拖动位移
+     */
     private double dragAnchorY;
-    /** 按下时的滚动位置（行） */
+    /**
+     * 按下时的滚动位置（行）
+     */
     private double dragAnchorScroll;
 
     public ScrollBar(int x, int y, int width, int height,
@@ -65,12 +83,16 @@ public class ScrollBar extends AbstractWidget {
         this.onScroll = onScroll;
     }
 
-    /** 还能往下滚几行（0 表示一页放得下，不需要滚动） */
+    /**
+     * 还能往下滚几行（0 表示一页放得下，不需要滚动）
+     */
     private double maxScroll() {
         return Math.max(0, totalRows.getAsInt() - pageRows.getAsInt());
     }
 
-    /** 滑块高度：按「可见比例」缩放，最短 SCROLLBAR_MIN_THUMB，最长整条轨道 */
+    /**
+     * 滑块高度：按「可见比例」缩放，最短 SCROLLBAR_MIN_THUMB，最长整条轨道
+     */
     private int thumbHeight() {
         int track = Math.max(1, getHeight());
         int total = totalRows.getAsInt();
@@ -83,7 +105,9 @@ public class ScrollBar extends AbstractWidget {
         return Math.clamp(scaled, minThumb, track);
     }
 
-    /** 滑块上边界：把 [0, maxScroll] 映射到轨道的剩余行程上 */
+    /**
+     * 滑块上边界：把 [0, maxScroll] 映射到轨道的剩余行程上
+     */
     private int thumbY() {
         int max = (int) Math.round(maxScroll());
         int travel = getHeight() - thumbHeight();
@@ -94,7 +118,9 @@ public class ScrollBar extends AbstractWidget {
         return getY() + (int) Math.round(travel * ratio);
     }
 
-    /** 请求滚动到指定行（越界由界面自己夹住） */
+    /**
+     * 请求滚动到指定行（越界由界面自己夹住）
+     */
     private void requestScroll(double rows) {
         onScroll.accept(Math.clamp(rows, 0.0D, maxScroll()));
     }
@@ -143,7 +169,7 @@ public class ScrollBar extends AbstractWidget {
 
     @Override
     protected void extractWidgetRenderState(@NonNull GuiGraphicsExtractor graphics,
-                                           int mouseX, int mouseY, float partialTick) {
+                                            int mouseX, int mouseY, float partialTick) {
         int track = getHeight();
         if (track <= 0 || maxScroll() <= 0) {
             // 一页放得下：整条不画（界面本来也会把它隐藏，这里是双保险）

@@ -1,4 +1,4 @@
-package com.villagerdetails.rule;
+package com.villagerdetails.rule.callback;
 
 import com.villagerdetails.rule.type.RuleType;
 
@@ -11,7 +11,8 @@ import java.util.Map;
  */
 public final class RuleCallbacks {
 
-    private RuleCallbacks() {}
+    private RuleCallbacks() {
+    }
 
     @FunctionalInterface
     public interface Handler {
@@ -20,19 +21,25 @@ public final class RuleCallbacks {
 
     private static final Map<RuleType, Handler> HANDLERS = new EnumMap<>(RuleType.class);
 
-    /** 注册某条规则的回调 */
+    /**
+     * 注册某条规则的回调
+     */
     public static void register(RuleType type, Handler handler) {
         if (type != null && handler != null) {
             HANDLERS.put(type, handler);
         }
     }
 
-    /** 取消某条规则的回调 */
+    /**
+     * 取消某条规则的回调
+     */
     public static void unregister(RuleType type) {
         HANDLERS.remove(type);
     }
 
-    /** 内部调用：触发某条规则的回调 */
+    /**
+     * 内部调用：触发某条规则的回调
+     */
     public static void fire(RuleType type, String oldValue, String newValue) {
         Handler h = HANDLERS.get(type);
         if (h == null) return;

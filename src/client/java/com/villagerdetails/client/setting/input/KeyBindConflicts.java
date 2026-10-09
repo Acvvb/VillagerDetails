@@ -1,7 +1,7 @@
 package com.villagerdetails.client.setting.input;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import com.villagerdetails.client.setting.type.ConfigEntry;
+import com.villagerdetails.client.setting.type.ConfigEntryType;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
@@ -58,7 +58,7 @@ public final class KeyBindConflicts {
     private KeyBindConflicts() {
     }
 
-    public static Result check(ConfigEntry entry) {
+    public static Result check(ConfigEntryType entry) {
         int[] mine = entry.getKeyBind();
         if (mine.length == 0) {
             return NONE;
@@ -68,7 +68,7 @@ public final class KeyBindConflicts {
         List<Component> partial = new ArrayList<>();
 
         // ① 本模组其它配置项的绑定
-        for (ConfigEntry other : ConfigEntry.values()) {
+        for (ConfigEntryType other : ConfigEntryType.values()) {
             if (other == entry) {
                 continue;
             }
@@ -81,7 +81,7 @@ public final class KeyBindConflicts {
                 continue;
             }
             Component description = Component.translatable("villagerdetails.ui.keybind.conflict.entry",
-                    modName("villagerdetails"), other.getDisplayName(), ConfigEntry.displayKeys(keys));
+                    modName("villagerdetails"), other.getDisplayName(), ConfigEntryType.displayKeys(keys));
             (level == Level.EXACT ? exact : partial).add(description);
         }
 

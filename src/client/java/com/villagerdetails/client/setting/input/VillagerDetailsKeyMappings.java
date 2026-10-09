@@ -3,8 +3,8 @@ package com.villagerdetails.client.setting.input;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
 import com.villagerdetails.client.setting.screen.VillagerBedConfigScreen;
-import com.villagerdetails.client.setting.type.ConfigEntry;
-import com.villagerdetails.client.setting.type.MainCategory;
+import com.villagerdetails.client.setting.type.ConfigEntryType;
+import com.villagerdetails.client.setting.type.FirstCategoryType;
 import com.villagerdetails.rule.RuleSwitches;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -55,7 +55,7 @@ public final class VillagerDetailsKeyMappings {
     /**
      * 上一次 tick 各功能开关快捷键的按下状态（做上升沿判断，避免按住时反复触发）
      */
-    private static final Map<ConfigEntry, Boolean> HOTKEY_DOWN = new EnumMap<>(ConfigEntry.class);
+    private static final Map<ConfigEntryType, Boolean> HOTKEY_DOWN = new EnumMap<>(ConfigEntryType.class);
 
     private VillagerDetailsKeyMappings() {
     }
@@ -95,8 +95,8 @@ public final class VillagerDetailsKeyMappings {
     private static void handleToggleHotkeys(Minecraft client) {
         boolean inGame = client.gui.screen() == null;
 
-        for (ConfigEntry entry : ConfigEntry.values()) {
-            if (entry.getMainCategory() != MainCategory.TOGGLES) {
+        for (ConfigEntryType entry : ConfigEntryType.values()) {
+            if (entry.getMainCategory() != FirstCategoryType.TOGGLES) {
                 continue;
             }
 
@@ -122,7 +122,7 @@ public final class VillagerDetailsKeyMappings {
      * {@code SendMessengerUtils.sendOverlayOrBroadcast}（那个要 ServerPlayer）——
      * {@link LocalPlayer#sendOverlayMessage} 就是它的客户端等价写法，同样是动作栏浮层。
      */
-    private static void notifyToggled(Minecraft client, ConfigEntry entry, boolean enabled) {
+    private static void notifyToggled(Minecraft client, ConfigEntryType entry, boolean enabled) {
         if (client.player == null) {
             return;
         }

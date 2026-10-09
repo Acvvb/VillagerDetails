@@ -8,7 +8,7 @@ import com.villagerdetails.event.ServerLifecycleListener;
 import com.villagerdetails.event.ServerStoppingListener;
 import com.villagerdetails.handler.monster.noBrainOnPortal.NoBrainOnPortalHandler;
 import com.villagerdetails.network.channel.ServerChannels;
-import com.villagerdetails.rule.RuleModuleRegistry;
+import com.villagerdetails.rule.registry.RuleModuleRegistry;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;

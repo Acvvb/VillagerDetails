@@ -1,6 +1,5 @@
 package com.villagerdetails.client.setting.component;
 
-import com.villagerdetails.client.setting.config.ClientRenderConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
@@ -8,6 +7,8 @@ import net.minecraft.network.chat.Component;
 import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
+
+import static com.villagerdetails.client.setting.util.ColorUtil.RGB_MASK;
 
 /**
  * 可输入的色值框组件：支持 {@code #RRGGBB} 或 {@code RRGGBB}，输入合法值就回调。
@@ -34,10 +35,12 @@ public final class ColorValueBox {
     }
 
     public static String hex(int rgb) {
-        return String.format(Locale.ROOT, "#%06X", rgb & ClientRenderConfig.RGB_MASK);
+        return String.format(Locale.ROOT, "#%06X", rgb & RGB_MASK);
     }
 
-    /** 解析 {@code #RRGGBB} / {@code RRGGBB}，不合法返回 -1 */
+    /**
+     * 解析 {@code #RRGGBB} / {@code RRGGBB}，不合法返回 -1
+     */
     public static int parseHex(String text) {
         if (text == null) {
             return -1;
@@ -50,7 +53,7 @@ public final class ColorValueBox {
             return -1;
         }
         try {
-            return Integer.parseInt(value, 16) & ClientRenderConfig.RGB_MASK;
+            return Integer.parseInt(value, 16) & RGB_MASK;
         } catch (NumberFormatException e) {
             return -1;
         }

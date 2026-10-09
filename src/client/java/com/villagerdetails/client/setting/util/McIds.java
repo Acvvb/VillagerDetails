@@ -1,9 +1,10 @@
-package com.villagerdetails.client.setting.type;
+package com.villagerdetails.client.setting.util;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+
 import java.util.*;
 
 /**

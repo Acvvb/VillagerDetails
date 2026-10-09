@@ -1,7 +1,7 @@
 package com.villagerdetails.client.setting.component;
 
-import com.villagerdetails.client.setting.config.ComponentLayout;
-import com.villagerdetails.client.setting.type.McIds;
+import com.villagerdetails.client.setting.config.ui.ComponentLayout;
+import com.villagerdetails.client.setting.util.McIds;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
@@ -10,8 +10,8 @@ import net.minecraft.network.chat.Component;
 
 import java.util.List;
 
-import static com.villagerdetails.client.setting.config.UiLayout.WIDGET_GAP;
-import static com.villagerdetails.client.setting.config.UiLayout.WIDGET_HEIGHT;
+import static com.villagerdetails.client.setting.config.ui.UiLayout.WIDGET_GAP;
+import static com.villagerdetails.client.setting.config.ui.UiLayout.WIDGET_HEIGHT;
 
 /**
  * 输入框下面的「id 补全弹窗」组件：候选列表、高亮、上下翻、补全进输入框、点击命中、以及画出来。
@@ -29,41 +29,55 @@ public final class SuggestionPopup {
     /**
      * 弹窗的位置信息 —— 由界面提供，因为它才知道输入框在哪、画布多大。
      *
-     * @param left            弹窗左边界（一般就是内容区左边）
-     * @param right           弹窗右边界（要滚动时是给滚动条让位后的内容区右边）
-     * @param boxY            输入框那一行现在的 y（带滚动偏移，随动画变）
-     * @param canvasTop       画布上边界（弹窗和行控件一起被它裁剪）
-     * @param viewportBottom  整页的下边界（不是面板底边：行数少时弹窗就画在面板下面那片空白里）
+     * @param left           弹窗左边界（一般就是内容区左边）
+     * @param right          弹窗右边界（要滚动时是给滚动条让位后的内容区右边）
+     * @param boxY           输入框那一行现在的 y（带滚动偏移，随动画变）
+     * @param canvasTop      画布上边界（弹窗和行控件一起被它裁剪）
+     * @param viewportBottom 整页的下边界（不是面板底边：行数少时弹窗就画在面板下面那片空白里）
      */
     public record Bounds(int left, int right, int boxY, int canvasTop, int viewportBottom) {
     }
 
-    /** 补全候选（只在输入变化时算一次，遍历整张 id 表很贵） */
+    /**
+     * 补全候选（只在输入变化时算一次，遍历整张 id 表很贵）
+     */
     private List<McIds.Entry> entries = List.of();
-    /** 候选里高亮的那一条 */
+    /**
+     * 候选里高亮的那一条
+     */
     private int index;
-    /** 非 null 时这一行显示校验失败提示，而不是候选 */
+    /**
+     * 非 null 时这一行显示校验失败提示，而不是候选
+     */
     private Component error;
 
-    /** 清空候选和高亮，但留着错误提示 */
+    /**
+     * 清空候选和高亮，但留着错误提示
+     */
     public void clear() {
         this.entries = List.of();
         this.index = 0;
     }
 
-    /** 清空候选、高亮和错误提示（离开这一行 / 收下一条之后调） */
+    /**
+     * 清空候选、高亮和错误提示（离开这一行 / 收下一条之后调）
+     */
     public void reset() {
         clear();
         this.error = null;
     }
 
-    /** 把这一行换成红色的校验失败提示（输入框也得自己标红） */
+    /**
+     * 把这一行换成红色的校验失败提示（输入框也得自己标红）
+     */
     public void setError(Component message) {
         this.error = message;
         clear();
     }
 
-    /** 又开始打字了：错误提示先撤掉 */
+    /**
+     * 又开始打字了：错误提示先撤掉
+     */
     public void clearError() {
         this.error = null;
     }
@@ -89,7 +103,9 @@ public final class SuggestionPopup {
         this.index = 0;
     }
 
-    /** 上下键换一条候选（绕圈） */
+    /**
+     * 上下键换一条候选（绕圈）
+     */
     public void move(int delta) {
         if (entries.isEmpty()) {
             return;
@@ -97,7 +113,9 @@ public final class SuggestionPopup {
         this.index = Math.floorMod(index + delta, entries.size());
     }
 
-    /** 把高亮的那条填进输入框（不直接保存，玩家再确认一次） */
+    /**
+     * 把高亮的那条填进输入框（不直接保存，玩家再确认一次）
+     */
     public void acceptInto(EditBox box) {
         if (box == null || entries.isEmpty()) {
             return;
@@ -106,7 +124,9 @@ public final class SuggestionPopup {
         box.setCursorPosition(box.getValue().length());
     }
 
-    /** 弹窗现在该显示几行：0 = 不显示 */
+    /**
+     * 弹窗现在该显示几行：0 = 不显示
+     */
     public int lines() {
         return error != null ? 1 : entries.size();
     }
@@ -127,7 +147,9 @@ public final class SuggestionPopup {
         return Math.max(bounds.canvasTop(), bounds.boxY() - WIDGET_GAP - height);
     }
 
-    /** 点到第几条候选（-1 = 没点到 / 现在显示的是校验提示） */
+    /**
+     * 点到第几条候选（-1 = 没点到 / 现在显示的是校验提示）
+     */
     public int hitTest(Bounds bounds, double mouseX, double mouseY) {
         int lines = lines();
         if (error != null || lines == 0) {

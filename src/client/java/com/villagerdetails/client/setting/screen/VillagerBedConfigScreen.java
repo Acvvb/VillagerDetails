@@ -3,11 +3,18 @@ package com.villagerdetails.client.setting.screen;
 import com.villagerdetails.client.network.sync.ClientRequests;
 import com.villagerdetails.client.setting.component.*;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
-import com.villagerdetails.client.setting.config.ComponentLayout;
+import com.villagerdetails.client.setting.config.ui.ComponentLayout;
+import com.villagerdetails.client.setting.dto.EntryListSource;
+import com.villagerdetails.client.setting.dto.RuleListSource;
+import com.villagerdetails.client.setting.dto.UiTabsSource;
 import com.villagerdetails.client.setting.network.ServerRuleClientState;
 import com.villagerdetails.client.setting.row.ConfigRow;
 import com.villagerdetails.client.setting.row.ServerRuleDataRow;
-import com.villagerdetails.client.setting.type.*;
+import com.villagerdetails.client.setting.tabs.ConfigTabs;
+import com.villagerdetails.client.setting.type.ConfigEntryType;
+import com.villagerdetails.client.setting.type.FirstCategoryType;
+import com.villagerdetails.client.setting.type.server.ListSourceServer;
+import com.villagerdetails.client.setting.type.style.StyleType;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
@@ -21,7 +28,7 @@ import org.jspecify.annotations.NonNull;
 
 import java.util.*;
 
-import static com.villagerdetails.client.setting.config.UiLayout.*;
+import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
 
 /**
  * 主配置界面。
@@ -49,10 +56,10 @@ public class VillagerBedConfigScreen extends Screen {
 
     private final Screen parent;
 
-    private MainCategory selectedMain = MainCategory.OPTIONS;
+    private FirstCategoryType selectedMain = FirstCategoryType.OPTIONS;
     private String selectedTabId;
 
-    private List<UiTab> tabs = List.of();
+    private List<UiTabsSource> tabs = List.of();
     /**
      * 本次重建实际显示的行（已按搜索词过滤）
      */
@@ -105,7 +112,7 @@ public class VillagerBedConfigScreen extends Screen {
     /**
      * 本次重建时算好的、实际可见的一级分类（面板高度要用，见 drawPanels）
      */
-    private List<MainCategory> visibleMains = List.of();
+    private List<FirstCategoryType> visibleMains = List.of();
 
     private AbstractWidget focusAfterInit;
 
@@ -127,8 +134,8 @@ public class VillagerBedConfigScreen extends Screen {
         ClientRenderConfig config = ClientRenderConfig.get();
 
         this.selectedMain = mainCategoryByName(config.getLastCategory());
-        if (!MainCategory.visibleValues().contains(selectedMain)) {
-            this.selectedMain = MainCategory.OPTIONS;
+        if (!FirstCategoryType.visibleValues().contains(selectedMain)) {
+            this.selectedMain = FirstCategoryType.OPTIONS;
         }
         this.selectedTabId = config.getLastSubCategory();
     }
@@ -143,27 +150,27 @@ public class VillagerBedConfigScreen extends Screen {
     /**
      * 按枚举名找一级分类；名字对不上（或为空）就回到「配置项」
      */
-    private static MainCategory mainCategoryByName(String name) {
+    private static FirstCategoryType mainCategoryByName(String name) {
         if (name != null && !name.isEmpty()) {
-            for (MainCategory constant : MainCategory.values()) {
+            for (FirstCategoryType constant : FirstCategoryType.values()) {
                 if (constant.name().equals(name)) {
                     return constant;
                 }
             }
         }
-        return MainCategory.OPTIONS;
+        return FirstCategoryType.OPTIONS;
     }
 
     // ==============================================================
     // 分类 / 行
     // ==============================================================
 
-    private UiTab currentTab() {
+    private UiTabsSource currentTab() {
         if (tabs.isEmpty()) {
             return null;
         }
         if (selectedTabId != null) {
-            for (UiTab tab : tabs) {
+            for (UiTabsSource tab : tabs) {
                 if (tab.id().equals(selectedTabId)) {
                     return tab;
                 }
@@ -297,7 +304,7 @@ public class VillagerBedConfigScreen extends Screen {
      * <p>只在「刚打开 / 换了一级分类 / 选中的那个没了」时调用。要是每次重建都调，
      * 玩家手动翻页会被立刻拽回来（选中的那个分类必须可见），左右箭头就按不动了。
      */
-    private void revealActiveSubTab(UiTab active) {
+    private void revealActiveSubTab(UiTabsSource active) {
         int selectedIndex = 0;
         if (active != null) {
             for (int i = 0; i < tabs.size(); i++) {
@@ -369,7 +376,7 @@ public class VillagerBedConfigScreen extends Screen {
 
         // 左侧：一级分类（服务器没装本 mod / 自己一条规则都没权限看时不会包含「服务器」）
         // 结果缓存起来：判断「服务器装没装 mod」要查网络通道，没必要每帧都查一遍
-        this.visibleMains = MainCategory.visibleValues();
+        this.visibleMains = FirstCategoryType.visibleValues();
         // 权限可能在开着这个页面的时候被改掉（比如被下了 op）→ 服务端下次同步就一条规则都不发，
         // 「服务器」分类会跟着消失；这时直接退回第一个还能看的分类，别停在一个已经空掉的页面上
         if (!visibleMains.contains(selectedMain)) {
@@ -379,7 +386,7 @@ public class VillagerBedConfigScreen extends Screen {
             subTabScrollNeedsReveal = true;
         }
         for (int i = 0; i < visibleMains.size(); i++) {
-            MainCategory main = visibleMains.get(i);
+            FirstCategoryType main = visibleMains.get(i);
             boolean selected = main == selectedMain;
             addRenderableWidget(Button.builder(selectedLabel(main.getDisplayName(), selected), _ -> {
                         if (selectedMain != main) {
@@ -399,7 +406,7 @@ public class VillagerBedConfigScreen extends Screen {
 
         // 右上：二级分类（一行最多 5 个，超出的用 ◀ ▶ 整页翻 / 滚轮一格格滚）
         this.tabs = ConfigTabs.build(selectedMain);
-        UiTab active = currentTab();
+        UiTabsSource active = currentTab();
         if (active == null) {
             selectedTabId = null;
         } else if (!active.id().equals(selectedTabId)) {
@@ -417,7 +424,7 @@ public class VillagerBedConfigScreen extends Screen {
 
         int visibleCount = Math.min(tabs.size() - subTabScroll, SUBTAB_MAX_VISIBLE);
         for (int i = 0; i < visibleCount; i++) {
-            UiTab tab = tabs.get(subTabScroll + i);
+            UiTabsSource tab = tabs.get(subTabScroll + i);
             boolean selected = tab == active;
             addRenderableWidget(Button.builder(selectedLabel(tab.displayName(), selected), _ -> {
                         if (selectedTabId == null || !selectedTabId.equals(tab.id())) {
@@ -553,7 +560,7 @@ public class VillagerBedConfigScreen extends Screen {
             out.add(RowListPage.at(addWidget(widget)));
         }
 
-        if (row instanceof ConfigEntry entry && row.hasKeyBind()) {
+        if (row instanceof ConfigEntryType entry && row.hasKeyBind()) {
             // 绑完（或按 ESC 清空）立刻落盘，别等到关界面才存
             KeyBindButton bindButton = KeyBindButton.create(keyBindX(), y, KEYBIND_WIDTH, WIDGET_HEIGHT,
                     entry, keys -> {
@@ -578,7 +585,7 @@ public class VillagerBedConfigScreen extends Screen {
     private void addColorRow(ConfigRow row, int y, List<RowListPage.Widget> out) {
         out.add(RowListPage.at(addWidget(labelWidget(row, y))));
 
-        if (row instanceof ConfigEntry) {
+        if (row instanceof ConfigEntryType) {
             int swatchX = coloredValueX() - WIDGET_GAP - SWATCH_WIDTH;
             out.add(RowListPage.offset(addWidget(new ColorSwatch(swatchX, y + SWATCH_Y_OFFSET,
                     SWATCH_WIDTH, SWATCH_HEIGHT, row::getColor)), SWATCH_Y_OFFSET));
@@ -632,7 +639,7 @@ public class VillagerBedConfigScreen extends Screen {
      *
      * <p>两种列表：
      * <ul>
-     *     <li>本机配置项的列表（{@code ConfigEntry}）：按钮上显示 {@code [a,b]}，点进去增删值</li>
+     *     <li>本机配置项的列表（{@code ConfigEntryType}）：按钮上显示 {@code [a,b]}，点进去增删值</li>
      *     <li>「服务器配置项」的规则数据（{@link ServerRuleDataRow}）：按钮上显示 {@code [id=值,…]}，
      *         点进去逐条配（值可能是数字，也可能是是/否）</li>
      * </ul>
@@ -642,7 +649,7 @@ public class VillagerBedConfigScreen extends Screen {
 
         Component label = switch (row) {
             case ServerRuleDataRow dataRow -> dataRow.listDisplay();
-            case ConfigEntry entry -> entry.listDisplay();
+            case ConfigEntryType entry -> entry.listDisplay();
             default -> null;
         };
         if (label != null) {
@@ -671,17 +678,17 @@ public class VillagerBedConfigScreen extends Screen {
      * <ul>
      *     <li>颜色项 → RGB 滑条那一页</li>
      *     <li>列表项（本机配置项 / 服务器的纯名单规则）→ 同一个列表页，
-     *         只是数据来源不同（{@link com.villagerdetails.client.setting.type.ListSource}）</li>
+     *         只是数据来源不同（{@link ListSourceServer}）</li>
      *     <li>服务器的键值数据（抗性）→ id + 值那一页</li>
      * </ul>
      */
     private void openDetail(ConfigRow row) {
         Screen detail = switch (row) {
             case ServerRuleDataRow dataRow -> dataRow.kind().isPlainList()
-                    ? new ListDetailScreen(this, new ListSource.RuleList(dataRow.rule(), dataRow.kind()))
+                    ? new ListDetailScreen(this, new RuleListSource(dataRow.rule(), dataRow.kind()))
                     : new RuleDataDetailScreen(this, dataRow);
-            case ConfigEntry entry -> entry.getStyle() == SubCategory.Style.LIST
-                    ? new ListDetailScreen(this, new ListSource.EntryList(entry))
+            case ConfigEntryType entry -> entry.getStyle() == StyleType.LIST
+                    ? new ListDetailScreen(this, new EntryListSource(entry))
                     : new OptionDetailScreen(this, entry);
             default -> null;
         };

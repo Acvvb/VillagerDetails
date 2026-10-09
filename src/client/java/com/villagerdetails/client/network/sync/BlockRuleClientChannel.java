@@ -5,8 +5,8 @@ import com.villagerdetails.client.network.channel.ClientReceiver;
 import com.villagerdetails.client.setting.network.ServerRuleClientState;
 import com.villagerdetails.network.sync.BlockRuleSyncChannel;
 import com.villagerdetails.network.sync.BlockRuleSyncPayload;
-import com.villagerdetails.rule.RuleDataKind;
-import com.villagerdetails.rule.RuleDataRegistry;
+import com.villagerdetails.rule.type.RuleDataKind;
+import com.villagerdetails.rule.registry.RuleDataRegistry;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.client.Minecraft;
 

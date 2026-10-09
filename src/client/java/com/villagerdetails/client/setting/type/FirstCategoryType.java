@@ -11,7 +11,7 @@ import java.util.List;
  *
  * <p>翻译键：{@code villagerdetails.ui.category.<key>}
  */
-public enum MainCategory {
+public enum FirstCategoryType {
 
     /**
      * 配置项：颜色 / 滑块 / 列表
@@ -39,7 +39,7 @@ public enum MainCategory {
 
     private final String key;
 
-    MainCategory(String key) {
+    FirstCategoryType(String key) {
         this.key = key;
     }
 
@@ -54,8 +54,8 @@ public enum MainCategory {
     /**
      * 属于该一级分类的二级分类（按枚举声明顺序）
      */
-    public List<SubCategory> subCategories() {
-        return Arrays.stream(SubCategory.values())
+    public List<SecondCategoryType> subCategories() {
+        return Arrays.stream(SecondCategoryType.values())
                 .filter(sub -> sub.getMainCategory() == this)
                 .toList();
     }
@@ -68,7 +68,7 @@ public enum MainCategory {
      *
      * <p>「服务器配置项」在上述基础上还要求：那几条需要逐条配置的规则里至少有一条是开着的。
      */
-    public static List<MainCategory> visibleValues() {
+    public static List<FirstCategoryType> visibleValues() {
         boolean serverVisible = ServerRuleClientState.isServerCategoryVisible();
         boolean configVisible = ServerRuleClientState.hasConfigurableRules();
         return Arrays.stream(values())

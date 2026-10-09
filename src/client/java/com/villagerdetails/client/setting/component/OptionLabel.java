@@ -1,6 +1,6 @@
 package com.villagerdetails.client.setting.component;
 
-import com.villagerdetails.client.setting.config.ComponentLayout;
+import com.villagerdetails.client.setting.config.ui.ComponentLayout;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -33,7 +33,9 @@ public class OptionLabel extends AbstractWidget {
         return this;
     }
 
-    /** 直接用某一行的显示名 / 描述 */
+    /**
+     * 直接用某一行的显示名 / 描述
+     */
     public static OptionLabel forRow(com.villagerdetails.client.setting.row.ConfigRow row,
                                      int x, int y, int width, int height) {
         return new OptionLabel(x, y, width, height, row.getDisplayName()).withTooltip(row.getDisplayInfo());

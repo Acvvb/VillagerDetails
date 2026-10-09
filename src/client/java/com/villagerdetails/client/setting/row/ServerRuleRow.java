@@ -2,7 +2,7 @@ package com.villagerdetails.client.setting.row;
 
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.client.network.sync.ClientRequests;
-import com.villagerdetails.client.setting.type.SubCategory;
+import com.villagerdetails.client.setting.type.style.StyleType;
 import com.villagerdetails.rule.RuleSwitches;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.network.chat.Component;
@@ -36,8 +36,8 @@ public record ServerRuleRow(RuleType rule) implements ConfigRow {
     }
 
     @Override
-    public SubCategory.Style getStyle() {
-        return SubCategory.Style.TOGGLE;
+    public StyleType getStyle() {
+        return StyleType.TOGGLE;
     }
 
     @Override

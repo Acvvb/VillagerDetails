@@ -3,7 +3,7 @@ package com.villagerdetails.client.setting.component;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
 import com.villagerdetails.client.setting.input.KeyBindConflicts;
-import com.villagerdetails.client.setting.type.ConfigEntry;
+import com.villagerdetails.client.setting.type.ConfigEntryType;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
@@ -44,7 +44,7 @@ public class KeyBindButton extends Button.Plain {
      */
     private static final int COLOR_EXACT = 0xFFFF5555;
 
-    private final ConfigEntry entry;
+    private final ConfigEntryType entry;
     private final Consumer<int[]> onBound;
 
     /**
@@ -67,7 +67,7 @@ public class KeyBindButton extends Button.Plain {
      * {@code setTooltip}，那是可被子类覆盖的方法，在构造里调会让 {@code this} 提前逸出
      * （javac 的 {@code this-escape} 告警）。
      */
-    private KeyBindButton(int x, int y, int width, int height, ConfigEntry entry, Consumer<int[]> onBound) {
+    private KeyBindButton(int x, int y, int width, int height, ConfigEntryType entry, Consumer<int[]> onBound) {
         super(x, y, width, height, Component.empty(),
                 button -> ((KeyBindButton) button).toggleListening(),
                 DEFAULT_NARRATION);
@@ -80,7 +80,7 @@ public class KeyBindButton extends Button.Plain {
      * 造一个绑定按钮：构造完成之后再刷初始状态
      */
     public static KeyBindButton create(int x, int y, int width, int height,
-                                       ConfigEntry entry, Consumer<int[]> onBound) {
+                                       ConfigEntryType entry, Consumer<int[]> onBound) {
         KeyBindButton button = new KeyBindButton(x, y, width, height, entry, onBound);
         button.refreshConflict();
         button.refreshMessage();
@@ -210,9 +210,9 @@ public class KeyBindButton extends Button.Plain {
         if (listening) {
             setMessage(recorded.isEmpty()
                     ? Component.translatable("villagerdetails.ui.keybind.listening")
-                    : ConfigEntry.displayKeys(toArray(recorded)));
+                    : ConfigEntryType.displayKeys(toArray(recorded)));
         } else {
-            setMessage(ConfigEntry.displayKeys(keys));
+            setMessage(ConfigEntryType.displayKeys(keys));
         }
     }
 

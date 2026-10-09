@@ -1,6 +1,7 @@
 package com.villagerdetails.client.setting.row;
 
-import com.villagerdetails.client.setting.type.SubCategory;
+import com.villagerdetails.client.setting.type.ConfigEntryType;
+import com.villagerdetails.client.setting.type.style.StyleType;
 import net.minecraft.network.chat.Component;
 
 import java.util.List;
@@ -8,7 +9,7 @@ import java.util.List;
 /**
  * 配置界面里的一行。实现就是「配置项 / 规则」本身：
  * <ul>
- *     <li>{@link com.villagerdetails.client.setting.type.ConfigEntry}：本机配置项（枚举自己实现这个接口）</li>
+ *     <li>{@link ConfigEntryType}：本机配置项（枚举自己实现这个接口）</li>
  *     <li>{@link ServerRuleRow}：服务器规则（{@code RuleType}）</li>
  *     <li>{@link ServerRuleDataRow}：服务器规则的逐条配置（id → 值）</li>
  * </ul>
@@ -16,24 +17,32 @@ import java.util.List;
  */
 public interface ConfigRow {
 
-    /** 稳定 id（跨界面重建保持状态用）：就是配置 / 规则的注册名 */
+    /**
+     * 稳定 id（跨界面重建保持状态用）：就是配置 / 规则的注册名
+     */
     String getRegisterName();
 
     Component getDisplayName();
 
     Component getDisplayInfo();
 
-    SubCategory.Style getStyle();
+    StyleType getStyle();
 
-    /** 这一行有没有快捷键绑定框（服务器规则没有） */
+    /**
+     * 这一行有没有快捷键绑定框（服务器规则没有）
+     */
     default boolean hasKeyBind() {
         return false;
     }
 
-    /** 开关型当前值 */
+    /**
+     * 开关型当前值
+     */
     boolean getToggle();
 
-    /** 切换开关 */
+    /**
+     * 切换开关
+     */
     void setToggle(boolean value);
 
     /**
@@ -97,7 +106,9 @@ public interface ConfigRow {
 
     // ---------------- 重置 / 落盘 ----------------
 
-    /** 这一项当前是否就是默认值（是的话它那一行的重置按钮要置灰） */
+    /**
+     * 这一项当前是否就是默认值（是的话它那一行的重置按钮要置灰）
+     */
     boolean isDefault();
 
     void reset();

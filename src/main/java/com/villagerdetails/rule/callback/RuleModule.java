@@ -1,4 +1,4 @@
-package com.villagerdetails.rule.module;
+package com.villagerdetails.rule.callback;
 
 /**
  * 规则回调模块。
@@ -6,10 +6,14 @@ package com.villagerdetails.rule.module;
  */
 public interface RuleModule {
 
-    /** 注册本模块的回调 */
+    /**
+     * 注册本模块的回调
+     */
     void registerCallbacks();
 
-    /** 模块名（日志用） */
+    /**
+     * 模块名（日志用）
+     */
     default String name() {
         return getClass().getSimpleName();
     }

@@ -3,8 +3,8 @@ package com.villagerdetails.client.setting.row;
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.client.network.sync.ClientRequests;
 import com.villagerdetails.client.setting.network.ServerRuleClientState;
-import com.villagerdetails.client.setting.type.SubCategory;
-import com.villagerdetails.rule.RuleDataKind;
+import com.villagerdetails.client.setting.type.style.StyleType;
+import com.villagerdetails.rule.type.RuleDataKind;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.network.chat.Component;
 
@@ -40,11 +40,13 @@ public record ServerRuleDataRow(RuleType rule, RuleDataKind kind) implements Con
     }
 
     @Override
-    public SubCategory.Style getStyle() {
-        return SubCategory.Style.LIST;
+    public StyleType getStyle() {
+        return StyleType.LIST;
     }
 
-    /** 这一行不显示开关（规则开关在「服务器」分类里改），这里只是把当前状态报出去 */
+    /**
+     * 这一行不显示开关（规则开关在「服务器」分类里改），这里只是把当前状态报出去
+     */
     @Override
     public boolean getToggle() {
         return RuleCache.isEnabled(rule);
@@ -55,13 +57,17 @@ public record ServerRuleDataRow(RuleType rule, RuleDataKind kind) implements Con
         // 开关不在这条路径上改
     }
 
-    /** 服务端同步过来的当前数据（id → 值，保持服务端给的顺序） */
+    /**
+     * 服务端同步过来的当前数据（id → 值，保持服务端给的顺序）
+     */
     public Map<String, String> data() {
         ServerRuleClientState.RuleData data = ServerRuleClientState.ruleData(rule);
         return data == null ? Map.of() : data.data();
     }
 
-    /** 列表按钮上的预览文字：{@code [id=值,…]}，纯名单就只显示 id */
+    /**
+     * 列表按钮上的预览文字：{@code [id=值,…]}，纯名单就只显示 id
+     */
     public Component listDisplay() {
         return preview(kind, data());
     }
@@ -76,7 +82,9 @@ public record ServerRuleDataRow(RuleType rule, RuleDataKind kind) implements Con
         ClientRequests.sendRuleDataReset(rule);
     }
 
-    /** {@code [id=值,id=值,…]}；纯名单不显示 {@code =true}（业务上「在名单里」就是是） */
+    /**
+     * {@code [id=值,id=值,…]}；纯名单不显示 {@code =true}（业务上「在名单里」就是是）
+     */
     private static Component preview(RuleDataKind kind, Map<String, String> data) {
         List<String> items = new ArrayList<>(data.size());
         for (Map.Entry<String, String> entry : data.entrySet()) {

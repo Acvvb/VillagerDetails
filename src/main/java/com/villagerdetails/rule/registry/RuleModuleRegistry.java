@@ -1,9 +1,9 @@
-package com.villagerdetails.rule;
+package com.villagerdetails.rule.registry;
 
 import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.rule.module.RuleModule;
-import com.villagerdetails.rule.module.impl.ExchangeModule;
-import com.villagerdetails.rule.module.impl.LanguageModule;
+import com.villagerdetails.rule.callback.RuleModule;
+import com.villagerdetails.rule.callback.impl.ExchangeModule;
+import com.villagerdetails.rule.callback.impl.LanguageModule;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -15,17 +15,22 @@ import java.util.List;
  */
 public final class RuleModuleRegistry {
 
-    private RuleModuleRegistry() {}
+    private RuleModuleRegistry() {
+    }
 
     private static final Logger log = LogManager.getLogger(RuleModuleRegistry.class);
 
-    /** ★ 所有模块在这里登记 */
+    /**
+     * ★ 所有模块在这里登记
+     */
     private static final List<RuleModule> MODULES = List.of(
             new LanguageModule(),
             new ExchangeModule()
     );
 
-    /** 主类调一次 */
+    /**
+     * 主类调一次
+     */
     public static void initAll() {
         log.info("initAll 开始，{} 个模块", MODULES.size());
 

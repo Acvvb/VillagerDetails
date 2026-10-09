@@ -2,7 +2,7 @@ package com.villagerdetails.network.sync;
 
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.network.channel.SyncChannel;
-import com.villagerdetails.rule.RuleDataRegistry;
+import com.villagerdetails.rule.registry.RuleDataRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.level.ServerPlayer;
 
