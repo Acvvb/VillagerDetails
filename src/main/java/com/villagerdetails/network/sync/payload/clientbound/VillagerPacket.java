@@ -1,4 +1,4 @@
-package com.villagerdetails.network.sync;
+package com.villagerdetails.network.sync.payload.clientbound;
 
 import com.villagerdetails.network.codec.ModCodecs;
 import net.minecraft.core.BlockPos;

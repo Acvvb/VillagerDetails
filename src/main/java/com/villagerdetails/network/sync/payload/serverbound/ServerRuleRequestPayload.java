@@ -1,4 +1,4 @@
-package com.villagerdetails.network.sync;
+package com.villagerdetails.network.sync.payload.serverbound;
 
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.SyncPayload;

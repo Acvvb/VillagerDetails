@@ -38,7 +38,8 @@ public final class UnifiedConfigFile implements ReloadableConfig {
             NoSqueezeConfig.INSTANCE,
             BlockMiningResistanceConfig.INSTANCE,
             BlockExplosionResistanceConfig.INSTANCE,
-            BlockCollectableConfig.INSTANCE
+            BlockCollectableConfig.INSTANCE,
+            PortalBindingConfig.INSTANCE
     );
 
     @Override

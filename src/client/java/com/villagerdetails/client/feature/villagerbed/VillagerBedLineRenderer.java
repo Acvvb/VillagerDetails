@@ -67,6 +67,9 @@ public final class VillagerBedLineRenderer {
         double farDistance = ConfigEntryType.FAR_DISTANCE.getNumber();
         double farDistanceSqr = farDistance * farDistance;
         float lineWidth = (float) ConfigEntryType.LINE_WIDTH.getNumber();
+        // 村民那一端也要按本帧插值取位置，不然连线会跟着 tick 一跳一跳
+        // （和实体高亮盒是同一个坑：position() 是 tick 位置，模型画的是插值位置）
+        float partialTick = minecraft.getDeltaTracker().getGameTimeDeltaPartialTick(false);
 
         try {
             for (Entity entity : level.entitiesForRendering()) {
@@ -87,7 +90,8 @@ public final class VillagerBedLineRenderer {
                 }
 
                 Vec3 bedSurface = Vec3.atBottomCenterOf(bedPos).add(0.0, BED_SURFACE_Y, 0.0);
-                Vec3 villagerCenter = villager.position().add(0.0, villager.getBbHeight() * 0.5, 0.0);
+                Vec3 villagerCenter = villager.getPosition(partialTick)
+                        .add(0.0, villager.getBbHeight() * 0.5, 0.0);
 
                 int rgb = villagerCenter.distanceToSqr(bedSurface) > farDistanceSqr
                         ? ConfigEntryType.FAR_COLOR.getColor()

@@ -1,7 +1,10 @@
-package com.villagerdetails.network.sync;
+package com.villagerdetails.network.sync.receiver;
 
 import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.network.channel.SyncChannel;
+import com.villagerdetails.network.channel.PayloadId;
+import com.villagerdetails.network.channel.ServerReceiver;
+import com.villagerdetails.network.sync.payload.serverbound.ServerRuleSetPayload;
+import com.villagerdetails.network.sync.clientbound.ServerRuleSyncChannel;
 import com.villagerdetails.rule.RuleSwitches;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.network.chat.Component;
@@ -10,24 +13,29 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * 客户端改规则状态：客户端 → 服务端（等价于 {@code /ec <规则> <状态>}）。
+ * 客户端改规则状态：等价于 {@code /ec <规则> <状态>}。
+ *
+ * <p>包的收发定义在 {@code network.sync.serverbound.ServerRuleSetChannel}，这里只管收到之后干什么。
+ * 放在 {@code network.sync.receiver} 包下 = 自动注册。
  *
  * <p>权限只看 {@code /ec} 那道总权限，和界面显示、命令用的是同一套判定。
- *
- * <p>包 id：{@code villagerdetails:server_rule_set}
  */
-public final class ServerRuleSetChannel extends SyncChannel<ServerRuleSetPayload> {
+public final class ServerRuleSetReceiver implements ServerReceiver<ServerRuleSetPayload> {
 
-    private static final Logger LOGGER = LogManager.getLogger(ServerRuleSetChannel.class);
+    private static final Logger LOGGER = LogManager.getLogger(ServerRuleSetReceiver.class);
 
-    public static final ServerRuleSetChannel INSTANCE = new ServerRuleSetChannel();
+    public static final ServerRuleSetReceiver INSTANCE = new ServerRuleSetReceiver();
 
-    private ServerRuleSetChannel() {
-        super(ServerRuleSetPayload.ID, ServerRuleSetPayload.CODEC);
+    private ServerRuleSetReceiver() {
     }
 
     @Override
-    protected void handleServer(ServerPlayer player, ServerRuleSetPayload payload) {
+    public PayloadId<ServerRuleSetPayload> id() {
+        return ServerRuleSetPayload.ID;
+    }
+
+    @Override
+    public void handle(ServerPlayer player, ServerRuleSetPayload payload) {
         if (player == null) {
             return;
         }

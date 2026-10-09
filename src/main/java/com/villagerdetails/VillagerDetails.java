@@ -24,7 +24,8 @@ public class VillagerDetails implements ModInitializer {
     @Override
     public void onInitialize() {
 
-        // 所有同步包（包类型注册 + 服务端收发 + 事件）统一在 ServerChannels 里登记，见那个类的表格
+        // 所有同步包（包类型注册 + 服务端收包 + 事件）由 ServerChannels 扫 network.sync 的四个子包自动注册，
+        // 加新包只要按目录放类，见那个类的表格
         ServerChannels.registerAll();
 
         ServerLifecycleEvents.SERVER_STARTED.register(ServerLifecycleListener::onServerStarted);

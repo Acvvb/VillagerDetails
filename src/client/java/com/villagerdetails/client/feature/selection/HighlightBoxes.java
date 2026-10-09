@@ -1,0 +1,90 @@
+package com.villagerdetails.client.feature.selection;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.gizmos.Gizmos;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+
+/**
+ * 高亮线框盒的公共画法（EB 高亮 / BB 高亮共用）。
+ *
+ * <p>这里只管<b>几何和线</b>：颜色一律由调用方当参数传进来，
+ * 各自从 {@link com.villagerdetails.client.setting.type.ConfigEntryType} 取自己的配置项，
+ * 所以两边的颜色仍然是各调各的，抽出来的只是重复的画法。
+ *
+ * <p>走原版 gizmo 系统绘制并 {@code setAlwaysOnTop()}，隔着方块也可见。
+ */
+public final class HighlightBoxes {
+
+    /**
+     * 高亮线宽（固定值，不单独开配置项）
+     */
+    public static final float LINE_WIDTH = 2.0F;
+
+    /**
+     * 方块盒往外扩 1/16 格，避免与方块表面重合产生闪烁
+     */
+    public static final double OUTSET = 0.0625D;
+
+    private HighlightBoxes() {
+    }
+
+    /**
+     * 画一个现成的盒子。
+     *
+     * <p>实体高亮用这个：盒子里的坐标由调用方按帧插值算好，这里不再动它。
+     */
+    public static void draw(AABB box, int argb) {
+        draw(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, argb);
+    }
+
+    /**
+     * 单个方块的高亮盒（自带 {@link #OUTSET} 外扩）
+     */
+    public static void drawBlock(BlockPos pos, int argb) {
+        double x = pos.getX(), y = pos.getY(), z = pos.getZ();
+        draw(x - OUTSET, y - OUTSET, z - OUTSET,
+                x + 1 + OUTSET, y + 1 + OUTSET, z + 1 + OUTSET, argb);
+    }
+
+    /**
+     * 两个方块为顶点的长方体高亮盒（自带 {@link #OUTSET} 外扩）
+     */
+    public static void drawRegion(BlockPos a, BlockPos b, int argb) {
+        double minX = Math.min(a.getX(), b.getX());
+        double minY = Math.min(a.getY(), b.getY());
+        double minZ = Math.min(a.getZ(), b.getZ());
+        double maxX = Math.max(a.getX(), b.getX()) + 1;
+        double maxY = Math.max(a.getY(), b.getY()) + 1;
+        double maxZ = Math.max(a.getZ(), b.getZ()) + 1;
+        draw(minX - OUTSET, minY - OUTSET, minZ - OUTSET,
+                maxX + OUTSET, maxY + OUTSET, maxZ + OUTSET, argb);
+    }
+
+    /**
+     * 用 12 条线画一个盒子
+     */
+    public static void draw(double x0, double y0, double z0,
+                            double x1, double y1, double z1, int argb) {
+        // 底面 4 条
+        line(x0, y0, z0, x1, y0, z0, argb);
+        line(x1, y0, z0, x1, y0, z1, argb);
+        line(x1, y0, z1, x0, y0, z1, argb);
+        line(x0, y0, z1, x0, y0, z0, argb);
+        // 顶面 4 条
+        line(x0, y1, z0, x1, y1, z0, argb);
+        line(x1, y1, z0, x1, y1, z1, argb);
+        line(x1, y1, z1, x0, y1, z1, argb);
+        line(x0, y1, z1, x0, y1, z0, argb);
+        // 4 条竖棱
+        line(x0, y0, z0, x0, y1, z0, argb);
+        line(x1, y0, z0, x1, y1, z0, argb);
+        line(x1, y0, z1, x1, y1, z1, argb);
+        line(x0, y0, z1, x0, y1, z1, argb);
+    }
+
+    private static void line(double x0, double y0, double z0,
+                             double x1, double y1, double z1, int argb) {
+        Gizmos.line(new Vec3(x0, y0, z0), new Vec3(x1, y1, z1), argb, LINE_WIDTH).setAlwaysOnTop();
+    }
+}

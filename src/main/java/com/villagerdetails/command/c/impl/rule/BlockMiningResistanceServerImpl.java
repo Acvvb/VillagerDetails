@@ -3,7 +3,7 @@ package com.villagerdetails.command.c.impl.rule;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.command.c.impl.suggestion.BlockSuggestionData;
 import com.villagerdetails.config.impl.section.item.BlockMiningResistanceConfig;
-import com.villagerdetails.network.sync.BlockRuleSyncChannel;
+import com.villagerdetails.network.sync.clientbound.BlockRuleSyncChannel;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.resources.Identifier;
 

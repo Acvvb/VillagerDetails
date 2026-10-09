@@ -1,6 +1,6 @@
 package com.villagerdetails.mixin.villager.sync;
 
-import com.villagerdetails.network.sync.VillagerBedSyncChannel;
+import com.villagerdetails.network.sync.clientbound.VillagerBedSyncChannel;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;

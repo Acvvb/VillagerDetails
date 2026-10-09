@@ -1,6 +1,6 @@
 package com.villagerdetails.handler.block;
 
-import com.villagerdetails.network.sync.BlockRuleSyncChannel;
+import com.villagerdetails.network.sync.clientbound.BlockRuleSyncChannel;
 import net.minecraft.server.level.ServerPlayer;
 
 /**

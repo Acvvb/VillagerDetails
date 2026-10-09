@@ -3,8 +3,8 @@ package com.villagerdetails.client.network.sync;
 
 import com.villagerdetails.client.cache.EBSelectionClientState;
 import com.villagerdetails.client.network.channel.ClientReceiver;
-import com.villagerdetails.network.sync.EBSyncChannel;
-import com.villagerdetails.network.sync.EBSyncPayload;
+import com.villagerdetails.network.sync.payload.clientbound.EBSyncPayload;
+import com.villagerdetails.network.sync.clientbound.EBSyncChannel;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
 

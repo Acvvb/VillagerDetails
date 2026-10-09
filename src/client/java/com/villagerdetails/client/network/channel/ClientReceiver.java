@@ -34,8 +34,9 @@ public interface ClientReceiver<P extends SyncPayload<P>> {
     /**
      * 客户端自己的事件注册（实体卸载清理、断线清状态）。
      *
-     * <p>刻意和父类的 {@code SyncChannel.registerEvents()}（JOIN 同步、规则监听、周期任务，
-     * 都是<b>服务端</b>的事）分开：客户端子类继承的是同一个通道类，混在一起会在集成服里被注册两遍。
+     * <p>刻意和「服务端事件」分开：服务端那边的事件接线在
+     * {@code network.sync.event}（{@code SyncEvents}），收包在 {@code network.sync.receiver}
+     * （{@code ServerReceiver}）；客户端子类继承的是同一个通道类，混在一起会在集成服里被注册两遍。
      */
     default void registerClientEvents() {
     }

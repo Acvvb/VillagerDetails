@@ -2,8 +2,8 @@ package com.villagerdetails.client.network.sync;
 
 import com.villagerdetails.client.cache.BBSelectionClientState;
 import com.villagerdetails.client.network.channel.ClientReceiver;
-import com.villagerdetails.network.sync.BBSyncChannel;
-import com.villagerdetails.network.sync.BBSyncPayload;
+import com.villagerdetails.network.sync.payload.clientbound.BBSyncPayload;
+import com.villagerdetails.network.sync.clientbound.BBSyncChannel;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
 

@@ -1,9 +1,9 @@
 package com.villagerdetails.client.network.sync;
 
 import com.villagerdetails.client.network.channel.ClientReceiver;
-import com.villagerdetails.network.sync.RuleDataPayload;
-import com.villagerdetails.network.sync.ServerRuleRequestPayload;
-import com.villagerdetails.network.sync.ServerRuleSetPayload;
+import com.villagerdetails.network.sync.payload.serverbound.RuleDataPayload;
+import com.villagerdetails.network.sync.payload.serverbound.ServerRuleRequestPayload;
+import com.villagerdetails.network.sync.payload.serverbound.ServerRuleSetPayload;
 import com.villagerdetails.rule.type.RuleType;
 
 /**

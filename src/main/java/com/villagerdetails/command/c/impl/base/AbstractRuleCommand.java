@@ -6,7 +6,7 @@ import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.command.c.server.RegisterServer;
-import com.villagerdetails.network.sync.BlockRuleSyncChannel;
+import com.villagerdetails.network.sync.clientbound.BlockRuleSyncChannel;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.IdentifierArgument;

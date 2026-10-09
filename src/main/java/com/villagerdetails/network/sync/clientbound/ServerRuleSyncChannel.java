@@ -1,10 +1,9 @@
-package com.villagerdetails.network.sync;
+package com.villagerdetails.network.sync.clientbound;
 
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.network.channel.SyncChannel;
+import com.villagerdetails.network.sync.payload.clientbound.ServerRuleSyncPayload;
 import com.villagerdetails.rule.type.RuleType;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.ArrayList;
@@ -16,8 +15,12 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 规则状态同步：服务端 → 客户端。
  *
- * <p>玩家加入 / 客户端主动请求 / 任意规则变化 / 权限变化时，下发<b>这个玩家有权限看到的</b>规则状态；
- * 内容和上次一样就不发（所以每秒一次的权限复查几乎不产生流量）。
+ * <p>放在 {@code network.sync.clientbound} 包下 = 自动注册成 S→C 包类型，不用手动登记。
+ * 「玩家加入 / 断开」「任意规则变化」「每秒复查一次权限」这些接线
+ * 在 {@code network.sync.event.ServerRuleSyncEvents}。
+ *
+ * <p>下发的是<b>这个玩家有权限看到的</b>规则状态，内容和上次一样就不发，
+ * 所以每秒一次的权限复查几乎不产生流量。
  *
  * <p>包 id：{@code villagerdetails:server_rule_sync}
  */
@@ -26,44 +29,22 @@ public class ServerRuleSyncChannel extends SyncChannel<ServerRuleSyncPayload> {
     public static final ServerRuleSyncChannel INSTANCE = new ServerRuleSyncChannel();
 
     /**
-     * 每隔多少 tick 复查一次权限。
-     *
-     * <p>玩家被 {@code /op} / {@code /deop}、或者权限插件改了权限时没有任何事件可听，
-     * 只能自己定期比一次。
-     */
-    private static final int PERMISSION_RECHECK_TICKS = 20;
-
-    /**
      * 每个玩家上一次同步过去的内容，用来判断「有没有变化」
      */
     private final Map<UUID, List<ServerRuleSyncPayload.Entry>> lastSynced = new ConcurrentHashMap<>();
 
     protected ServerRuleSyncChannel() {
-        super(ServerRuleSyncPayload.ID, ServerRuleSyncPayload.CODEC);
+        super(ServerRuleSyncPayload.ID);
     }
 
-    @Override
-    public void registerEvents() {
-        ServerPlayConnectionEvents.JOIN.register((handler, _, _) -> {
-            // 刚进来的先忘掉旧记录，保证一定会推一份
-            lastSynced.remove(handler.getPlayer().getUUID());
-            syncTo(handler.getPlayer());
-        });
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, _) ->
-                lastSynced.remove(handler.getPlayer().getUUID()));
-
-        // 任意规则状态变化 → 广播
-        RuleCache.addListener((_, _, _) -> broadcastAll());
-
-        // 定期复查权限：被下 op / 权限被改时，客户端那边会跟着刷新
-        ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (server.getTickCount() % PERMISSION_RECHECK_TICKS != 0) {
-                return;
-            }
-            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-                syncTo(player);
-            }
-        });
+    /**
+     * 忘掉这个玩家上次同步过去的内容，保证下一次 {@link #syncTo} 一定推一份。
+     *
+     * <p>玩家刚进来、或者断开时由 {@code ServerRuleSyncEvents} 调：
+     * 不这么做的话，同一次开服里重连（UUID 一样、内容也恰好一样）会一条都收不到。
+     */
+    public void forgetLastSynced(ServerPlayer player) {
+        lastSynced.remove(player.getUUID());
     }
 
     /**

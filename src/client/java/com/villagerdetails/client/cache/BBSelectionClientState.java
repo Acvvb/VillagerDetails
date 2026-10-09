@@ -4,7 +4,7 @@ import net.minecraft.core.BlockPos;
 
 /**
  * 客户端记录的「本机玩家 BB 选择器的两个角点」。
- * 由服务端通过 {@link com.villagerdetails.network.sync.BBSyncPayload} 推送，
+ * 由服务端通过 {@link com.villagerdetails.network.sync.payload.clientbound.BBSyncPayload} 推送，
  * 只影响本机渲染。
  */
 public final class BBSelectionClientState {

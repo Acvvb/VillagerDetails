@@ -1,7 +1,8 @@
-package com.villagerdetails.network.sync;
+package com.villagerdetails.network.sync.clientbound;
 
 import com.villagerdetails.network.channel.SyncChannel;
-import net.fabricmc.fabric.api.networking.v1.EntityTrackingEvents;
+import com.villagerdetails.network.sync.payload.clientbound.VillagerBedPayload;
+import com.villagerdetails.network.sync.payload.clientbound.VillagerPacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -14,7 +15,9 @@ import java.util.Optional;
 /**
  * 村民床同步：服务端 → 客户端。
  *
- * <p>玩家开始追踪村民（进入视距）时把床坐标发过去；村民 tick 时床变了也发（见 VillagerSyncMixin）。
+ * <p>放在 {@code network.sync.clientbound} 包下 = 自动注册成 S→C 包类型，不用手动登记。
+ * 「玩家开始追踪村民时发一份」那个事件在 {@code network.sync.event.VillagerBedSyncEvents}；
+ * 「村民 tick 时床变了也发」在 VillagerSyncMixin 里。
  *
  * <p>包 id：{@code villagerdetails:villager_sync}
  */
@@ -23,7 +26,7 @@ public class VillagerBedSyncChannel extends SyncChannel<VillagerBedPayload> {
     public static final VillagerBedSyncChannel INSTANCE = new VillagerBedSyncChannel();
 
     protected VillagerBedSyncChannel() {
-        super(VillagerBedPayload.ID, VillagerBedPayload.CODEC);
+        super(VillagerBedPayload.ID);
     }
 
     /**
@@ -31,16 +34,6 @@ public class VillagerBedSyncChannel extends SyncChannel<VillagerBedPayload> {
      */
     public void sendBed(ServerPlayer player, int villagerId, BlockPos bedPos) {
         sendTo(player, new VillagerBedPayload(new VillagerPacket(villagerId, Optional.ofNullable(bedPos))));
-    }
-
-    @Override
-    public void registerEvents() {
-        // 服务端：玩家开始追踪实体（实体进入视距）时，把这个村民的床发给他
-        EntityTrackingEvents.START_TRACKING.register((trackedEntity, player) -> {
-            if (trackedEntity instanceof Villager villager) {
-                sendBed(player, villager.getId(), bedPosOf(villager));
-            }
-        });
     }
 
     /**

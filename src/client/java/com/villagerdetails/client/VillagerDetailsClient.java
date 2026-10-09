@@ -1,7 +1,7 @@
 package com.villagerdetails.client;
 
 import com.villagerdetails.client.feature.selection.BBSelectionHighlightRenderer;
-import com.villagerdetails.client.feature.selection.SelectionHighlightRenderer;
+import com.villagerdetails.client.feature.selection.EBSelectionHighlightRenderer;
 import com.villagerdetails.client.feature.villagerbed.VillagerBedLineRenderer;
 import com.villagerdetails.client.network.ClientChannels;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
@@ -20,7 +20,7 @@ public class VillagerDetailsClient implements ClientModInitializer {
         // 所有同步包的客户端接收器（村民床缓存、逐条配置数据、规则状态）
         ClientChannels.registerAll();
 
-        SelectionHighlightRenderer.register();
+        EBSelectionHighlightRenderer.register();
 
         BBSelectionHighlightRenderer.register();
     }

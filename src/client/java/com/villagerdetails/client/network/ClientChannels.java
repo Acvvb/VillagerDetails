@@ -5,7 +5,8 @@ import com.villagerdetails.client.network.sync.*;
 /**
  * 所有同步通道的<b>唯一注册入口</b>（客户端侧）。
  *
- * <p>和 {@code ServerChannels} 一一对应：那边注册「包类型 + 服务端收发」，这边只补客户端的收包。
+ * <p>和 {@code ServerChannels} 一一对应：那边扫包注册「包类型 + 服务端收包 + 服务端事件」，
+ * 这边只补客户端的收包（客户端通道不在服务端的扫包目录里，所以还是在这里手动登记）。
  * 客户端类都是 {@code XxxClientChannel extends XxxChannel implements ClientReceiver<…>}，
  * 既继承服务端的定义，又白拿客户端的收包 / 发包。
  */

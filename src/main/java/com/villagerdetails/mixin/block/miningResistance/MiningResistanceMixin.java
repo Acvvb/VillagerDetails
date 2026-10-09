@@ -2,7 +2,7 @@ package com.villagerdetails.mixin.block.miningResistance;
 
 import com.villagerdetails.handler.block.collectable.CollectableHandler;
 import com.villagerdetails.handler.block.miningResistance.MiningResistanceHandler;
-import com.villagerdetails.network.sync.BlockRuleSyncChannel;
+import com.villagerdetails.network.sync.clientbound.BlockRuleSyncChannel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;

@@ -1,9 +1,12 @@
-package com.villagerdetails.network.sync;
+package com.villagerdetails.network.sync.receiver;
 
 import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.network.channel.SyncChannel;
-import com.villagerdetails.rule.type.RuleDataKind;
+import com.villagerdetails.network.channel.PayloadId;
+import com.villagerdetails.network.channel.ServerReceiver;
+import com.villagerdetails.network.sync.payload.serverbound.RuleDataPayload;
+import com.villagerdetails.network.sync.clientbound.BlockRuleSyncChannel;
 import com.villagerdetails.rule.registry.RuleDataRegistry;
+import com.villagerdetails.rule.type.RuleDataKind;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -12,26 +15,31 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * 客户端改「服务器配置项」的逐条数据：客户端 → 服务端。
+ * 客户端改「服务器配置项」的逐条数据：等价于 {@code /ec c <规则> ...}。
+ *
+ * <p>包的收发定义在 {@code network.sync.serverbound.RuleDataChannel}，这里只管收到之后干什么。
+ * 放在 {@code network.sync.receiver} 包下 = 自动注册。
  *
  * <p>支持哪些规则、值怎么校验，全部查 {@link RuleDataRegistry}（和同步用的是同一张表），
  * 所以客户端只要照着同步下来的标识渲染，服务端这边就不会漏校验。
  * 改完广播一次方块规则同步，所有客户端界面跟着刷新。
- *
- * <p>包 id：{@code villagerdetails:rule_data}
  */
-public final class RuleDataChannel extends SyncChannel<RuleDataPayload> {
+public final class RuleDataReceiver implements ServerReceiver<RuleDataPayload> {
 
-    private static final Logger LOGGER = LogManager.getLogger(RuleDataChannel.class);
+    private static final Logger LOGGER = LogManager.getLogger(RuleDataReceiver.class);
 
-    public static final RuleDataChannel INSTANCE = new RuleDataChannel();
+    public static final RuleDataReceiver INSTANCE = new RuleDataReceiver();
 
-    private RuleDataChannel() {
-        super(RuleDataPayload.ID, RuleDataPayload.CODEC);
+    private RuleDataReceiver() {
     }
 
     @Override
-    protected void handleServer(ServerPlayer player, RuleDataPayload payload) {
+    public PayloadId<RuleDataPayload> id() {
+        return RuleDataPayload.ID;
+    }
+
+    @Override
+    public void handle(ServerPlayer player, RuleDataPayload payload) {
         if (player == null) {
             return;
         }

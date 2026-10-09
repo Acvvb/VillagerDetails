@@ -2,8 +2,8 @@ package com.villagerdetails.client.network.sync;
 
 import com.villagerdetails.client.feature.villagerbed.VillagerBedHelper;
 import com.villagerdetails.client.network.channel.ClientReceiver;
-import com.villagerdetails.network.sync.VillagerBedPayload;
-import com.villagerdetails.network.sync.VillagerBedSyncChannel;
+import com.villagerdetails.network.sync.payload.clientbound.VillagerBedPayload;
+import com.villagerdetails.network.sync.clientbound.VillagerBedSyncChannel;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
