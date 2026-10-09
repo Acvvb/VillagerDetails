@@ -1,17 +1,19 @@
 package com.villagerdetails.config.impl;
 
-import com.google.gson.*;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.command.SwitchComponentType;
 import com.villagerdetails.config.ReloadableConfig;
+import com.villagerdetails.config.impl.util.ConfigPaths;
+import com.villagerdetails.config.impl.util.JsonIO;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.level.storage.LevelResource;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -20,20 +22,26 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 每个存档一份的规则绑定配置，以 JSON 文件形式保存在存档根目录下：
- *   <world>/villager_details_binding.json
+ * <world>/villager_details_binding.json
  * <p>
  * 与 SavedData 相比：
- *   · 人类可读、可手动编辑
- *   · 不依赖 NBT / Codec / DataFixTypes
- *   · 需要自己管理加载、保存、服务器关闭时的刷盘
+ * · 人类可读、可手动编辑
+ * · 不依赖 NBT / Codec / DataFixTypes
+ * · 需要自己管理加载、保存、服务器关闭时的刷盘
  */
 public class RuleConfig implements ReloadableConfig {
 
     public static final RuleConfig INSTANCE = new RuleConfig();
 
-    private RuleConfig() { this.filePath = null; }
+    private RuleConfig() {
+        this.filePath = null;
+    }
 
-    @Override public String configName() { return "RuleConfig"; }
+    @Override
+    public String configName() {
+        return "RuleConfig";
+    }
+
     @Override
     public void reload(MinecraftServer server) {
         RuleCache.setServer(server);
@@ -43,7 +51,9 @@ public class RuleConfig implements ReloadableConfig {
 
     private static final Logger log = LogManager.getLogger(RuleConfig.class);
 
-    /** 文件名（放在存档根目录） */
+    /**
+     * 文件名（放在存档根目录）
+     */
     private static final String FILE_NAME = "villager_details_binding.json";
 
     private static final Gson GSON = new GsonBuilder()
@@ -51,7 +61,9 @@ public class RuleConfig implements ReloadableConfig {
             .disableHtmlEscaping()
             .create();
 
-    /** 按服务器实例缓存，避免每次调用都读盘 */
+    /**
+     * 按服务器实例缓存，避免每次调用都读盘
+     */
     private static final Map<MinecraftServer, RuleConfig> INSTANCES = new ConcurrentHashMap<>();
 
     private final Path filePath;
@@ -68,15 +80,16 @@ public class RuleConfig implements ReloadableConfig {
 
     public static RuleConfig getOrCreate(MinecraftServer server) {
         return INSTANCES.computeIfAbsent(server, s -> {
-            Path worldRoot = s.getWorldPath(LevelResource.ROOT);
-            Path path = worldRoot.resolve(FILE_NAME);
+            Path path = ConfigPaths.world(s, FILE_NAME);
             RuleConfig config = new RuleConfig(path);
             config.load();
             return config;
         });
     }
 
-    /** 在服务器停止事件里调用，把未落盘的改动写回文件 */
+    /**
+     * 在服务器停止事件里调用，把未落盘的改动写回文件
+     */
     public static void onServerStopping(MinecraftServer server) {
         RuleConfig config = INSTANCES.remove(server);
         if (config != null) {
@@ -89,40 +102,29 @@ public class RuleConfig implements ReloadableConfig {
     // ------------------------------------------------------------------
 
     private void load() {
-        if (filePath == null || !Files.exists(filePath)) {
-            return;
-        }
+        if (filePath == null) return;
         try {
-            String json = Files.readString(filePath);
-            JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
-            for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
-                if (entry.getValue().isJsonPrimitive()) {
-                    bindingStates.put(entry.getKey(), entry.getValue().getAsString());
+            JsonObject obj = JsonIO.readObject(filePath);
+            for (Map.Entry<String, JsonElement> e : obj.entrySet()) {
+                if (e.getValue().isJsonPrimitive()) {
+                    bindingStates.put(e.getKey(), e.getValue().getAsString());
                 }
             }
-            log.info("已从 {} 加载绑定配置（{} 项）", filePath, bindingStates.size());
-        } catch (IOException | JsonParseException e) {
+            if (!bindingStates.isEmpty()) {
+                log.info("已从 {} 加载绑定配置（{} 项）", filePath, bindingStates.size());
+            }
+        } catch (Exception e) {
             log.error("读取绑定配置失败：{}", filePath, e);
         }
     }
 
     public void save() {
-        if (!dirty) {
-            return;
-        }
-        try {
-            if (filePath != null) {
-                Files.createDirectories(filePath.getParent());
-                JsonObject obj = new JsonObject();
-                for (Map.Entry<String, String> entry : bindingStates.entrySet()) {
-                    obj.addProperty(entry.getKey(), entry.getValue());
-                }
-                Files.writeString(filePath, GSON.toJson(obj));
-                dirty = false;
-            }
-        } catch (IOException e) {
-            log.error("[VillagerDetails] 写入绑定配置失败：{}", filePath, e);
-        }
+        if (!dirty || filePath == null) return;
+
+        JsonObject obj = new JsonObject();
+        bindingStates.forEach(obj::addProperty);
+        JsonIO.safeWrite(filePath, obj);
+        dirty = false;
     }
 
     private void markDirty() {

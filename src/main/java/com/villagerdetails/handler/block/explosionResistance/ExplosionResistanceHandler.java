@@ -1,7 +1,7 @@
 package com.villagerdetails.handler.block.explosionResistance;
 
 import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.config.impl.BlockExplosionResistanceConfig;
+import com.villagerdetails.config.impl.section.item.BlockExplosionResistanceConfig;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.world.level.block.Block;
 
@@ -19,6 +19,6 @@ public final class ExplosionResistanceHandler {
      */
     public static Float getOverride(Block block) {
         if (!RuleCache.isEnabled(RuleType.BLOCK_EXPLOSION_RESISTANCE)) return null;
-        return BlockExplosionResistanceConfig.get(block);
+        return BlockExplosionResistanceConfig.INSTANCE.get(block);
     }
 }

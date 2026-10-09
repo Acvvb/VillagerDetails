@@ -2,7 +2,7 @@ package com.villagerdetails.command.c.impl.rule;
 
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.command.c.impl.suggestion.BlockSuggestionData;
-import com.villagerdetails.config.impl.BlockMiningResistanceConfig;
+import com.villagerdetails.config.impl.section.item.BlockMiningResistanceConfig;
 import com.villagerdetails.network.sync.BlockRuleSyncChannel;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.resources.Identifier;
@@ -57,17 +57,17 @@ public final class BlockMiningResistanceServerImpl extends AbstractBlockResistan
 
     @Override
     protected void put(Identifier id, float value) {
-        BlockMiningResistanceConfig.put(id, value);
+        BlockMiningResistanceConfig.INSTANCE.put(id, value);
     }
 
     @Override
     protected void reset() {
-        BlockMiningResistanceConfig.reset();
+        BlockMiningResistanceConfig.INSTANCE.reset();
     }
 
     @Override
     protected Map<Identifier, Float> snapshot() {
-        return BlockMiningResistanceConfig.snapshot();
+        return BlockMiningResistanceConfig.INSTANCE.snapshot();
     }
 
     @Override

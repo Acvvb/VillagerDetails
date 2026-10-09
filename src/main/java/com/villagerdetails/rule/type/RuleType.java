@@ -4,7 +4,7 @@ import com.villagerdetails.command.c.impl.rule.*;
 import com.villagerdetails.command.c.server.RegisterServer;
 import com.villagerdetails.command.c.server.RegisterTypeServer;
 import com.villagerdetails.command.c.server.StateSuggestionServer;
-import com.villagerdetails.config.impl.ServerLangConfig;
+import com.villagerdetails.config.impl.section.item.ServerLangConfig;
 import com.villagerdetails.event.type.ListenerType;
 import com.villagerdetails.lang.ServerTranslations;
 import net.minecraft.commands.CommandSourceStack;

@@ -1,6 +1,8 @@
 package com.villagerdetails.config;
 
-import com.villagerdetails.config.impl.*;
+import com.villagerdetails.config.impl.IdTranslationConfig;
+import com.villagerdetails.config.impl.RuleConfig;
+import com.villagerdetails.config.impl.UnifiedConfigFile;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,12 +24,8 @@ public final class ConfigRegistry {
     // 静态注册——此时 REGISTRY 已经初始化
     static {
         register(IdTranslationConfig.INSTANCE);
-        register(ServerLangConfig.INSTANCE);
         register(RuleConfig.INSTANCE);
-        register(BlockMiningResistanceConfig.INSTANCE);
-        register(BlockCollectableConfig.INSTANCE);
-        register(BlockExplosionResistanceConfig.INSTANCE);
-        register(NoSqueezeConfig.INSTANCE);
+        register(UnifiedConfigFile.INSTANCE);
     }
 
     public static synchronized void register(ReloadableConfig config) {

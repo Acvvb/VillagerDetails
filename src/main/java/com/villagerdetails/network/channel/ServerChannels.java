@@ -31,6 +31,8 @@ public final class ServerChannels {
         VillagerBedSyncChannel.INSTANCE.registerClientbound();
         BlockRuleSyncChannel.INSTANCE.registerClientbound();
         ServerRuleSyncChannel.INSTANCE.registerClientbound();
+        EBSyncChannel.INSTANCE.registerClientbound();
+        BBSyncChannel.INSTANCE.registerClientbound();
 
         // 客户端 → 服务端
         ServerRuleRequestChannel.INSTANCE.registerServerbound();

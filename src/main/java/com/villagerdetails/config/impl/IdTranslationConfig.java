@@ -1,19 +1,15 @@
 package com.villagerdetails.config.impl;
 
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.villagerdetails.config.ReloadableConfig;
+import com.villagerdetails.config.impl.util.ConfigPaths;
+import com.villagerdetails.config.impl.util.JsonIO;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.level.storage.LevelResource;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.Reader;
-import java.io.Writer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -22,18 +18,28 @@ import java.util.Map;
 
 public final class IdTranslationConfig implements ReloadableConfig {
 
-    private IdTranslationConfig() {}
+    private IdTranslationConfig() {
+    }
 
     private static final Logger log = LogManager.getLogger(IdTranslationConfig.class);
 
 
     public static final IdTranslationConfig INSTANCE = new IdTranslationConfig();
 
-    @Override public String configName() { return "TradeIndexConfig"; }
-    @Override public void reload(MinecraftServer server) { loadFromWorld(server); }
+    @Override
+    public String configName() {
+        return "TradeIndexConfig";
+    }
+
+    @Override
+    public void reload(MinecraftServer server) {
+        loadFromWorld(server);
+    }
 
 
-    /** 存档内相对路径 */
+    /**
+     * 存档内相对路径
+     */
     private static final String SAVE_RELATIVE_PATH = "villagerdetails/id_mappings.json";
 
     private static final Map<String, String> DEFAULT_CN_TO_ENCHANT = Map.ofEntries(
@@ -138,51 +144,45 @@ public final class IdTranslationConfig implements ReloadableConfig {
      */
     public static void loadFrom(Path file) {
         if (Files.exists(file)) {
-            Map<String, String> enchant = new LinkedHashMap<>();
-            Map<String, String> item = new LinkedHashMap<>();
-            boolean loaded = false;
+            try {
+                JsonObject root = JsonIO.readObject(file);
 
-            try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-                JsonElement rootElement = JsonParser.parseReader(reader);
-                if (rootElement != null && rootElement.isJsonObject()) {
-                    JsonObject root = rootElement.getAsJsonObject();
-                    mergeInto(root.getAsJsonObject("enchant"), enchant);
-                    mergeInto(root.getAsJsonObject("item"), item);
-                    loaded = true;
-                    log.info("已加载映射配置：{} 条附魔 + {} 条物品",
-                            enchant.size(), item.size());
-                }
+                Map<String, String> enchant = new LinkedHashMap<>();
+                Map<String, String> item = new LinkedHashMap<>();
+                mergeInto(root.getAsJsonObject("enchant"), enchant);
+                mergeInto(root.getAsJsonObject("item"), item);
+
+                cnToEnchant = Collections.unmodifiableMap(enchant);
+                cnToItem = Collections.unmodifiableMap(item);
+                log.info("已加载映射配置：{} 条附魔 + {} 条物品", enchant.size(), item.size());
+                return;
             } catch (Exception e) {
                 log.error("加载映射配置失败，回落默认表", e);
             }
-
-            if (loaded) {
-                cnToEnchant = Collections.unmodifiableMap(enchant);
-                cnToItem = Collections.unmodifiableMap(item);
-                return;
-            }
         } else {
-            // 首次：写默认到存档
             writeDefaults(file);
             log.info("已生成默认映射配置：{}", file);
         }
-
-        // json 不存在 / 解析失败 → 用默认表兜底
         cnToEnchant = DEFAULT_CN_TO_ENCHANT;
         cnToItem = DEFAULT_CN_TO_ITEM;
     }
 
-    /** 重置为默认（可通过命令调用） */
+
+    /**
+     * 重置为默认（可通过命令调用）
+     */
     public static void resetToDefault() {
         cnToEnchant = DEFAULT_CN_TO_ENCHANT;
         cnToItem = DEFAULT_CN_TO_ITEM;
     }
 
     private static Path getConfigPath(MinecraftServer server) {
-        return server.getWorldPath(LevelResource.ROOT).resolve(SAVE_RELATIVE_PATH);
+        return ConfigPaths.world(server, SAVE_RELATIVE_PATH);
     }
 
-    /** 把 JSON 里的键值对合并到目标 map（覆盖默认值） */
+    /**
+     * 把 JSON 里的键值对合并到目标 map（覆盖默认值）
+     */
     private static void mergeInto(JsonObject obj, Map<String, String> target) {
         if (obj == null) return;
         for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
@@ -196,30 +196,21 @@ public final class IdTranslationConfig implements ReloadableConfig {
         }
     }
 
-    /** 把默认映射写入文件 */
+    /**
+     * 把默认映射写入文件
+     */
     private static void writeDefaults(Path file) {
-        try {
-            if (file.getParent() != null) {
-                Files.createDirectories(file.getParent());
-            }
+        JsonObject root = new JsonObject();
 
-            JsonObject root = new JsonObject();
+        JsonObject enchantObj = new JsonObject();
+        DEFAULT_CN_TO_ENCHANT.forEach(enchantObj::addProperty);
+        root.add("enchant", enchantObj);
 
-            JsonObject enchantObj = new JsonObject();
-            IdTranslationConfig.DEFAULT_CN_TO_ENCHANT.forEach(enchantObj::addProperty);
-            root.add("enchant", enchantObj);
+        JsonObject itemObj = new JsonObject();
+        DEFAULT_CN_TO_ITEM.forEach(itemObj::addProperty);
+        root.add("item", itemObj);
 
-            JsonObject itemObj = new JsonObject();
-            IdTranslationConfig.DEFAULT_CN_TO_ITEM.forEach(itemObj::addProperty);
-            root.add("item", itemObj);
-
-            try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
-                new GsonBuilder().setPrettyPrinting().disableHtmlEscaping()
-                        .create().toJson(root, writer);
-            }
-        } catch (Exception e) {
-            log.error("写入默认映射配置失败", e);
-        }
+        JsonIO.safeWrite(file, root);
     }
 
     // ==============================================================

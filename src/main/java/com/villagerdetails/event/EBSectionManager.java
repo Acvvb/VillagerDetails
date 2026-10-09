@@ -4,6 +4,8 @@ import com.villagerdetails.cache.EBSelectionStateCache;
 import com.villagerdetails.handler.binding.BindHandler;
 import com.villagerdetails.handler.binding.BindingUtil;
 import com.villagerdetails.handler.binding.type.BindingType;
+import com.villagerdetails.network.sync.EBSyncChannel;
+import com.villagerdetails.network.sync.EBSyncPayload;
 import com.villagerdetails.util.SendMessengerUtils;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
@@ -48,9 +50,13 @@ public class EBSectionManager {
         UUID entityUuid = entity.getUUID();
         EBSelectionStateCache.selectEntity(playerUuid, entityUuid);
 
+        // 状态变了，推给客户端（此时方块可能还没选，payload 里对应字段为 null）
+        syncTo(serverPlayer, playerUuid);
+
         // 实体 + 方块都已选中 → 触发绑定
         if (EBSelectionStateCache.isComplete(playerUuid)) {
             BindHandler.chooseUtil(level, player, hand);
+            clearClientHighlight(serverPlayer);
             return InteractionResult.SUCCESS;
         }
 
@@ -77,9 +83,13 @@ public class EBSectionManager {
         BlockPos clickedPos = hitResult.getBlockPos();
         EBSelectionStateCache.selectBlock(playerUuid, clickedPos);
 
+        // 状态变了，推给客户端（此时实体可能还没选，payload 里对应字段为 null）
+        syncTo(serverPlayer, playerUuid);
+
         // 实体 + 方块都已选中 → 触发绑定
         if (EBSelectionStateCache.isComplete(playerUuid)) {
             BindHandler.chooseUtil(level, player, hand);
+            clearClientHighlight(serverPlayer);
             return InteractionResult.SUCCESS;
         }
 
@@ -92,5 +102,28 @@ public class EBSectionManager {
                 )
         );
         return InteractionResult.SUCCESS;
+    }
+
+    /**
+     * 把该玩家「当前完整选择状态」推给客户端（用于客户端高亮）。
+     *
+     * <p>从缓存里读，不接收外部变量 —— {@code selectEntity} / {@code selectBlock}
+     * 已经把值写进去了，这里只管读出来发。
+     */
+    private static void syncTo(ServerPlayer player, UUID playerUuid) {
+        EBSyncChannel.INSTANCE.sendTo(player, new EBSyncPayload(
+                EBSelectionStateCache.getSelectedEntity(playerUuid),
+                EBSelectionStateCache.getSelectedBlock(playerUuid)));
+    }
+
+    /**
+     * 通知客户端清空高亮。
+     *
+     * <p>不读缓存 —— {@code BindHandler.chooseUtil} 内部已经通过
+     * {@link EBSelectionStateCache#take(UUID)} 把状态消费掉了，此刻读缓存拿到的是 null，
+     * 但还是显式发一条 (null, null) 更直白。
+     */
+    private static void clearClientHighlight(ServerPlayer player) {
+        EBSyncChannel.INSTANCE.sendTo(player, new EBSyncPayload(null, null));
     }
 }

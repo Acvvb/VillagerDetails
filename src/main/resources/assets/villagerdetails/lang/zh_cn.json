@@ -207,5 +207,19 @@
   "command.portal_binding.failure.no_selection": "请先用拴绳选择一块区域。",
   "command.portal_binding.failure.incomplete": "需要先在主世界和地狱各执行一次 set，再执行 bind。",
   "setting.PortalBindingEnhanced": "地狱门增强绑定",
-  "setting.PortalBindingEnhanced.desc": "开启后，绑定传送不再检测目标位置是否有地狱门，直接传送到绑定坐标。"
+  "setting.PortalBindingEnhanced.desc": "开启后，绑定传送不再检测目标位置是否有地狱门，直接传送到绑定坐标。",
+  "villagerdetails.ui.option.selected_entity_color": "选中实体颜色",
+  "villagerdetails.ui.option.selected_entity_color.desc": "EB 选择器选中实体时，客户端高亮线框的颜色",
+  "villagerdetails.ui.option.selected_block_color": "选中方块颜色",
+  "villagerdetails.ui.option.selected_block_color.desc": "EB 选择器选中方块时，客户端高亮线框的颜色",
+  "villagerdetails.ui.option.render_selection_highlight": "选中高亮",
+  "villagerdetails.ui.option.render_selection_highlight.desc": "是否在客户端把 EB 选择器选中的实体 / 方块高亮出来（仅本机可见）",
+  "villagerdetails.ui.option.bb_pos1_color": "BB 第一角点颜色",
+  "villagerdetails.ui.option.bb_pos1_color.desc": "BB 选择器第一个方块的高亮颜色",
+  "villagerdetails.ui.option.bb_pos2_color": "BB 第二角点颜色",
+  "villagerdetails.ui.option.bb_pos2_color.desc": "BB 选择器第二个方块的高亮颜色",
+  "villagerdetails.ui.option.bb_box_color": "BB 区域颜色",
+  "villagerdetails.ui.option.bb_box_color.desc": "两个角点都选中时，围成的长方体高亮颜色",
+  "villagerdetails.ui.option.render_bb_highlight": "BB 选择高亮",
+  "villagerdetails.ui.option.render_bb_highlight.desc": "是否在客户端把 BB 选择器选中的方块 / 区域高亮出来（仅本机可见）"
 }

@@ -3,7 +3,7 @@ package com.villagerdetails.command.c.impl.rule;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.command.c.impl.base.AbstractRuleCommand;
 import com.villagerdetails.command.c.impl.suggestion.EntityIdSuggestionServer;
-import com.villagerdetails.config.impl.NoSqueezeConfig;
+import com.villagerdetails.config.impl.section.item.NoSqueezeConfig;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.resources.Identifier;
 
@@ -45,22 +45,22 @@ public final class NoSqueezeServerImpl extends AbstractRuleCommand {
 
     @Override
     protected void add(Identifier id) {
-        NoSqueezeConfig.add(id);
+        NoSqueezeConfig.INSTANCE.add(id);
     }
 
     @Override
     protected void remove(Identifier id) {
-        NoSqueezeConfig.remove(id);
+        NoSqueezeConfig.INSTANCE.remove(id);
     }
 
     @Override
     protected void resetConfig() {
-        NoSqueezeConfig.reset();
+        NoSqueezeConfig.INSTANCE.reset();
     }
 
     @Override
     protected List<Identifier> snapshot() {
-        return NoSqueezeConfig.snapshot();
+        return NoSqueezeConfig.INSTANCE.snapshot();
     }
 
     @Override

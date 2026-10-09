@@ -4,7 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.villagerdetails.VillagerDetails;
-import com.villagerdetails.config.impl.ServerLangConfig;
+import com.villagerdetails.config.impl.section.item.ServerLangConfig;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.contents.KeybindContents;
@@ -26,37 +26,48 @@ import java.util.concurrent.ConcurrentHashMap;
  * 服务端独立翻译系统——不碰原版 Language.instance，完全隔离。
  * <p>
  * 模拟原版 {@link net.minecraft.locale.Language} 的行为：
- *   · 加载 lang json 到 map
- *   · Component 递归解析（PlainText / Translatable / Keybind / Score / Nbt / Selector）
- *   · 支持运行时切换语言
+ * · 加载 lang json 到 map
+ * · Component 递归解析（PlainText / Translatable / Keybind / Score / Nbt / Selector）
+ * · 支持运行时切换语言
  */
 public final class ServerTranslations {
 
-    private ServerTranslations() {}
+    private ServerTranslations() {
+    }
 
     private static final Logger log = LogManager.getLogger(ServerTranslations.class);
 
     private static final List<String> MODS = List.of(VillagerDetails.MOD_ID);
 
-    /** 每个 key 在 json 里查找的路径前缀 */
+    /**
+     * 每个 key 在 json 里查找的路径前缀
+     */
     private static final String LANG_PATH_PREFIX = "/assets/";
     private static final String LANG_PATH_MIDDLE = "/lang/";
     private static final String LANG_PATH_SUFFIX = ".json";
 
-    /** 当前语言代码 */
+    /**
+     * 当前语言代码
+     */
     private static volatile String currentLang = "en_us";
 
-    /** 已加载的所有语言的翻译表：lang → (key → text) */
+    /**
+     * 已加载的所有语言的翻译表：lang → (key → text)
+     */
     private static final Map<String, Map<String, String>> ALL_LANGUAGES = new ConcurrentHashMap<>();
 
-    /** 当前生效的翻译表 */
+    /**
+     * 当前生效的翻译表
+     */
     private static volatile Map<String, String> current = Map.of();
 
     // ==============================================================
     // 初始化 & 切换
     // ==============================================================
 
-    /** 预加载所有可用语言（服务器启动时调一次） */
+    /**
+     * 预加载所有可用语言（服务器启动时调一次）
+     */
     public static void preloadAll() {
         for (String lang : ServerLangConfig.getPreloadLanguages()) {
             preload(lang);
@@ -94,7 +105,9 @@ public final class ServerTranslations {
         });
     }
 
-    /** 切换语言（如果没预加载会自动加载） */
+    /**
+     * 切换语言（如果没预加载会自动加载）
+     */
     public static void switchTo(String lang) {
         if (lang == null || lang.isEmpty()) return;
 
@@ -207,11 +220,11 @@ public final class ServerTranslations {
      * 把 Component 翻译成"可直接发送"的 MutableComponent。
      * <p>
      * 规则：
-     *   · 服务端表里有 key → 用模板渲染
-     *       - 模板里的 Component 参数：保留结构，客户端翻译
-     *       - 模板里的 String 参数：按 § 颜色继承，直接拼进字面量
-     *   · 服务端表里没有 key → 原样保留 translatable，交给客户端翻译
-     *   · 样式（ClickEvent / HoverEvent / 颜色 / 加粗）整套搬运
+     * · 服务端表里有 key → 用模板渲染
+     * - 模板里的 Component 参数：保留结构，客户端翻译
+     * - 模板里的 String 参数：按 § 颜色继承，直接拼进字面量
+     * · 服务端表里没有 key → 原样保留 translatable，交给客户端翻译
+     * · 样式（ClickEvent / HoverEvent / 颜色 / 加粗）整套搬运
      */
     public static MutableComponent translateComponent(Component src) {
         if (src == null) return Component.empty();

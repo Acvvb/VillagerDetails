@@ -49,6 +49,33 @@ public enum ConfigEntryType implements ConfigRow {
             FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_COLOR, "#FF4D4D", "",
             BindingServer.color()),
 
+    SELECTED_ENTITY_COLOR("SelectedEntityColor",
+            "villagerdetails.ui.option.selected_entity_color",
+            "villagerdetails.ui.option.selected_entity_color.desc",
+            FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_COLOR, "#FFD54F", "",
+            BindingServer.color()),
+
+    SELECTED_BLOCK_COLOR("SelectedBlockColor",
+            "villagerdetails.ui.option.selected_block_color",
+            "villagerdetails.ui.option.selected_block_color.desc",
+            FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_COLOR, "#4FC3F7", "",
+            BindingServer.color()),
+
+    BB_POS1_COLOR("BBPos1Color",
+            "villagerdetails.ui.option.bb_pos1_color", "villagerdetails.ui.option.bb_pos1_color.desc",
+            FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_COLOR, "#4FC3F7", "",
+            BindingServer.color()),
+
+    BB_POS2_COLOR("BBPos2Color",
+            "villagerdetails.ui.option.bb_pos2_color", "villagerdetails.ui.option.bb_pos2_color.desc",
+            FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_COLOR, "#FFD54F", "",
+            BindingServer.color()),
+
+    BB_BOX_COLOR("BBBoxColor",
+            "villagerdetails.ui.option.bb_box_color", "villagerdetails.ui.option.bb_box_color.desc",
+            FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_COLOR, "#9C27B0", "",
+            BindingServer.color()),
+
     // ---------------- 配置项 / 滑块 ----------------
 
     LINE_WIDTH("LineWidth",
@@ -73,6 +100,18 @@ public enum ConfigEntryType implements ConfigRow {
     RENDER_BED_LINE("RenderBedLine",
             "villagerdetails.ui.option.render_bed_line", "villagerdetails.ui.option.render_bed_line.desc",
             FirstCategoryType.TOGGLES, SecondCategoryType.TOGGLE_VILLAGER, "false", "",
+            BindingServer.toggle()),
+
+    RENDER_SELECTION_HIGHLIGHT("RenderSelectionHighlight",
+            "villagerdetails.ui.option.render_selection_highlight",
+            "villagerdetails.ui.option.render_selection_highlight.desc",
+            FirstCategoryType.TOGGLES, SecondCategoryType.TOGGLE_VILLAGER, "true", "",
+            BindingServer.toggle()),
+
+    RENDER_BB_HIGHLIGHT("RenderBBHighlight",
+            "villagerdetails.ui.option.render_bb_highlight",
+            "villagerdetails.ui.option.render_bb_highlight.desc",
+            FirstCategoryType.TOGGLES, SecondCategoryType.TOGGLE_VILLAGER, "true", "",
             BindingServer.toggle()),
     ;
 

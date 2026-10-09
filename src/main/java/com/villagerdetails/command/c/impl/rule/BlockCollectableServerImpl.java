@@ -3,7 +3,7 @@ package com.villagerdetails.command.c.impl.rule;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.command.c.impl.base.AbstractRuleCommand;
 import com.villagerdetails.command.c.impl.suggestion.BlockSuggestionData;
-import com.villagerdetails.config.impl.BlockCollectableConfig;
+import com.villagerdetails.config.impl.section.item.BlockCollectableConfig;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.resources.Identifier;
 
@@ -50,22 +50,22 @@ public final class BlockCollectableServerImpl extends AbstractRuleCommand {
 
     @Override
     protected void add(Identifier id) {
-        BlockCollectableConfig.add(id);
+        BlockCollectableConfig.INSTANCE.add(id);
     }
 
     @Override
     protected void remove(Identifier id) {
-        BlockCollectableConfig.remove(id);
+        BlockCollectableConfig.INSTANCE.remove(id);
     }
 
     @Override
     protected void resetConfig() {
-        BlockCollectableConfig.reset();
+        BlockCollectableConfig.INSTANCE.reset();
     }
 
     @Override
     protected List<Identifier> snapshot() {
-        return BlockCollectableConfig.snapshot();
+        return BlockCollectableConfig.INSTANCE.snapshot();
     }
 
     @Override

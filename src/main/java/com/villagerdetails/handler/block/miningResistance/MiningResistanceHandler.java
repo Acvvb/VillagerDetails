@@ -1,7 +1,7 @@
 package com.villagerdetails.handler.block.miningResistance;
 
 import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.config.impl.BlockMiningResistanceConfig;
+import com.villagerdetails.config.impl.section.item.BlockMiningResistanceConfig;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.world.level.block.Block;
 
@@ -19,6 +19,6 @@ public final class MiningResistanceHandler {
      */
     public static Float getOverride(Block block) {
         if (!RuleCache.isEnabled(RuleType.BLOCK_MINING_RESISTANCE)) return null;
-        return BlockMiningResistanceConfig.get(block);
+        return BlockMiningResistanceConfig.INSTANCE.get(block);
     }
 }

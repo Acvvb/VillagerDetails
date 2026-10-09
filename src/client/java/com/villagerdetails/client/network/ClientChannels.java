@@ -1,8 +1,6 @@
 package com.villagerdetails.client.network;
 
-import com.villagerdetails.client.network.sync.BlockRuleClientChannel;
-import com.villagerdetails.client.network.sync.ServerRuleClientChannel;
-import com.villagerdetails.client.network.sync.VillagerBedClientChannel;
+import com.villagerdetails.client.network.sync.*;
 
 /**
  * 所有同步通道的<b>唯一注册入口</b>（客户端侧）。
@@ -16,15 +14,22 @@ public final class ClientChannels {
     private ClientChannels() {
     }
 
-    /** 注册客户端接收器；客户端初始化时调一次 */
+    /**
+     * 注册客户端接收器；客户端初始化时调一次
+     */
     public static void registerAll() {
         VillagerBedClientChannel.INSTANCE.registerClientReceiver();
         BlockRuleClientChannel.INSTANCE.registerClientReceiver();
         ServerRuleClientChannel.INSTANCE.registerClientReceiver();
+        EBSyncClientChannel.INSTANCE.registerClientReceiver();
+        BBSyncClientChannel.INSTANCE.registerClientReceiver();
 
         // 各通道自己的客户端事件（实体卸载清理、断线清空状态）
         VillagerBedClientChannel.INSTANCE.registerClientEvents();
         BlockRuleClientChannel.INSTANCE.registerClientEvents();
         ServerRuleClientChannel.INSTANCE.registerClientEvents();
+        EBSyncClientChannel.INSTANCE.registerClientEvents();
+        BBSyncClientChannel.INSTANCE.registerClientEvents();
+
     }
 }

@@ -1,7 +1,7 @@
 package com.villagerdetails.handler.block.collectable;
 
 import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.config.impl.BlockCollectableConfig;
+import com.villagerdetails.config.impl.section.item.BlockCollectableConfig;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.world.level.block.Block;
 
@@ -11,7 +11,9 @@ import net.minecraft.world.level.block.Block;
  */
 public final class CollectableHandler {
 
-    /** 被「可采集」规则点名、但原版不可破坏的方块，统一给这个默认破坏时间，使其可被挖掘。 */
+    /**
+     * 被「可采集」规则点名、但原版不可破坏的方块，统一给这个默认破坏时间，使其可被挖掘。
+     */
     public static final float DEFAULT_BREAKABLE_SPEED = 1.5f;
 
     private CollectableHandler() {
@@ -22,7 +24,7 @@ public final class CollectableHandler {
      */
     public static boolean isConfigured(Block block) {
         if (!RuleCache.isEnabled(RuleType.BLOCK_COLLECTABLE)) return false;
-        return BlockCollectableConfig.contains(block);
+        return BlockCollectableConfig.INSTANCE.contains(block);
     }
 
     /**
@@ -31,7 +33,7 @@ public final class CollectableHandler {
      */
     public static Float getBreakableOverride(Block block) {
         if (!RuleCache.isEnabled(RuleType.BLOCK_COLLECTABLE)) return null;
-        if (!BlockCollectableConfig.contains(block)) return null;
+        if (!BlockCollectableConfig.INSTANCE.contains(block)) return null;
         if (block.defaultDestroyTime() >= 0f) return null;
         return DEFAULT_BREAKABLE_SPEED;
     }

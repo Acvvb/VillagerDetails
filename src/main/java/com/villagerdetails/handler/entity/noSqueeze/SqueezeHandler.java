@@ -1,7 +1,7 @@
 package com.villagerdetails.handler.entity.noSqueeze;
 
 import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.config.impl.NoSqueezeConfig;
+import com.villagerdetails.config.impl.section.item.NoSqueezeConfig;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.world.entity.Entity;
 
@@ -26,6 +26,6 @@ public final class SqueezeHandler {
     public static boolean isProtected(Entity entity) {
         if (entity == null) return false;
         if (!RuleCache.isEnabled(RuleType.VILLAGER_NO_SQUEEZE)) return false;
-        return NoSqueezeConfig.contains(entity.getType());
+        return NoSqueezeConfig.INSTANCE.contains(entity.getType());
     }
 }

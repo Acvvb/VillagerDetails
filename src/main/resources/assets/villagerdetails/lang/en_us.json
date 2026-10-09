@@ -207,5 +207,19 @@
   "command.portal_binding.failure.no_selection": "Please select a region with a lead first.",
   "command.portal_binding.failure.incomplete": "Run 'set' in both Overworld and Nether before 'bind'.",
   "setting.PortalBindingEnhanced": "Enhanced Portal Binding",
-  "setting.PortalBindingEnhanced.desc": "When enabled, bound teleportation skips the target portal check and teleports directly to the bound coordinates."
+  "setting.PortalBindingEnhanced.desc": "When enabled, bound teleportation skips the target portal check and teleports directly to the bound coordinates.",
+  "villagerdetails.ui.option.selected_entity_color": "Selected Entity Color",
+  "villagerdetails.ui.option.selected_entity_color.desc": "Color of the client-side highlight box when the EB selector picks an entity",
+  "villagerdetails.ui.option.selected_block_color": "Selected Block Color",
+  "villagerdetails.ui.option.selected_block_color.desc": "Color of the client-side highlight box when the EB selector picks a block",
+  "villagerdetails.ui.option.render_selection_highlight": "Selection Highlight",
+  "villagerdetails.ui.option.render_selection_highlight.desc": "Whether to highlight the entity / block selected by the EB selector on the client (local only)",
+  "villagerdetails.ui.option.bb_pos1_color": "BB Pos1 Color",
+  "villagerdetails.ui.option.bb_pos1_color.desc": "Highlight color of the first BB selector corner",
+  "villagerdetails.ui.option.bb_pos2_color": "BB Pos2 Color",
+  "villagerdetails.ui.option.bb_pos2_color.desc": "Highlight color of the second BB selector corner",
+  "villagerdetails.ui.option.bb_box_color": "BB Region Color",
+  "villagerdetails.ui.option.bb_box_color.desc": "Highlight color of the region box when both corners are selected",
+  "villagerdetails.ui.option.render_bb_highlight": "BB Selection Highlight",
+  "villagerdetails.ui.option.render_bb_highlight.desc": "Whether to highlight the BB selector's block / region on the client (local only)"
 }

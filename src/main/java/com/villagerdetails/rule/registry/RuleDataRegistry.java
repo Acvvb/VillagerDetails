@@ -1,9 +1,9 @@
 package com.villagerdetails.rule.registry;
 
-import com.villagerdetails.config.impl.BlockCollectableConfig;
-import com.villagerdetails.config.impl.BlockExplosionResistanceConfig;
-import com.villagerdetails.config.impl.BlockMiningResistanceConfig;
-import com.villagerdetails.config.impl.NoSqueezeConfig;
+import com.villagerdetails.config.impl.section.item.BlockCollectableConfig;
+import com.villagerdetails.config.impl.section.item.BlockExplosionResistanceConfig;
+import com.villagerdetails.config.impl.section.item.BlockMiningResistanceConfig;
+import com.villagerdetails.config.impl.section.item.NoSqueezeConfig;
 import com.villagerdetails.rule.type.RuleDataKind;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -69,27 +69,37 @@ public final class RuleDataRegistry {
 
     private static final List<Entry> ENTRIES = List.of(
             new Entry(RuleType.VILLAGER_NO_SQUEEZE, RuleDataKind.ENTITY_LIST,
-                    new DataStore(NoSqueezeConfig::toSyncString, NoSqueezeConfig::applyFromSyncString,
-                            (id, value) -> NoSqueezeConfig.add(id),
-                            NoSqueezeConfig::remove, NoSqueezeConfig::reset),
+                    new DataStore(NoSqueezeConfig.INSTANCE::toSyncString,
+                            NoSqueezeConfig.INSTANCE::applyFromSyncString,
+                            (id, _) -> NoSqueezeConfig.INSTANCE.add(id),
+                            NoSqueezeConfig.INSTANCE::remove,
+                            NoSqueezeConfig.INSTANCE::reset),
                     Block::defaultDestroyTime),
+
             new Entry(RuleType.BLOCK_COLLECTABLE, RuleDataKind.BLOCK_LIST,
-                    new DataStore(BlockCollectableConfig::toSyncString, BlockCollectableConfig::applyFromSyncString,
-                            (id, value) -> BlockCollectableConfig.add(id),
-                            BlockCollectableConfig::remove, BlockCollectableConfig::reset),
+                    new DataStore(BlockCollectableConfig.INSTANCE::toSyncString,
+                            BlockCollectableConfig.INSTANCE::applyFromSyncString,
+                            (id, _) -> BlockCollectableConfig.INSTANCE.add(id),
+                            BlockCollectableConfig.INSTANCE::remove,
+                            BlockCollectableConfig.INSTANCE::reset),
                     Block::defaultDestroyTime),
+
             new Entry(RuleType.BLOCK_MINING_RESISTANCE, RuleDataKind.BLOCK_NUMBER,
-                    new DataStore(BlockMiningResistanceConfig::toSyncString,
-                            BlockMiningResistanceConfig::applyFromSyncString,
-                            (id, value) -> BlockMiningResistanceConfig.put(id, Float.parseFloat(value)),
-                            BlockMiningResistanceConfig::remove, BlockMiningResistanceConfig::reset),
+                    new DataStore(BlockMiningResistanceConfig.INSTANCE::toSyncString,
+                            BlockMiningResistanceConfig.INSTANCE::applyFromSyncString,
+                            (id, value) -> BlockMiningResistanceConfig.INSTANCE.put(id, Float.parseFloat(value)),
+                            BlockMiningResistanceConfig.INSTANCE::remove,
+                            BlockMiningResistanceConfig.INSTANCE::reset),
                     Block::defaultDestroyTime),
+
             new Entry(RuleType.BLOCK_EXPLOSION_RESISTANCE, RuleDataKind.BLOCK_NUMBER,
-                    new DataStore(BlockExplosionResistanceConfig::toSyncString,
-                            BlockExplosionResistanceConfig::applyFromSyncString,
-                            (id, value) -> BlockExplosionResistanceConfig.put(id, Float.parseFloat(value)),
-                            BlockExplosionResistanceConfig::remove, BlockExplosionResistanceConfig::reset),
-                    Block::getExplosionResistance));
+                    new DataStore(BlockExplosionResistanceConfig.INSTANCE::toSyncString,
+                            BlockExplosionResistanceConfig.INSTANCE::applyFromSyncString,
+                            (id, value) -> BlockExplosionResistanceConfig.INSTANCE.put(id, Float.parseFloat(value)),
+                            BlockExplosionResistanceConfig.INSTANCE::remove,
+                            BlockExplosionResistanceConfig.INSTANCE::reset),
+                    Block::getExplosionResistance)
+    );
 
     private RuleDataRegistry() {
     }

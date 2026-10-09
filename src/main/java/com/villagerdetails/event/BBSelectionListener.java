@@ -1,6 +1,9 @@
 package com.villagerdetails.event;
 
+import com.villagerdetails.cache.BBSectionStateCache;
 import com.villagerdetails.handler.binding.bbselection.SelectionInteractionHandler;
+import com.villagerdetails.network.sync.BBSyncChannel;
+import com.villagerdetails.network.sync.BBSyncPayload;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.core.BlockPos;
@@ -28,20 +31,40 @@ public class BBSelectionListener {
         UseBlockCallback.EVENT.register(BBSelectionListener::onRightClickBlock);
     }
 
-    private static boolean onLeftClickBlock(Level level, Player player, BlockPos blockPos, BlockState blockState, @Nullable BlockEntity blockEntity) {
+    private static boolean onLeftClickBlock(Level level, Player player, BlockPos blockPos,
+                                            BlockState blockState, @Nullable BlockEntity blockEntity) {
         if (!(player instanceof ServerPlayer sp)) return true;
         if (!isEnableOfListener(sp, BLOCK_RANGE_SELECTION)) return true;
-        return !SelectionInteractionHandler.onLeftClickBlock(sp, blockPos);
+        boolean handled = SelectionInteractionHandler.onLeftClickBlock(sp, blockPos);
+        if (handled) {
+            syncTo(sp);          // ← 状态变了，推给客户端
+        }
+        return !handled;
     }
 
-    private static InteractionResult onRightClickBlock(Player player, Level level, InteractionHand interactionHand, BlockHitResult blockHitResult) {
+    private static InteractionResult onRightClickBlock(Player player, Level level,
+                                                       InteractionHand interactionHand,
+                                                       BlockHitResult blockHitResult) {
         if (!(player instanceof ServerPlayer sp)) return InteractionResult.PASS;
-        if (!isEnableOfListener(sp,BLOCK_RANGE_SELECTION)) return InteractionResult.PASS;
+        if (!isEnableOfListener(sp, BLOCK_RANGE_SELECTION)) return InteractionResult.PASS;
         if (interactionHand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
         if (blockHitResult.getType() != HitResult.Type.BLOCK) return InteractionResult.PASS;
         if (SelectionInteractionHandler.onRightClickBlock(sp, blockHitResult.getBlockPos())) {
+            syncTo(sp);          // ← 状态变了，推给客户端
             return InteractionResult.SUCCESS;
         }
         return InteractionResult.PASS;
+    }
+
+    /**
+     * 把该玩家当前的 pos1 / pos2 推给客户端（用于客户端高亮）。
+     *
+     * <p>从 {@link BBSectionStateCache} 读，不接收外部变量 ——
+     * {@code SelectionInteractionHandler} 已经把值写进去了。
+     */
+    private static void syncTo(ServerPlayer player) {
+        BBSyncChannel.INSTANCE.sendTo(player, new BBSyncPayload(
+                BBSectionStateCache.getPos1(player),
+                BBSectionStateCache.getPos2(player)));
     }
 }

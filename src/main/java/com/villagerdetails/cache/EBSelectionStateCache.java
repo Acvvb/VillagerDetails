@@ -64,6 +64,22 @@ public class EBSelectionStateCache {
     }
 
     /**
+     * 该玩家当前选中的实体 UUID；没选返回 null
+     */
+    public static UUID getSelectedEntity(UUID playerUuid) {
+        SelectionState state = STATES.get(playerUuid);
+        return state == null ? null : state.entityUuid();
+    }
+
+    /**
+     * 该玩家当前选中的方块坐标；没选返回 null
+     */
+    public static BlockPos getSelectedBlock(UUID playerUuid) {
+        SelectionState state = STATES.get(playerUuid);
+        return state == null ? null : state.blockPos();
+    }
+
+    /**
      * 一次选择：实体 UUID + 方块坐标，两者齐全即视为选择完成。
      */
     public record SelectionState(UUID entityUuid, BlockPos blockPos) {
