@@ -104,6 +104,16 @@ public interface ConfigRow {
     default void setKeyBind(int[] keys) {
     }
 
+    // ---------------- 触发（瞬时动作按钮） ----------------
+
+    /**
+     * 触发按钮点击 / 快捷键按下时执行的动作；不支持触发样式的行返回空操作。
+     */
+    default Runnable getAction() {
+        return () -> {
+        };
+    }
+
     // ---------------- 重置 / 落盘 ----------------
 
     /**

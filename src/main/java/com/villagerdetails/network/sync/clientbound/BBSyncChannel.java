@@ -1,7 +1,9 @@
 package com.villagerdetails.network.sync.clientbound;
 
+import com.villagerdetails.cache.BBSectionStateCache;
 import com.villagerdetails.network.channel.SyncChannel;
 import com.villagerdetails.network.sync.payload.clientbound.BBSyncPayload;
+import net.minecraft.server.level.ServerPlayer;
 
 /**
  * S→C：把「本机玩家 BB 选择器的两个角点」推给客户端，用于客户端高亮。
@@ -14,5 +16,11 @@ public class BBSyncChannel extends SyncChannel<BBSyncPayload> {
 
     protected BBSyncChannel() {
         super(BBSyncPayload.ID);
+    }
+
+    public void syncTo(ServerPlayer player) {
+        sendTo(player, new BBSyncPayload(
+                BBSectionStateCache.getPos1(player),
+                BBSectionStateCache.getPos2(player)));
     }
 }

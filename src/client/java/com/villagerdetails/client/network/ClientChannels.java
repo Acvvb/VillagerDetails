@@ -24,6 +24,7 @@ public final class ClientChannels {
         ServerRuleClientChannel.INSTANCE.registerClientReceiver();
         EBSyncClientChannel.INSTANCE.registerClientReceiver();
         BBSyncClientChannel.INSTANCE.registerClientReceiver();
+        PortalViewSyncClientChannel.INSTANCE.registerClientReceiver();
 
         // 各通道自己的客户端事件（实体卸载清理、断线清空状态）
         VillagerBedClientChannel.INSTANCE.registerClientEvents();
@@ -31,6 +32,7 @@ public final class ClientChannels {
         ServerRuleClientChannel.INSTANCE.registerClientEvents();
         EBSyncClientChannel.INSTANCE.registerClientEvents();
         BBSyncClientChannel.INSTANCE.registerClientEvents();
+        PortalViewSyncClientChannel.INSTANCE.registerClientEvents();
 
     }
 }

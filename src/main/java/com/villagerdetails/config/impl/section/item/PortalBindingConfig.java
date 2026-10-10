@@ -112,6 +112,26 @@ public final class PortalBindingConfig implements ReloadableConfig {
     }
 
     /**
+     * 按下标取一条；越界返回 {@code null}
+     */
+    public PortalBinding get(int index) {
+        return (index >= 0 && index < bindings.size()) ? bindings.get(index) : null;
+    }
+
+    /**
+     * 按下标删除一条并立刻落盘；越界返回 {@code null}
+     */
+    public PortalBinding removeAt(int index) {
+        if (index < 0 || index >= bindings.size()) {
+            return null;
+        }
+        PortalBinding removed = bindings.remove(index);
+        save();
+        LOGGER.info("[{}] 已删除第 {} 条绑定：{}", SECTION, index + 1, describe(removed));
+        return removed;
+    }
+
+    /**
      * 清空全部绑定并落盘
      */
     public void clear() {

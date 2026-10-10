@@ -470,6 +470,7 @@ public class VillagerBedConfigScreen extends Screen {
                 case COLOR -> addColorRow(row, y, widgets);
                 case SLIDER -> addSliderRow(row, y, widgets);
                 case LIST -> addListRow(row, y, widgets);
+                case TRIGGER -> addTriggerRow(row, y, widgets);
             }
             page.addRow(widgets);
         }
@@ -562,6 +563,35 @@ public class VillagerBedConfigScreen extends Screen {
 
         if (row instanceof ConfigEntryType entry && row.hasKeyBind()) {
             // 绑完（或按 ESC 清空）立刻落盘，别等到关界面才存
+            KeyBindButton bindButton = KeyBindButton.create(keyBindX(), y, KEYBIND_WIDTH, WIDGET_HEIGHT,
+                    entry, keys -> {
+                        row.setKeyBind(keys);
+                        row.save();
+                    });
+            keyBindButtons.add(bindButton);
+            out.add(RowListPage.at(addWidget(bindButton)));
+        }
+
+        out.add(RowListPage.at(addWidget(createResetButton(row, y))));
+    }
+
+    /**
+     * 触发样式行：名称 … [触发按钮] [快捷键框] [重置]
+     *
+     * <p>触发按钮点一下执行 {@link ConfigRow#getAction()}（不保存开/关状态）；
+     * 快捷键按下走同一动作；重置只把快捷键恢复默认。
+     */
+    private void addTriggerRow(ConfigRow row, int y, List<RowListPage.Widget> out) {
+        out.add(RowListPage.at(addWidget(labelWidget(row, y))));
+
+        int triggerX = row.hasKeyBind() ? keyBindX() - WIDGET_GAP - SWITCH_WIDTH : plainSwitchX();
+        out.add(RowListPage.at(addWidget(Button.builder(
+                        Component.translatable("villagerdetails.ui.trigger.run"),
+                        _ -> row.getAction().run())
+                .bounds(triggerX, y, SWITCH_WIDTH, WIDGET_HEIGHT)
+                .build())));
+
+        if (row instanceof ConfigEntryType entry && row.hasKeyBind()) {
             KeyBindButton bindButton = KeyBindButton.create(keyBindX(), y, KEYBIND_WIDTH, WIDGET_HEIGHT,
                     entry, keys -> {
                         row.setKeyBind(keys);

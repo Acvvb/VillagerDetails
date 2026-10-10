@@ -6,8 +6,10 @@ import com.villagerdetails.client.setting.network.ServerRuleClientState;
 import com.villagerdetails.client.setting.row.ConfigRow;
 import com.villagerdetails.client.setting.row.ServerRuleDataRow;
 import com.villagerdetails.client.setting.row.ServerRuleRow;
+import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.type.FirstCategoryType;
 import com.villagerdetails.client.setting.type.SecondCategoryType;
+import com.villagerdetails.client.setting.type.style.StyleType;
 import com.villagerdetails.rule.type.RuleCategoryType;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.network.chat.Component;
@@ -79,12 +81,47 @@ public final class ConfigTabs {
     private static List<UiTabsSource> clientTabs(FirstCategoryType main) {
         List<UiTabsSource> tabs = new ArrayList<>();
         for (SecondCategoryType sub : main.subCategories()) {
-            tabs.add(new UiTabsSource(sub.name(), sub.getDisplayName(),
-                    () -> sub.options().stream()
-                            .map(entry -> (ConfigRow) entry)
-                            .toList()));
+            List<ConfigEntryType> entries = dynamicSubEntries(main, sub);
+            if (entries == null) {
+                entries = sub.options();
+            }
+            if (entries.isEmpty()) {
+                continue;
+            }
+            List<ConfigRow> rows = entries.stream()
+                    .map(entry -> (ConfigRow) entry)
+                    .toList();
+            tabs.add(new UiTabsSource(sub.name(), sub.getDisplayName(), () -> rows));
         }
         return tabs;
+    }
+
+    /**
+     * 「功能开关」下的四个动态页签：归属不写死在配置项上，按一级分类 + 样式 / 当前状态过滤。
+     *
+     * <p>返回 {@code null} 表示这不是动态页签，走 {@link SecondCategoryType#options()} 的静态归属。
+     */
+    private static List<ConfigEntryType> dynamicSubEntries(FirstCategoryType main, SecondCategoryType sub) {
+        return switch (sub) {
+            case TOGGLE_ALL -> Arrays.stream(ConfigEntryType.values())
+                    .filter(entry -> entry.getMainCategories().contains(main))
+                    .toList();
+            case TOGGLE_ENABLED -> Arrays.stream(ConfigEntryType.values())
+                    .filter(entry -> entry.getMainCategories().contains(main))
+                    .filter(entry -> entry.getStyle() == StyleType.TOGGLE)
+                    .filter(ConfigEntryType::getToggle)
+                    .toList();
+            case TOGGLE_DISABLED -> Arrays.stream(ConfigEntryType.values())
+                    .filter(entry -> entry.getMainCategories().contains(main))
+                    .filter(entry -> entry.getStyle() == StyleType.TOGGLE)
+                    .filter(entry -> !entry.getToggle())
+                    .toList();
+            case TOGGLE_TRIGGER -> Arrays.stream(ConfigEntryType.values())
+                    .filter(entry -> entry.getMainCategories().contains(main))
+                    .filter(entry -> entry.getStyle() == StyleType.TRIGGER)
+                    .toList();
+            default -> null;
+        };
     }
 
     private static List<UiTabsSource> serverTabs() {

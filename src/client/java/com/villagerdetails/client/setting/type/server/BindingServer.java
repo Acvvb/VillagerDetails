@@ -30,6 +30,11 @@ public interface BindingServer {
         return () -> StyleType.LIST;
     }
 
+    default Runnable action() {
+        return () -> {
+        };
+    }
+
     static BindingServer slider(double min, double max, double step) {
         return new BindingServer() {
             @Override
@@ -50,6 +55,20 @@ public interface BindingServer {
             @Override
             public double stepNumber() {
                 return step;
+            }
+        };
+    }
+
+    static BindingServer trigger(Runnable action) {
+        return new BindingServer() {
+            @Override
+            public StyleType style() {
+                return StyleType.TRIGGER;
+            }
+
+            @Override
+            public Runnable action() {
+                return action;
             }
         };
     }

@@ -23,7 +23,19 @@ public enum SecondCategoryType {
 
     // ---------------- 功能开关 ----------------
 
-    TOGGLE_VILLAGER("toggles.villager", FirstCategoryType.TOGGLES);
+    TOGGLE_ALL("toggles.all", FirstCategoryType.TOGGLES),
+
+    TOGGLE_VILLAGER("toggles.villager", FirstCategoryType.TOGGLES),
+
+    TOGGLE_SELECTION("toggles.selection", FirstCategoryType.TOGGLES),
+
+    TOGGLE_TRIGGER("toggles.trigger", FirstCategoryType.TOGGLES),
+
+    TOGGLE_ENABLED("toggles.enabled", FirstCategoryType.TOGGLES),
+
+    TOGGLE_DISABLED("toggles.disabled", FirstCategoryType.TOGGLES),
+
+    ;
 
     private final String key;
     private final FirstCategoryType firstCategoryType;
@@ -50,7 +62,7 @@ public enum SecondCategoryType {
      */
     public List<ConfigEntryType> options() {
         return Arrays.stream(ConfigEntryType.values())
-                .filter(entry -> entry.getSubCategory() == this)
+                .filter(entry -> entry.getSubCategories().contains(this))
                 .toList();
     }
 }

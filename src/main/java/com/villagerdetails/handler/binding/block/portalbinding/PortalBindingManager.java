@@ -63,4 +63,18 @@ public final class PortalBindingManager {
     public List<PortalBinding> getBindings() {
         return PortalBindingConfig.INSTANCE.snapshot();
     }
+
+    /**
+     * 按下标取一条绑定（越界返回 null）
+     */
+    public PortalBinding getBinding(int index) {
+        return PortalBindingConfig.INSTANCE.get(index);
+    }
+
+    /**
+     * 按下标删除一条绑定并持久化（越界返回 null）
+     */
+    public PortalBinding removeBinding(int index) {
+        return PortalBindingConfig.INSTANCE.removeAt(index);
+    }
 }

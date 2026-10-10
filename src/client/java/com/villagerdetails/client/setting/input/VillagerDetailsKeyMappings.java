@@ -4,7 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
 import com.villagerdetails.client.setting.screen.VillagerBedConfigScreen;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
-import com.villagerdetails.client.setting.type.FirstCategoryType;
+import com.villagerdetails.client.setting.type.style.StyleType;
 import com.villagerdetails.rule.RuleSwitches;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -96,7 +96,8 @@ public final class VillagerDetailsKeyMappings {
         boolean inGame = client.gui.screen() == null;
 
         for (ConfigEntryType entry : ConfigEntryType.values()) {
-            if (entry.getMainCategory() != FirstCategoryType.TOGGLES) {
+            StyleType style = entry.getStyle();
+            if (style != StyleType.TOGGLE && style != StyleType.TRIGGER) {
                 continue;
             }
 
@@ -104,10 +105,14 @@ public final class VillagerDetailsKeyMappings {
             boolean down = inGame && keys.length > 0 && allKeysDown(client, keys);
 
             if (down && !HOTKEY_DOWN.getOrDefault(entry, Boolean.FALSE)) {
-                boolean enabled = !entry.getToggle();
-                entry.setToggle(enabled);
-                ClientRenderConfig.get().save();
-                notifyToggled(client, entry, enabled);
+                if (style == StyleType.TRIGGER) {
+                    entry.getAction().run();
+                } else {
+                    boolean enabled = !entry.getToggle();
+                    entry.setToggle(enabled);
+                    ClientRenderConfig.get().save();
+                    notifyToggled(client, entry, enabled);
+                }
             }
             HOTKEY_DOWN.put(entry, down);
         }

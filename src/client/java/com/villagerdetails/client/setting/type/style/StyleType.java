@@ -23,5 +23,10 @@ public enum StyleType {
     /**
      * 占位：只有一个按钮
      */
-    LIST
+    LIST,
+    /**
+     * 瞬时触发：一个点击即执行动作的按钮 + 快捷键框；不保存开/关状态，重置只重置快捷键。
+     * 传参携带（{@code BindingServer.trigger(action)}），不同触发项各自的实现互不相同。
+     */
+    TRIGGER
 }

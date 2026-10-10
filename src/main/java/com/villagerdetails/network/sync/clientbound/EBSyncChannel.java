@@ -1,7 +1,9 @@
 package com.villagerdetails.network.sync.clientbound;
 
+import com.villagerdetails.cache.EBSelectionStateCache;
 import com.villagerdetails.network.channel.SyncChannel;
 import com.villagerdetails.network.sync.payload.clientbound.EBSyncPayload;
+import net.minecraft.server.level.ServerPlayer;
 
 /**
  * S→C：把「本机玩家当前选中了什么」推给客户端，用于客户端高亮。
@@ -15,5 +17,12 @@ public class EBSyncChannel extends SyncChannel<EBSyncPayload> {
 
     protected EBSyncChannel() {
         super(EBSyncPayload.ID);
+    }
+
+    public void syncTo(ServerPlayer player) {
+        java.util.UUID uuid = player.getUUID();
+        sendTo(player, new EBSyncPayload(
+                EBSelectionStateCache.getSelectedEntity(uuid),
+                EBSelectionStateCache.getSelectedBlock(uuid)));
     }
 }

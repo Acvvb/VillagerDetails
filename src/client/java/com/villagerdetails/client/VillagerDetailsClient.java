@@ -2,6 +2,7 @@ package com.villagerdetails.client;
 
 import com.villagerdetails.client.feature.selection.BBSelectionHighlightRenderer;
 import com.villagerdetails.client.feature.selection.EBSelectionHighlightRenderer;
+import com.villagerdetails.client.feature.selection.PortalViewHighlightRenderer;
 import com.villagerdetails.client.feature.villagerbed.VillagerBedLineRenderer;
 import com.villagerdetails.client.network.ClientChannels;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
@@ -23,5 +24,7 @@ public class VillagerDetailsClient implements ClientModInitializer {
         EBSelectionHighlightRenderer.register();
 
         BBSelectionHighlightRenderer.register();
+
+        PortalViewHighlightRenderer.register();
     }
 }

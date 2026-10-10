@@ -1,6 +1,8 @@
 package com.villagerdetails.client.setting.type;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.villagerdetails.client.cache.PortalViewClientState;
+import com.villagerdetails.client.network.sync.ClientRequests;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
 import com.villagerdetails.client.setting.row.ConfigRow;
 import com.villagerdetails.client.setting.row.ListPreview;
@@ -41,97 +43,137 @@ public enum ConfigEntryType implements ConfigRow {
 
     NEAR_COLOR("NearColor",
             "villagerdetails.ui.option.near_color", "villagerdetails.ui.option.near_color.desc",
-            FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_COLOR, "#54E36B", "",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#54E36B", "",
             BindingServer.color()),
 
     FAR_COLOR("FarColor",
             "villagerdetails.ui.option.far_color", "villagerdetails.ui.option.far_color.desc",
-            FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_COLOR, "#FF4D4D", "",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#FF4D4D", "",
             BindingServer.color()),
 
     SELECTED_ENTITY_COLOR("SelectedEntityColor",
             "villagerdetails.ui.option.selected_entity_color",
             "villagerdetails.ui.option.selected_entity_color.desc",
-            FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_COLOR, "#FFD54F", "",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#FFD54F", "",
             BindingServer.color()),
 
     SELECTED_BLOCK_COLOR("SelectedBlockColor",
             "villagerdetails.ui.option.selected_block_color",
             "villagerdetails.ui.option.selected_block_color.desc",
-            FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_COLOR, "#4FC3F7", "",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#4FC3F7", "",
             BindingServer.color()),
 
     BB_POS1_COLOR("BBPos1Color",
             "villagerdetails.ui.option.bb_pos1_color", "villagerdetails.ui.option.bb_pos1_color.desc",
-            FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_COLOR, "#4FC3F7", "",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#4FC3F7", "",
             BindingServer.color()),
 
     BB_POS2_COLOR("BBPos2Color",
             "villagerdetails.ui.option.bb_pos2_color", "villagerdetails.ui.option.bb_pos2_color.desc",
-            FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_COLOR, "#FFD54F", "",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#FFD54F", "",
             BindingServer.color()),
 
     BB_BOX_COLOR("BBBoxColor",
             "villagerdetails.ui.option.bb_box_color", "villagerdetails.ui.option.bb_box_color.desc",
-            FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_COLOR, "#9C27B0", "",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#9C27B0", "",
+            BindingServer.color()),
+
+    /**
+     * 传送门绑定「高亮」时主世界那侧的颜色。
+     * 和服务端推下来的两个维度一一对应，所以主世界 / 地狱各占一个配置项。
+     */
+    PORTAL_VIEW_OW_COLOR("PortalViewOwColor",
+            "villagerdetails.ui.option.portal_view_ow_color", "villagerdetails.ui.option.portal_view_ow_color.desc",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#4FC3F7", "",
+            BindingServer.color()),
+
+    /**
+     * 传送门绑定「高亮」时地狱那侧的颜色
+     */
+    PORTAL_VIEW_NE_COLOR("PortalViewNeColor",
+            "villagerdetails.ui.option.portal_view_ne_color", "villagerdetails.ui.option.portal_view_ne_color.desc",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#FF4D4D", "",
             BindingServer.color()),
 
     // ---------------- 配置项 / 滑块 ----------------
 
     LINE_WIDTH("LineWidth",
             "villagerdetails.ui.option.line_width", "villagerdetails.ui.option.line_width.desc",
-            FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_SLIDER, "4.0", "",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "4.0", "",
             BindingServer.slider(1.0D, 10.0D, 0.5D)),
 
     FAR_DISTANCE("FarDistance",
             "villagerdetails.ui.option.far_distance", "villagerdetails.ui.option.far_distance.desc",
-            FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_SLIDER, "5.0", "",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "5.0", "",
             BindingServer.slider(0.0D, 64.0D, 0.5D)),
 
     // ---------------- 配置项 / 列表 ----------------
 
     BED_LIST("BedList",
             "villagerdetails.ui.option.bed_list", "villagerdetails.ui.option.bed_list.desc",
-            FirstCategoryType.OPTIONS, SecondCategoryType.OPTION_LIST, "", "",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_LIST), "", "",
             BindingServer.list()),
 
     // ---------------- 功能开关 / 村民 ----------------
 
     RENDER_BED_LINE("RenderBedLine",
             "villagerdetails.ui.option.render_bed_line", "villagerdetails.ui.option.render_bed_line.desc",
-            FirstCategoryType.TOGGLES, SecondCategoryType.TOGGLE_VILLAGER, "false", "",
+            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER), "false", "",
             BindingServer.toggle()),
 
     RENDER_SELECTION_HIGHLIGHT("RenderSelectionHighlight",
             "villagerdetails.ui.option.render_selection_highlight",
             "villagerdetails.ui.option.render_selection_highlight.desc",
-            FirstCategoryType.TOGGLES, SecondCategoryType.TOGGLE_VILLAGER, "true", "",
+            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER), "true", "",
             BindingServer.toggle()),
 
     RENDER_BB_HIGHLIGHT("RenderBBHighlight",
             "villagerdetails.ui.option.render_bb_highlight",
             "villagerdetails.ui.option.render_bb_highlight.desc",
-            FirstCategoryType.TOGGLES, SecondCategoryType.TOGGLE_VILLAGER, "true", "",
+            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER), "true", "",
             BindingServer.toggle()),
+
+    // ---------------- 功能开关 / 村民 ----------------
+
+    CLEAR_BB_SELECTION("ClearBBSelection",
+            "villagerdetails.ui.option.clear_bb_selection",
+            "villagerdetails.ui.option.clear_bb_selection.desc",
+            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER, SecondCategoryType.TOGGLE_SELECTION), "", "",
+            BindingServer.trigger(ClientRequests::sendBBClear)),
+
+    CLEAR_EB_SELECTION("ClearEBSelection",
+            "villagerdetails.ui.option.clear_eb_selection",
+            "villagerdetails.ui.option.clear_eb_selection.desc",
+            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER, SecondCategoryType.TOGGLE_SELECTION), "", "",
+            BindingServer.trigger(ClientRequests::sendEBClear)),
+
+    CLEAR_PORTAL_VIEW("ClearPortalView",
+            "villagerdetails.ui.option.clear_portal_view",
+            "villagerdetails.ui.option.clear_portal_view.desc",
+            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_SELECTION), "", "",
+            // clearAll 而不是「清当前维度」：主世界 + 地狱两侧一起清，
+            // 否则另一侧的框会留到玩家传过去的时候才冒出来
+            BindingServer.trigger(PortalViewClientState::clearAll)),
+
     ;
 
     private final String registerName;
     private final String displayName;
     private final String displayInfo;
-    private final FirstCategoryType firstCategoryType;
-    private final SecondCategoryType secondCategoryType;
+    private final List<FirstCategoryType> firstCategoryTypes;
+    private final List<SecondCategoryType> secondCategoryTypes;
     private final String state;
     private final String defaultKeyBind;
     private final BindingServer bindingServer;
 
     ConfigEntryType(String registerName, String displayName, String displayInfo,
-                    FirstCategoryType firstCategoryType, SecondCategoryType secondCategoryType,
+                    List<FirstCategoryType> firstCategoryTypes, List<SecondCategoryType> secondCategoryTypes,
                     String state, String defaultKeyBind, BindingServer bindingServer) {
         this.registerName = registerName;
         this.displayName = displayName;
         this.displayInfo = displayInfo;
-        this.firstCategoryType = firstCategoryType;
-        this.secondCategoryType = secondCategoryType;
+        this.firstCategoryTypes = firstCategoryTypes;
+        this.secondCategoryTypes = secondCategoryTypes;
         this.state = state;
         this.defaultKeyBind = defaultKeyBind;
         this.bindingServer = bindingServer;
@@ -164,12 +206,12 @@ public enum ConfigEntryType implements ConfigRow {
         return Component.translatable(displayInfo);
     }
 
-    public FirstCategoryType getMainCategory() {
-        return firstCategoryType;
+    public List<FirstCategoryType> getMainCategories() {
+        return firstCategoryTypes;
     }
 
-    public SecondCategoryType getSubCategory() {
-        return secondCategoryType;
+    public List<SecondCategoryType> getSubCategories() {
+        return secondCategoryTypes;
     }
 
     /**
@@ -181,11 +223,20 @@ public enum ConfigEntryType implements ConfigRow {
     }
 
     /**
-     * 只有开关样式才有快捷键绑定框
+     * 开关样式和触发样式都有快捷键绑定框
      */
     @Override
     public boolean hasKeyBind() {
-        return bindingServer.style() == StyleType.TOGGLE;
+        StyleType style = bindingServer.style();
+        return style == StyleType.TOGGLE || style == StyleType.TRIGGER;
+    }
+
+    /**
+     * 触发按钮点击 / 快捷键按下时执行的动作（由 {@link BindingServer} 携带）
+     */
+    @Override
+    public Runnable getAction() {
+        return bindingServer.action();
     }
 
     // ==============================================================
@@ -426,6 +477,7 @@ public enum ConfigEntryType implements ConfigRow {
             case COLOR -> getColor() == ColorUtil.parseRgb(state);
             // 列表默认就是空的
             case LIST -> getList().isEmpty();
+            case TRIGGER -> Arrays.equals(getKeyBind(), defaultKeyBindKeys());
         };
     }
 
