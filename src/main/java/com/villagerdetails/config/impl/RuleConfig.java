@@ -1,7 +1,5 @@
 package com.villagerdetails.config.impl;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.villagerdetails.cache.RuleCache;
@@ -9,6 +7,7 @@ import com.villagerdetails.command.SwitchComponentType;
 import com.villagerdetails.config.ReloadableConfig;
 import com.villagerdetails.config.impl.util.ConfigPaths;
 import com.villagerdetails.config.impl.util.JsonIO;
+import com.villagerdetails.rule.RuleChangeService;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
@@ -44,9 +43,8 @@ public class RuleConfig implements ReloadableConfig {
 
     @Override
     public void reload(MinecraftServer server) {
-        RuleCache.setServer(server);
-        onServerStopping(server);
-        getOrCreate(server).syncToSwitch();
+        // 走统一入口：改规则只认 RuleChangeService
+        RuleChangeService.reload(server);
     }
 
     private static final Logger log = LogManager.getLogger(RuleConfig.class);
@@ -56,11 +54,6 @@ public class RuleConfig implements ReloadableConfig {
      */
     private static final String FILE_NAME = "villager_details_binding.json";
 
-    private static final Gson GSON = new GsonBuilder()
-            .setPrettyPrinting()
-            .disableHtmlEscaping()
-            .create();
-
     /**
      * 按服务器实例缓存，避免每次调用都读盘
      */
@@ -69,6 +62,11 @@ public class RuleConfig implements ReloadableConfig {
     private final Path filePath;
     private final Map<String, String> bindingStates = new HashMap<>();
     private boolean dirty = false;
+
+    /**
+     * 批量改动期间为 true：只记脏标记，不落盘
+     */
+    private boolean batching = false;
 
     private RuleConfig(Path filePath) {
         this.filePath = filePath;
@@ -118,7 +116,34 @@ public class RuleConfig implements ReloadableConfig {
         }
     }
 
+    /**
+     * 把一组改动合成一次落盘。
+     *
+     * <p>为什么需要它：{@link #setBindingState} 每次都整份重写 JSON，而配置回灌时每条规则都会走一遍 ——
+     * 30 条规则就是 30 次整份写盘。这里期间只留脏标记（{@link #markDirty} 已经置上），结束后写一次。
+     *
+     * <p>嵌套调用由最外层收尾；{@code action} 抛异常也会在 {@code finally} 里把已经应用的改动落盘。
+     */
+    public void batch(Runnable action) {
+        if (batching) {
+            action.run();
+            return;
+        }
+        batching = true;
+        try {
+            action.run();
+        } finally {
+            batching = false;
+            if (dirty && filePath != null) {
+                log.info("批量写入绑定配置：一次落盘（{} 项）", bindingStates.size());
+            }
+            save();
+        }
+    }
+
     public void save() {
+        // 批量过程中不写：脏标记已经置上，batch 结束时统一落盘
+        if (batching) return;
         if (!dirty || filePath == null) return;
 
         JsonObject obj = new JsonObject();
@@ -135,6 +160,12 @@ public class RuleConfig implements ReloadableConfig {
     //  业务方法（与原来签名完全一致）
     // ------------------------------------------------------------------
 
+    /**
+     * 写一条规则的绑定状态。
+     *
+     * <p><b>只给「改规则」那条落盘路径调</b>（{@link RuleCache#setState} 内部）；
+     * 业务代码要改规则状态请用 {@link RuleChangeService#change}，不要再直接写这里。
+     */
     public void setBindingState(String key, String state) {
         RuleType type = RuleType.getRuleTypeByRegisterName(key);
         if (type != null && type.getState().equals(state)) {
@@ -154,12 +185,11 @@ public class RuleConfig implements ReloadableConfig {
         return type != null ? type.getState() : SwitchComponentType.FALSE_STR;
     }
 
-    public void resetAll() {
-        bindingStates.clear();
-        markDirty();
-        save();
-    }
-
+    /**
+     * 磁盘 → 内存：把配置文件里的状态批量灌进 {@link RuleCache}。
+     *
+     * <p>只给 {@link RuleChangeService#reload} 调（服务器启动、{@code reload}、迁移）。
+     */
     public void syncToSwitch() {
         Map<RuleType, String> syncMap = new HashMap<>();
         for (RuleType type : RuleType.values()) {
@@ -187,7 +217,8 @@ public class RuleConfig implements ReloadableConfig {
             markDirty();
         }
 
-        RuleCache.syncRules(syncMap);
+        // 一次落盘：下面每条规则的 setState 都会走到 setBindingState，逐条写就是 N 次整份重写
+        batch(() -> RuleCache.syncRules(syncMap));
     }
 
 }

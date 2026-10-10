@@ -4,10 +4,13 @@ import com.google.gson.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -47,11 +50,47 @@ public final class JsonIO {
 
     /**
      * 写 JSON；自动建父目录。
+     *
+     * <p><b>原子写</b>：内容先写进同目录的临时文件，再整体替换目标文件。中途崩服 / 断电时，
+     * 目标文件要么还是上一份完整内容、要么已经是新的完整内容，不会留下写到一半的 JSON
+     * （临时文件在 finally 里清掉，不会被读配置的逻辑看到）。
      */
     public static void writeObject(Path file, JsonElement root) throws Exception {
+        writeString(file, inlineNumberArrays(GSON.toJson(root)));
+    }
+
+    /**
+     * 原子写一段文本（临时文件 + 整体替换）；JSON 之外的写入方也能直接用。
+     */
+    public static void writeString(Path file, String content) throws Exception {
         Path parent = file.getParent();
         if (parent != null) Files.createDirectories(parent);
-        Files.writeString(file, inlineNumberArrays(GSON.toJson(root)), StandardCharsets.UTF_8);
+
+        // 临时文件必须和目标同目录：只有同一文件系统内才谈得上原子替换
+        Path tmp = file.resolveSibling(file.getFileName().toString() + ".tmp");
+        try {
+            Files.writeString(tmp, content, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+            moveInto(tmp, file);
+        } finally {
+            Files.deleteIfExists(tmp);
+        }
+    }
+
+    /**
+     * 把临时文件替换成目标文件：优先原子移动，不行再退回普通覆盖移动。
+     *
+     * <p>退回的两类原因都会碰到：文件系统本身不支持原子替换（部分网络盘 / FAT），
+     * 以及目标文件正被别的进程占着（Windows 上杀毒、索引服务很常见）。
+     * 退回后只是"不再原子"，内容仍然是完整的。
+     */
+    private static void moveInto(Path tmp, Path file) throws IOException {
+        try {
+            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException | UnsupportedOperationException e) {
+            LOGGER.warn("原子替换失败，退回普通覆盖写入：{}（{}）", file, e.toString());
+            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     /**

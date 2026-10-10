@@ -1,10 +1,10 @@
 package com.villagerdetails.config.impl.section.item;
 
-import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.command.SwitchComponentType;
 import com.villagerdetails.config.impl.RuleConfig;
 import com.villagerdetails.config.impl.section.base.IdSetConfig;
 import com.villagerdetails.config.impl.section.storage.IdSetStorage;
+import com.villagerdetails.rule.RuleChangeService;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
@@ -54,8 +54,9 @@ public final class NoSqueezeConfig extends IdSetConfig {
         Set<Identifier> ids = IdSetStorage.parseIds(legacy);
         if (!ids.isEmpty()) INSTANCE.addAll(ids);
 
-        config.setBindingState(key, SwitchComponentType.TRUE_STR);
-        RuleCache.setState(VILLAGER_NO_SQUEEZE, SwitchComponentType.TRUE_STR);
+        // 写规则状态统一走 RuleChangeService —— 它会经 RuleCache 落盘，
+        // 这里不再自己动 RuleConfig（以前是 setBindingState + setState 写两遍）
+        RuleChangeService.change(VILLAGER_NO_SQUEEZE, SwitchComponentType.TRUE_STR);
         LOGGER.info("已把「无挤压」规则状态里的老名单迁移进配置（{} 项）", ids.size());
     }
 

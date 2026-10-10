@@ -18,8 +18,9 @@ public class BindingUtil {
      * @return 匹配到的 BindingType，无匹配则返回 null
      */
     public static BindingType isHoldingAnyTool(Player player, InteractionHand hand, Entity entity) {
+        if (!(player instanceof ServerPlayer sp)) return null;
         for (BindingType type : BindingType.values()) {
-            if (!RuleCache.isEnabled((ServerPlayer)player,type.getRuleType())) continue;
+            if (!RuleCache.isEnabled(sp, type.getRuleType())) continue;
             if (BindHandler.isHoldingTool(player, hand, type.getRequiredItem(), type.getRequiredToolName())) {
                 if (entity == null || type.getEntityClass().isInstance(entity)) {
                     return type;

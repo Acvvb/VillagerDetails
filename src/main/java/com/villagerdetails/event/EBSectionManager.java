@@ -56,7 +56,9 @@ public class EBSectionManager {
         // 实体 + 方块都已选中 → 触发绑定
         if (EBSelectionStateCache.isComplete(playerUuid)) {
             BindHandler.chooseUtil(level, player, hand);
-            clearClientHighlight(serverPlayer);
+            // 按缓存现状推高亮：绑定成功 / 已进入绑定流程 → 缓存空了 → 客户端跟着清空；
+            // 校验没过（工具换了、目标不是村民）→ 选区还在 → 客户端继续保持高亮，玩家直接重试即可
+            syncTo(serverPlayer, playerUuid);
             return InteractionResult.SUCCESS;
         }
 
@@ -89,7 +91,9 @@ public class EBSectionManager {
         // 实体 + 方块都已选中 → 触发绑定
         if (EBSelectionStateCache.isComplete(playerUuid)) {
             BindHandler.chooseUtil(level, player, hand);
-            clearClientHighlight(serverPlayer);
+            // 按缓存现状推高亮：绑定成功 / 已进入绑定流程 → 缓存空了 → 客户端跟着清空；
+            // 校验没过（工具换了、目标不是村民）→ 选区还在 → 客户端继续保持高亮，玩家直接重试即可
+            syncTo(serverPlayer, playerUuid);
             return InteractionResult.SUCCESS;
         }
 
@@ -109,21 +113,14 @@ public class EBSectionManager {
      *
      * <p>从缓存里读，不接收外部变量 —— {@code selectEntity} / {@code selectBlock}
      * 已经把值写进去了，这里只管读出来发。
+     *
+     * <p>绑定流程走完也调它（而不是显式发一条 null）：缓存被摘掉时读出来自然就是两个 null，
+     * 客户端高亮跟着消失；校验没过、选区还在时，推出的就是当前的选区，高亮不会莫名清空。
+     * 一条路径同时覆盖"清空"和"保持"，也就不会出现服务端与客户端不一致的中间态。
      */
     private static void syncTo(ServerPlayer player, UUID playerUuid) {
         EBSyncChannel.INSTANCE.sendTo(player, new EBSyncPayload(
                 EBSelectionStateCache.getSelectedEntity(playerUuid),
                 EBSelectionStateCache.getSelectedBlock(playerUuid)));
-    }
-
-    /**
-     * 通知客户端清空高亮。
-     *
-     * <p>不读缓存 —— {@code BindHandler.chooseUtil} 内部已经通过
-     * {@link EBSelectionStateCache#take(UUID)} 把状态消费掉了，此刻读缓存拿到的是 null，
-     * 但还是显式发一条 (null, null) 更直白。
-     */
-    private static void clearClientHighlight(ServerPlayer player) {
-        EBSyncChannel.INSTANCE.sendTo(player, new EBSyncPayload(null, null));
     }
 }

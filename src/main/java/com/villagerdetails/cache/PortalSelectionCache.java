@@ -2,9 +2,9 @@ package com.villagerdetails.cache;
 
 import net.minecraft.core.BlockPos;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 传送门绑定的临时选区缓存。
@@ -12,8 +12,8 @@ import java.util.UUID;
  */
 public final class PortalSelectionCache {
 
-    private static final Map<UUID, Region> OVERWORLD = new HashMap<>();
-    private static final Map<UUID, Region> NETHER = new HashMap<>();
+    private static final Map<UUID, Region> OVERWORLD = new ConcurrentHashMap<>();
+    private static final Map<UUID, Region> NETHER = new ConcurrentHashMap<>();
 
     private PortalSelectionCache() {
     }

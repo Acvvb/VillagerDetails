@@ -1,7 +1,6 @@
 package com.villagerdetails.client.setting.type;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import com.villagerdetails.client.cache.PortalViewClientState;
 import com.villagerdetails.client.network.sync.ClientRequests;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
 import com.villagerdetails.client.setting.row.ConfigRow;
@@ -151,9 +150,10 @@ public enum ConfigEntryType implements ConfigRow {
             "villagerdetails.ui.option.clear_portal_view",
             "villagerdetails.ui.option.clear_portal_view.desc",
             List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_SELECTION), "", "",
-            // clearAll 而不是「清当前维度」：主世界 + 地狱两侧一起清，
-            // 否则另一侧的框会留到玩家传过去的时候才冒出来
-            BindingServer.trigger(PortalViewClientState::clearAll)),
+            // 和 BB / EB 的清除同一条链路：请求服务端 → 服务端回空包 → 客户端照空包清。
+            // 清的是所有维度（主世界 + 地狱一起），否则另一侧的框会留到玩家传过去的时候才冒出来；
+            // 对面没装本 mod 时 ClientRequests 会退回本地清空。
+            BindingServer.trigger(ClientRequests::sendPortalViewClear)),
 
     ;
 

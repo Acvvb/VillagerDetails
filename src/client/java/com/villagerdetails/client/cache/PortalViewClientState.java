@@ -4,8 +4,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 客户端记录的「正在视图高亮的传送门绑定区域」，<b>按维度</b>存。
@@ -17,6 +17,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>一条传送门绑定横跨两个维度，一次「高亮」服务端会把两侧<b>各推一个包</b>下来。
  * 所以这里不能只留一个区域：玩家此刻多半只站在其中一侧，但另一侧的记录必须留着，
  * 等他进入那个维度时渲染器才能把框画出来。同一维度再来新区域就整条替换，不会越攒越多。
+ *
+ * <p>整份区域表用<b>一个不可变 Map</b> 承载、整体替换：渲染器读到的永远是某个完整版本，
+ * 不会读到「一半是新的、一半是旧的」。
  */
 public final class PortalViewClientState {
 
@@ -26,10 +29,12 @@ public final class PortalViewClientState {
     public record Region(ResourceKey<Level> dimension, BlockPos min, BlockPos max) {
     }
 
+    private static final Object LOCK = new Object();
+
     /**
-     * 维度 → 该维度当前要画的区域
+     * 维度 → 该维度当前要画的区域（不可变，改的时候整体换一份）
      */
-    private static final Map<ResourceKey<Level>, Region> REGIONS = new ConcurrentHashMap<>();
+    private static volatile Map<ResourceKey<Level>, Region> regions = Map.of();
 
     private PortalViewClientState() {
     }
@@ -41,14 +46,18 @@ public final class PortalViewClientState {
         if (dim == null || a == null || b == null) {
             return;
         }
-        REGIONS.put(dim, new Region(dim, a, b));
+        synchronized (LOCK) {
+            Map<ResourceKey<Level>, Region> next = new HashMap<>(regions);
+            next.put(dim, new Region(dim, a, b));
+            regions = Map.copyOf(next);
+        }
     }
 
     /**
      * 取某个维度当前要画的区域；没有就返回 {@code null}
      */
     public static Region regionOf(ResourceKey<Level> dim) {
-        return dim == null ? null : REGIONS.get(dim);
+        return dim == null ? null : regions.get(dim);
     }
 
     /**
@@ -59,6 +68,8 @@ public final class PortalViewClientState {
      * 按维度清必然会把另一侧的残留留下来，等他一传送过去就又冒出来了。
      */
     public static void clearAll() {
-        REGIONS.clear();
+        synchronized (LOCK) {
+            regions = Map.of();
+        }
     }
 }

@@ -4,7 +4,6 @@ import com.villagerdetails.client.cache.PortalViewClientState;
 import com.villagerdetails.client.network.channel.ClientReceiver;
 import com.villagerdetails.network.sync.clientbound.PortalViewSyncChannel;
 import com.villagerdetails.network.sync.payload.clientbound.PortalViewSyncPayload;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
 
 /**
@@ -30,10 +29,5 @@ public final class PortalViewSyncClientChannel extends PortalViewSyncChannel
         } else {
             PortalViewClientState.set(payload.dimension(), payload.min(), payload.max());
         }
-    }
-
-    @Override
-    public void registerClientEvents() {
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> PortalViewClientState.clearAll());
     }
 }

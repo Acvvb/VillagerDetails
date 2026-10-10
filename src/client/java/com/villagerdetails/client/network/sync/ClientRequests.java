@@ -1,5 +1,6 @@
 package com.villagerdetails.client.network.sync;
 
+import com.villagerdetails.client.cache.PortalViewClientState;
 import com.villagerdetails.client.network.channel.ClientReceiver;
 import com.villagerdetails.network.sync.payload.serverbound.*;
 import com.villagerdetails.rule.type.RuleType;
@@ -76,5 +77,17 @@ public final class ClientRequests {
      */
     public static void sendEBClear() {
         ClientReceiver.send(EBClearPayload.INSTANCE);
+    }
+
+    /**
+     * 请求服务端清空本机玩家的传送门视图高亮。
+     *
+     * <p>能发就发给服务端（它回一条空包，和 BB / EB 清除走同一条链路）；
+     * 对面没装本 mod 时退回本地清空 —— 这是纯本机视图状态，按钮点不动才是 bug。
+     */
+    public static void sendPortalViewClear() {
+        if (!ClientReceiver.send(PortalViewClearPayload.INSTANCE)) {
+            PortalViewClientState.clearAll();
+        }
     }
 }

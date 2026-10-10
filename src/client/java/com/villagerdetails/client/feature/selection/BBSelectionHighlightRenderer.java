@@ -40,11 +40,13 @@ public final class BBSelectionHighlightRenderer {
             return;
         }
 
-        BlockPos p1 = BBSelectionClientState.pos1();
-        BlockPos p2 = BBSelectionClientState.pos2();
-        if (p1 == null && p2 == null) {
+        // 一次读全：pos1 / pos2 取自同一份快照，不会画出「新 pos1 配旧 pos2」的错框
+        BBSelectionClientState.Snapshot selection = BBSelectionClientState.get();
+        if (selection.isEmpty()) {
             return;
         }
+        BlockPos p1 = selection.pos1();
+        BlockPos p2 = selection.pos2();
 
         if (p1 != null) {
             HighlightBoxes.drawBlock(p1, ColorUtil.toArgb(ConfigEntryType.BB_POS1_COLOR.getColor()));

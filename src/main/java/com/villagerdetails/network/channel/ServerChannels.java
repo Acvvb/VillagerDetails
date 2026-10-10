@@ -11,7 +11,9 @@ import org.apache.logging.log4j.Logger;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -39,7 +41,11 @@ import java.util.function.Consumer;
  * （{@link SyncChannel} 子类），不参与注册；其中 {@code serverbound} 目前是空的。
  *
  * <p>包定义和发包通道分在两个目录，配错了会静默失效，所以注册完会顺手比一次：
- * 通道对应的包定义没放进 payload 目录，会在日志里报 ERROR。
+ * 通道对应的包定义没放进 payload 目录，也会被算作一次失败。
+ *
+ * <p><b>失败怎么处理</b>：扫到东西但没注册成（反射失败 / 少放目录 / 类加载不了），
+ * 这一轮会把它们逐条收集起来，最后汇总成一条 ERROR 告警，明确写出「坏的是哪个包 / 接收器 / 事件」。
+ * 聚合出来的异常只用来承载完整堆栈，<b>不会拦下启动</b> —— 一个包坏掉不该让整个模组都用不了。
  *
  * <p>被扫到的类要能被实例化：给一个自己的 {@code public static final Xxx INSTANCE}
  * （本项目统一写法），或者一个无参构造。包定义类不用实例化，读它的静态常量就行。
@@ -94,24 +100,76 @@ public final class ServerChannels {
      * <p>顺序不能动：包类型必须先注册完，Fabric 才认收包注册。
      */
     public static void registerAll() {
+        // 这一轮的所有失败：先收集、继续扫完，最后汇总成一条告警（别让第一个错就把后面的挡住）
+        List<Failure> failures = new ArrayList<>();
+
         // 1) 包类型：注册内容全部来自包类自己的 ID / CODEC，这里不碰任何具体实现
-        Set<Identifier> clientboundIds = registerPayloads(PAYLOAD_CLIENTBOUND_PACKAGE, true);
-        Set<Identifier> serverboundIds = registerPayloads(PAYLOAD_SERVERBOUND_PACKAGE, false);
+        Set<Identifier> clientboundIds = registerPayloads(PAYLOAD_CLIENTBOUND_PACKAGE, true, failures);
+        Set<Identifier> serverboundIds = registerPayloads(PAYLOAD_SERVERBOUND_PACKAGE, false, failures);
 
         // 2) 服务端收包、3) 事件、4) 兜底
-        int receivers = forEach(RECEIVER_PACKAGE, ServerReceiver.class, ServerReceiver::registerServerReceiver);
-        int events = forEach(EVENT_PACKAGE, SyncEvents.class, SyncEvents::registerEvents);
-        int others = forEach(OTHER_PACKAGE, SyncRegistrar.class, SyncRegistrar::register);
+        int receivers = forEach(RECEIVER_PACKAGE, ServerReceiver.class, ServerReceiver::registerServerReceiver, failures);
+        int events = forEach(EVENT_PACKAGE, SyncEvents.class, SyncEvents::registerEvents, failures);
+        int others = forEach(OTHER_PACKAGE, SyncRegistrar.class, SyncRegistrar::register, failures);
 
         // 体检：通道的包定义有没有放对目录（放错 = 这个包静默失效，不主动查是查不出来的）
-        checkChannels(CLIENTBOUND_PACKAGE, clientboundIds);
-        checkChannels(SERVERBOUND_PACKAGE, serverboundIds);
+        checkChannels(CLIENTBOUND_PACKAGE, clientboundIds, failures);
+        checkChannels(SERVERBOUND_PACKAGE, serverboundIds, failures);
+
+        if (clientboundIds.isEmpty() && serverboundIds.isEmpty()) {
+            failures.add(new Failure("包类型", SYNC_PACKAGE,
+                    "一个同步包都没扫到！检查 " + SYNC_PACKAGE + " 下的子包有没有被打进包里", null));
+        }
 
         LOGGER.info("同步扫包注册完成：S→C 包 {} 个、C→S 包 {} 个、服务端收包 {} 个、事件 {} 个、兜底 {} 个",
                 clientboundIds.size(), serverboundIds.size(), receivers, events, others);
-        if (clientboundIds.isEmpty() && serverboundIds.isEmpty()) {
-            LOGGER.error("一个同步包都没扫到！检查 {} 下的子包有没有被打进包里", SYNC_PACKAGE);
+
+        reportFailures(failures);
+    }
+
+    // ==============================================================
+    // 失败汇总
+    // ==============================================================
+
+    /**
+     * 一次注册失败：哪一步、坏的是谁、为什么。
+     *
+     * @param stage 阶段（包类型 / 服务端收包 / 事件 / 兜底 / 通道体检）
+     * @param target 坏掉的那个类或包（日志里就靠它定位）
+     * @param what 人话说明
+     * @param cause 反射 / 实例化抛出来的原始异常，可能为 null
+     */
+    private record Failure(String stage, String target, String what, Throwable cause) {
+
+        String describe() {
+            return "[" + stage + "] " + target + " —— " + what;
         }
+    }
+
+    /**
+     * 把这一轮的失败汇总成一条 ERROR。
+     *
+     * <p>为什么是「抛聚合异常但只打日志」：注册失败意味着某个包 / 接收器 / 事件<b>静默失效</b>，
+     * 必须让人一眼看到坏的是哪个；但这属于「功能残缺」而不是「不该启动」，
+     * 拦下启动会让整个模组都用不了 —— 所以聚合异常只用来承载完整堆栈，游戏继续跑。
+     */
+    private static void reportFailures(List<Failure> failures) {
+        if (failures.isEmpty()) {
+            return;
+        }
+        StringBuilder detail = new StringBuilder();
+        for (Failure failure : failures) {
+            detail.append("\n  - ").append(failure.describe());
+        }
+
+        IllegalStateException aggregate = new IllegalStateException(
+                "同步注册失败 " + failures.size() + " 项，下列功能可能失效（游戏继续启动）：" + detail);
+        for (Failure failure : failures) {
+            if (failure.cause() != null) {
+                aggregate.addSuppressed(failure.cause());
+            }
+        }
+        LOGGER.error("同步注册失败 {} 项（游戏继续启动，但以下内容可能不工作）：{}", failures.size(), detail, aggregate);
     }
 
     // ==============================================================
@@ -123,9 +181,11 @@ public final class ServerChannels {
      *
      * @return 登记成功的包 id
      */
-    private static Set<Identifier> registerPayloads(String packageName, boolean clientbound) {
+    private static Set<Identifier> registerPayloads(String packageName, boolean clientbound, List<Failure> failures) {
         Set<Identifier> registered = new LinkedHashSet<>();
-        for (Class<?> candidate : PackageScanner.scan(packageName, ServerChannels.class)) {
+        for (Class<?> candidate : PackageScanner.scan(packageName, ServerChannels.class,
+                (name, cause) -> failures.add(new Failure("包类型", name,
+                        "类加载失败（扫包时被跳过），这个包不会生效", cause)))) {
             if (!SyncPayload.class.isAssignableFrom(candidate)
                     || candidate.isInterface()
                     || Modifier.isAbstract(candidate.getModifiers())) {
@@ -135,7 +195,8 @@ public final class ServerChannels {
                 registerPayloadType(candidate, clientbound);
                 registered.add(((PayloadId<?>) staticField(candidate, "ID")).id());
             } catch (Throwable t) {
-                LOGGER.error("注册包 {} 失败，已跳过", candidate.getName(), t);
+                failures.add(new Failure("包类型", candidate.getName(),
+                        "注册失败，这个包不会生效", t));
             }
         }
         return registered;
@@ -164,14 +225,14 @@ public final class ServerChannels {
      * <p>通道在 {@code sync.clientbound}、包定义在 {@code sync.payload.clientbound}，
      * 少放一边这个包就静默失效，所以这里主动比一次。
      */
-    private static void checkChannels(String channelPackage, Set<Identifier> registeredIds) {
+    private static void checkChannels(String channelPackage, Set<Identifier> registeredIds, List<Failure> failures) {
         forEach(channelPackage, SyncChannel.class, channel -> {
             Identifier id = channel.id().id();
             if (!registeredIds.contains(id)) {
-                LOGGER.error("{} 对应的包定义没放进 payload 目录，这个包不会生效（缺 {}）",
-                        channel.getClass().getName(), id);
+                failures.add(new Failure("通道体检", channel.getClass().getName(),
+                        "对应的包定义没放进 payload 目录，这个包不会生效（缺 " + id + "）", null));
             }
-        });
+        }, failures);
     }
 
     // ==============================================================
@@ -181,11 +242,13 @@ public final class ServerChannels {
     /**
      * 扫一个包，把实现 {@code role} 的类实例化后交给 {@code action}。
      *
-     * @return 处理了几个；单个类失败只记日志跳过，不影响其它类
+     * @return 处理了几个；单个类失败记进 {@code failures} 并跳过，不影响其它类
      */
-    private static <T> int forEach(String packageName, Class<T> role, Consumer<T> action) {
+    private static <T> int forEach(String packageName, Class<T> role, Consumer<T> action, List<Failure> failures) {
         int count = 0;
-        for (Class<?> candidate : PackageScanner.scan(packageName, ServerChannels.class)) {
+        for (Class<?> candidate : PackageScanner.scan(packageName, ServerChannels.class,
+                (name, cause) -> failures.add(new Failure(role.getSimpleName(), name,
+                        "类加载失败（扫包时被跳过），这项不会生效", cause)))) {
             if (!role.isAssignableFrom(candidate)
                     || candidate.isInterface()
                     || Modifier.isAbstract(candidate.getModifiers())) {
@@ -195,7 +258,8 @@ public final class ServerChannels {
                 action.accept(role.cast(instanceOf(candidate)));
                 count++;
             } catch (Throwable t) {
-                LOGGER.error("注册 {} 失败，已跳过", candidate.getName(), t);
+                failures.add(new Failure(role.getSimpleName(), candidate.getName(),
+                        "注册失败，这项功能不会生效", t));
             }
         }
         return count;

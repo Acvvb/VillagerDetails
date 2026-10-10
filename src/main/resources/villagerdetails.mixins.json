@@ -20,6 +20,7 @@
     "entity.piglinTrade.MerchantMenuProvisionMixin",
     "entity.piglinTrade.PiglinAiMixin",
     "monster.noBrainOnPortal.MobInterfaceMixin",
+    "monster.zombieVillager.ZombieVillagerInvoker",
     "plant.GrassBlockBoneMealMixin",
     "villager.move.BrainInterfaceMixin",
     "villager.move.BrainMixin",

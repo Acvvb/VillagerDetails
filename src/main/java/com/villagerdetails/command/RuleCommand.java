@@ -9,8 +9,9 @@ import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.VillagerDetails;
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.command.c.server.StateSuggestionServer;
-import com.villagerdetails.config.impl.RuleConfig;
 import com.villagerdetails.lang.ServerTranslations;
+import com.villagerdetails.rule.RuleChangeService;
+import com.villagerdetails.rule.RuleSwitches;
 import com.villagerdetails.rule.type.RuleCategoryType;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.commands.CommandSourceStack;
@@ -25,8 +26,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static com.villagerdetails.cache.RuleCache.isEnabled;
-import static com.villagerdetails.command.CommandConstants.COMMAND_BASE;
-import static com.villagerdetails.command.CommandConstants.PERM_BASE;
+import static com.villagerdetails.command.CommandConstants.*;
 import static com.villagerdetails.command.c.CCommand.buildCSubcommand;
 import static com.villagerdetails.rule.type.RuleType.SETTING_EC_COMMAND_PERMISSION;
 import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
@@ -49,13 +49,10 @@ public class RuleCommand {
 
     private static final String K_ERR_UNKNOWN_CATEGORY = "command.entity_binder.error.unknown_category";
     private static final String K_ERR_UNKNOWN_RULE = "command.entity_binder.error.unknown_rule";
-    private static final String K_ERR_INVALID_STATE = "command.entity_binder.error.invalid_state";
-    private static final String K_ERR_INVALID_OPTION = "command.entity_binder.error.invalid_option";
 
     private static final String K_TOGGLE_CATEGORY = "command.entity_binder.toggle.category_label";
     private static final String K_TOGGLE_VALUE = "command.entity_binder.toggle.value_label";
     private static final String K_TOGGLE_SUCCESS = "command.entity_binder.toggle.success";
-    private static final String K_TOGGLE_EMPTY_VALUE = "command.entity_binder.toggle.empty_value";
     private static final String K_TOGGLE_HOVER = "command.entity_binder.toggle.hover";
 
     //补全
@@ -90,7 +87,7 @@ public class RuleCommand {
     // ============================================================
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal(VillagerDetails.BAST_COMMAND)
+        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal(VillagerDetails.BASE_COMMAND)
                 .executes(ctx -> {
                     if (!hasBasePermission(ctx.getSource())) {
                         return 0;
@@ -232,96 +229,24 @@ public class RuleCommand {
             return 1;
         }
 
-        // 校验 state
-        String canonical = rule.isMultiSelect()
-                ? canonicalMultiSelect(rule, state, player)
-                : canonicalSingleSelect(rule, state, player);
-        if (canonical == null) return 0;
-
-        RuleCache.setState(rule, canonical);
-
-        RuleConfig config = RuleConfig.getOrCreate(context.getSource().getServer());
-        config.setBindingState(rule.getRegisterName(), canonical);
-
-        Component valueComp = canonical.isEmpty()
-                ? Component.translatable(K_TOGGLE_EMPTY_VALUE)
-                : Component.literal(canonical);
+        // 校验 + 写入：和收包端（客户端界面改规则）走同一个入口，两边不会一个拦一个放
+        RuleSwitches.Canonical result = RuleChangeService.change(rule, state);
+        if (result instanceof RuleSwitches.Canonical.BadState(String raw)) {
+            sendOrBroadcast(player, Component.translatable(RULE_ERROR_INVALID_STATE, raw));
+            return 0;
+        }
+        if (result instanceof RuleSwitches.Canonical.BadOption(String option)) {
+            sendOrBroadcast(player, Component.translatable(RULE_ERROR_INVALID_OPTION, option));
+            return 0;
+        }
+        String canonical = ((RuleSwitches.Canonical.Ok) result).state();
 
         sendOrBroadcast(player, Component.translatable(
                 K_TOGGLE_SUCCESS,
                 Component.translatable(rule.getDisplayName()),
                 rule.getRegisterName(),
-                valueComp));
+                Component.literal(canonical)));
         return 1;
-    }
-
-    /**
-     * 单选：预定义列表必须匹配；自定义列表放行任意非空输入。
-     * NONE 一律规范化为空字符串。
-     */
-    private static String canonicalSingleSelect(RuleType rule, String state, ServerPlayer player) {
-        // 自定义列表 → 允许任意非空输入
-        if (SwitchComponentType.isCustomList(rule.getQuickSwitches())) {
-            String trimmed = state == null ? "" : state.trim();
-            if (trimmed.isEmpty()) {
-                if (state != null) {
-                    sendOrBroadcast(player, Component.translatable(K_ERR_INVALID_STATE, state));
-                }
-                return null;
-            }
-            // ★ NONE → 空
-            if (SwitchComponentType.NONE.equalsIgnoreCase(trimmed)) {
-                return "";
-            }
-            return trimmed;
-        }
-
-        // 预定义列表 → 必须匹配
-        String canonical = rule.getQuickSwitches().stream()
-                .filter(s -> s.equalsIgnoreCase(state))
-                .findFirst()
-                .orElse(null);
-        if (canonical == null) {
-            sendOrBroadcast(player, Component.translatable(K_ERR_INVALID_STATE, state));
-            return null;
-        }
-
-        // ★ NONE → 空
-        if (SwitchComponentType.NONE.equalsIgnoreCase(canonical)) {
-            return "";
-        }
-        return canonical;
-    }
-
-    /**
-     * 多选：预定义列表必须逐项匹配；自定义列表放行任意非空项
-     */
-    private static String canonicalMultiSelect(RuleType rule, String state, ServerPlayer player) {
-        boolean custom = SwitchComponentType.isCustomList(rule.getQuickSwitches());
-
-        java.util.Set<String> selected = new java.util.LinkedHashSet<>();
-        for (String part : state.split(",")) {
-            String trimmed = part.trim();
-            if (trimmed.isEmpty()) continue;
-            if (SwitchComponentType.NONE.equalsIgnoreCase(part)) return "";
-
-            if (custom) {
-                // ★ 自定义列表 → 直接接受
-                selected.add(trimmed);
-            } else {
-                // 预定义列表 → 必须匹配
-                String match = rule.getQuickSwitches().stream()
-                        .filter(s -> s.equalsIgnoreCase(trimmed))
-                        .findFirst()
-                        .orElse(null);
-                if (match == null) {
-                    sendOrBroadcast(player, Component.translatable(K_ERR_INVALID_OPTION, trimmed));
-                    return null;
-                }
-                selected.add(match);
-            }
-        }
-        return String.join(",", selected);
     }
 
     // ============================================================
@@ -364,55 +289,16 @@ public class RuleCommand {
         return result;
     }
 
+    /**
+     * 一个快捷开关按钮：颜色 / 显示名 / 点下去发的状态全部来自 {@link RuleSwitches}，
+     * 客户端界面（{@code ServerRuleRow}）用的是同一套 —— 两边永远一致。
+     */
     private static MutableComponent switchComponent(RuleType rule, String option, String currentState) {
-        boolean selected;
-        String nextState;
-
-        boolean isNoneOption = SwitchComponentType.NONE.equalsIgnoreCase(option);
-        boolean isNoneState = currentState == null || currentState.isEmpty()
-                || SwitchComponentType.NONE.equalsIgnoreCase(currentState);
-        if (rule.isMultiSelect()) {
-
-            if (isNoneOption) {
-                selected = isNoneState;
-                nextState = SwitchComponentType.NONE;
-            } else {
-                selected = isSelectedIn(currentState, option);
-                nextState = selected ? removeFrom(currentState, option) : appendTo(currentState, option);
-                // 取消最后一个选中项后结果为空，改为发送 none，避免生成 /ec NoSqueeze （空 state）导致未知指令
-                if (nextState == null || nextState.isEmpty()) {
-                    nextState = SwitchComponentType.NONE;
-                }
-            }
-        } else {
-
-            if (isNoneOption) {
-                selected = isNoneState;
-                nextState = SwitchComponentType.NONE;
-            } else {
-                selected = option.equalsIgnoreCase(currentState);
-                nextState = option;
-            }
-        }
-
-        int color;
-        if (rule.isMultiSelect()) {
-            color = selected ? 0x2ecc71 : 0xAAAAAA;
-        } else {
-            boolean isOn = !SwitchComponentType.FALSE_STR.equalsIgnoreCase(option)
-                    && !SwitchComponentType.NONE.equalsIgnoreCase(option);
-            color = selected ? (isOn ? 0x2ecc71 : 0xe74c3c) : 0xAAAAAA;
-        }
-
-        String displayName = SwitchComponentType.displayNameOf(option);
-        String command = String.join(" ", COMMAND_BASE, rule.getRegisterName(), nextState);
-        // 当前值为空（none）时，提示里也显示 none，而不是空白
-        String currentDisplay = isNoneState
-                ? SwitchComponentType.NONE
-                : SwitchComponentType.displayNameOf(currentState);
+        String command = String.join(" ", COMMAND_BASE, rule.getRegisterName(), option);
         String hoverText = ServerTranslations.resolve(
-                Component.translatable(K_TOGGLE_HOVER, currentDisplay));
-        return buildClickableButton("[" + displayName + "]", color, command, hoverText);
+                Component.translatable(K_TOGGLE_HOVER, RuleSwitches.currentDisplay(currentState)));
+        return buildClickableButton("[" + RuleSwitches.displayNameOf(option) + "]",
+                RuleSwitches.colorOf(option, currentState), command, hoverText);
     }
 
     private static MutableComponent categoryDisplay(List<RuleCategoryType> ruleCategoryTypes) {
@@ -431,29 +317,4 @@ public class RuleCommand {
                 .withStyle(style -> style.withColor(TextColor.fromRgb(0x555555)));
     }
 
-    private static boolean isSelectedIn(String state, String option) {
-        if (state == null || state.isEmpty()) return false;
-        for (String part : state.split(",")) {
-            if (part.trim().equalsIgnoreCase(option)) return true;
-        }
-        return false;
-    }
-
-    private static String appendTo(String state, String option) {
-        if (isSelectedIn(state, option)) return state;
-        if (state == null || state.isEmpty()) return option;
-        return state + "," + option;
-    }
-
-    private static String removeFrom(String state, String option) {
-        if (state == null || state.isEmpty()) return "";
-        List<String> parts = new java.util.ArrayList<>();
-        for (String part : state.split(",")) {
-            String trimmed = part.trim();
-            if (!trimmed.isEmpty() && !trimmed.equalsIgnoreCase(option)) {
-                parts.add(trimmed);
-            }
-        }
-        return String.join(",", parts);
-    }
 }

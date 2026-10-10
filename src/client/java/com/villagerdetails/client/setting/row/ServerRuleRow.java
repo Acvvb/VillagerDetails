@@ -67,12 +67,12 @@ public record ServerRuleRow(RuleType rule) implements ConfigRow {
 
         List<SwitchOption> result = new ArrayList<>(options.size());
         for (String option : options) {
+            // 单选：点哪个按钮就把哪个选项原样发给服务端（选项本身就是状态值）
             result.add(new SwitchOption(
                     Component.literal(RuleSwitches.displayNameOf(option)),
-                    RuleSwitches.colorOf(rule, option, state),
+                    RuleSwitches.colorOf(option, state),
                     tooltip,
-                    () -> ClientRequests.sendRuleState(
-                            rule, RuleSwitches.nextState(rule, state, option))));
+                    () -> ClientRequests.sendRuleState(rule, option)));
         }
         return result;
     }

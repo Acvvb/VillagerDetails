@@ -65,7 +65,16 @@ public class BBSectionStateCache {
      * 清除玩家的选区
      */
     public static void clearSelection(ServerPlayer player) {
-        SECTIONS.remove(player.getUUID());
+        clearSelection(player.getUUID());
+    }
+
+    /**
+     * 清除玩家的选区（断线清理走这个重载：那时只拿得到 UUID）。
+     *
+     * <p>调用方见 {@code event.ServerSessionCaches}。
+     */
+    public static void clearSelection(UUID playerUuid) {
+        SECTIONS.remove(playerUuid);
     }
 
     /**

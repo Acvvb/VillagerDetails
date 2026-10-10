@@ -4,7 +4,7 @@ import com.villagerdetails.command.RuleCommand;
 import com.villagerdetails.config.ConfigRegistry;
 import com.villagerdetails.event.BBSelectionListener;
 import com.villagerdetails.event.EBSectionManager;
-import com.villagerdetails.event.ServerLifecycleListener;
+import com.villagerdetails.event.ServerSessionCaches;
 import com.villagerdetails.event.ServerStoppingListener;
 import com.villagerdetails.handler.monster.noBrainOnPortal.NoBrainOnPortalHandler;
 import com.villagerdetails.network.channel.ServerChannels;
@@ -16,7 +16,13 @@ import net.minecraft.resources.Identifier;
 
 public class VillagerDetails implements ModInitializer {
 
-    public static final String BAST_COMMAND = "ec";
+    /**
+     * 命令根字面量（{@code /ec ...}）。
+     *
+     * <p><b>值不要改</b>：{@code ModActivities} 用它拼出 {@code ec:go_to_destination} 这个 activity 名，
+     * 而 activity 名会写进实体存档（brain memories），改了值老存档就对不上了。
+     */
+    public static final String BASE_COMMAND = "ec";
 
     public static final String MOD_ID = "villagerdetails";
 
@@ -28,10 +34,10 @@ public class VillagerDetails implements ModInitializer {
         // 加新包只要按目录放类，见那个类的表格
         ServerChannels.registerAll();
 
-        ServerLifecycleEvents.SERVER_STARTED.register(ServerLifecycleListener::onServerStarted);
-        ServerLifecycleEvents.SERVER_STOPPING.register(new ServerStoppingListener());
-
+        // 启动时的配置回灌只有这一条路：ConfigRegistry 里注册了 RuleConfig，
+        // reloadAll 会调它的 reload（以前 ServerLifecycleListener 又单独回灌一遍，等于每次开服跑两遍）
         ServerLifecycleEvents.SERVER_STARTED.register(ConfigRegistry::reloadAll);
+        ServerLifecycleEvents.SERVER_STOPPING.register(new ServerStoppingListener());
 
         RuleModuleRegistry.initAll();
 
@@ -43,6 +49,9 @@ public class VillagerDetails implements ModInitializer {
 
         //方块-实体选择工具
         BBSelectionListener.init();
+
+        //玩家断开时摘掉各类选区缓存（静态 Map 不摘会一直堆，集成服换存档还会串 UUID）
+        ServerSessionCaches.init();
 
         //穿过地狱门回调（暂时写死怪物去脑子）
         NoBrainOnPortalHandler.register();

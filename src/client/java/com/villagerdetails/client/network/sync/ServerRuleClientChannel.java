@@ -6,7 +6,6 @@ import com.villagerdetails.client.setting.network.ServerRuleClientState;
 import com.villagerdetails.network.sync.payload.clientbound.ServerRuleSyncPayload;
 import com.villagerdetails.network.sync.clientbound.ServerRuleSyncChannel;
 import com.villagerdetails.rule.type.RuleType;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
 
 import java.util.ArrayList;
@@ -41,15 +40,5 @@ public final class ServerRuleClientChannel extends ServerRuleSyncChannel
         // 先记清单再 bumpVersion：界面重建时会用这份清单过滤
         ServerRuleClientState.setSyncedRules(visibleNames);
         ServerRuleClientState.bumpVersion();
-    }
-
-    @Override
-    public void registerClientEvents() {
-        // 断开连接时清掉，免得下次进别的服务器还留着上一份
-        ClientPlayConnectionEvents.DISCONNECT.register((_, _) -> {
-            ServerRuleClientState.setAvailable(false);
-            ServerRuleClientState.clearSyncedRules();
-            ServerRuleClientState.clearRuleData();
-        });
     }
 }

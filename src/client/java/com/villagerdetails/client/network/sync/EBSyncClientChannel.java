@@ -5,7 +5,6 @@ import com.villagerdetails.client.cache.EBSelectionClientState;
 import com.villagerdetails.client.network.channel.ClientReceiver;
 import com.villagerdetails.network.sync.payload.clientbound.EBSyncPayload;
 import com.villagerdetails.network.sync.clientbound.EBSyncChannel;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
 
 /**
@@ -28,14 +27,5 @@ public final class EBSyncClientChannel extends EBSyncChannel implements ClientRe
     @Override
     public void handleClient(Minecraft client, EBSyncPayload payload) {
         EBSelectionClientState.set(payload.entity(), payload.block());
-    }
-
-    /**
-     * 断线时清空选中状态，免得下次进服时残留上一局的高亮。
-     */
-    @Override
-    public void registerClientEvents() {
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) ->
-                EBSelectionClientState.clear());
     }
 }

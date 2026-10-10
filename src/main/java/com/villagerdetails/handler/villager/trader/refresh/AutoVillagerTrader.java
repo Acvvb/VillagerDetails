@@ -93,7 +93,7 @@ public class AutoVillagerTrader {
         if (key.equals("331a") || key.equals("331b")) return true;
 
         if (!(villager.level() instanceof ServerLevel level)) return false;
-        Identifier id = IdTranslationConfig.resolveEnchantId(raw);
+        Identifier id = IdTranslationConfig.resolveId(raw);
         if (id == null) return false;
 
         Registry<Enchantment> enchantReg = level.registryAccess()
@@ -266,7 +266,7 @@ public class AutoVillagerTrader {
 
     public static WantedResult parseWanted(Villager villager, String raw) {
         if (!(villager.level() instanceof ServerLevel level)) return null;
-        Identifier id = IdTranslationConfig.resolveEnchantId(raw);
+        Identifier id = IdTranslationConfig.resolveId(raw);
         if (id == null) return null;
         Registry<Enchantment> enchRegistry = level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
         Enchantment enchantment = enchRegistry.getValue(id);

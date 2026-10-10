@@ -4,110 +4,111 @@ import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.command.SwitchComponentType;
 import com.villagerdetails.rule.type.RuleType;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-
 /**
- * 规则快捷开关的显示与取值逻辑 —— 和 {@code /ec} 命令（RuleCommand）里那套完全一致，
- * 界面上的按钮组就是按 {@link RuleType#getQuickSwitches()} 渲染的。
+ * 规则开关的取值 / 显示逻辑 —— <b>唯一来源</b>：{@code /ec} 命令和客户端界面都调这里，
+ * 两边不会再各自长出一套。
  *
- * <p>颜色约定也照搬命令：选中且开启 = 绿，选中且关闭 = 红，未选中 = 灰。
+ * <p>开关是<b>单选</b>：一条规则的 {@link RuleType#getQuickSwitches()} 就是它的全部合法取值，
+ * 当前状态永远是其中之一（自定义列表规则除外，它放行任意非空文本）。
+ * 历史上那套「多选 + none 占位」的机制已经删掉：没有规则声明多选，
+ * 「关掉」就是选 {@code false}，空状态不再有任何含义。
+ *
+ * <p>颜色约定：选中且开启 = 绿，选中且关闭 = 红，未选中 = 灰。
  */
 public final class RuleSwitches {
 
     /**
-     * 选中 + 开启（命令里的 0x2ecc71）
+     * 选中 + 开启
      */
     public static final int COLOR_SELECTED_ON = 0x2ECC71;
     /**
-     * 选中 + 关闭（命令里的 0xe74c3c）
+     * 选中 + 关闭
      */
     public static final int COLOR_SELECTED_OFF = 0xE74C3C;
     /**
-     * 未选中：和 {@code /ec} 一致，用 0xFFAAAAAA 灰。
+     * 未选中
      */
-    public static final int COLOR_UNSELECTED = 0xFFFFFFF;
+    public static final int COLOR_UNSELECTED = 0xAAAAAA;
 
     private RuleSwitches() {
     }
 
+    // ==============================================================
+    // 校验
+    // ==============================================================
+
     /**
-     * 状态值是否为「关」：非 false（false 之外的取值都算开启）
+     * 校验结果：{@link Ok} 才是可以写进规则缓存的状态。
+     *
+     * <p>把「为什么被拒」也作为返回值交出去，调用方（命令 / 收包端）就能给出同一套提示，
+     * 而不是一个 {@code null} 各自猜原因。
+     */
+    public sealed interface Canonical permits Canonical.Ok, Canonical.BadState, Canonical.BadOption {
+
+        /**
+         * 校验通过：{@code state} 是规范写法（预定义列表里那一项的原文）
+         */
+        record Ok(String state) implements Canonical {
+        }
+
+        /**
+         * 空 / 全空白：没有任何规则支持空状态（要「关掉」就选 false）
+         */
+        record BadState(String raw) implements Canonical {
+        }
+
+        /**
+         * 预定义列表里没有这一项
+         */
+        record BadOption(String option) implements Canonical {
+        }
+    }
+
+    /**
+     * 状态值是否算「开启」：除了 {@code false} 都算开启
      */
     public static boolean isEnabledState(String state) {
         return !SwitchComponentType.FALSE_STR.equalsIgnoreCase(state == null ? "" : state);
     }
 
-    public static boolean isNoneState(String state) {
-        return state == null || state.isEmpty() || SwitchComponentType.NONE.equalsIgnoreCase(state);
-    }
-
     /**
-     * 当前状态下这个选项是否被选中。
+     * 校验并规范化一个状态字符串。
      *
-     * <p>「单选还是多选」直接问规则自己（{@link RuleType#isMultiSelect()}），
-     * 不再让调用方把一个 boolean 传进来 —— 那样调用点得先取出来再转发，
-     * 而且 IDEA 会把它当成「值始终相同」的参数来报。
+     * <ul>
+     *     <li>空白 / {@code null} → {@link Canonical.BadState}（不支持空状态）</li>
+     *     <li>自定义列表（语言码、逐条规则的自定义值）→ 原样接受 trim 后的文本</li>
+     *     <li>预定义列表 → 忽略大小写命中，返回列表里的原文；否则 {@link Canonical.BadOption}</li>
+     * </ul>
      */
-    public static boolean isSelected(RuleType rule, String state, String option) {
-        if (SwitchComponentType.NONE.equalsIgnoreCase(option)) {
-            return isNoneState(state);
+    public static Canonical canonicalize(RuleType rule, String state) {
+        String trimmed = state == null ? "" : state.trim();
+        if (trimmed.isEmpty()) {
+            return new Canonical.BadState(trimmed);
         }
-        if (rule.isMultiSelect()) {
-            if (isNoneState(state)) {
-                return false;
-            }
-            for (String part : state.split(",")) {
-                if (part.trim().equalsIgnoreCase(option)) {
-                    return true;
-                }
-            }
-            return false;
+        if (SwitchComponentType.isCustomList(rule.getQuickSwitches())) {
+            return new Canonical.Ok(trimmed);
         }
-        return option.equalsIgnoreCase(state == null ? "" : state);
+        for (String option : rule.getQuickSwitches()) {
+            if (option.equalsIgnoreCase(trimmed)) {
+                return new Canonical.Ok(option);
+            }
+        }
+        return new Canonical.BadOption(trimmed);
     }
 
-    /**
-     * 点这个选项之后应该发给服务端的状态（和命令生成的 state 参数一致）
-     */
-    public static String nextState(RuleType rule, String state, String option) {
-        if (SwitchComponentType.NONE.equalsIgnoreCase(option)) {
-            return SwitchComponentType.NONE;
-        }
-        if (!rule.isMultiSelect()) {
-            return option;
-        }
-        // 多选：点一下加进去 / 再去掉
-        if (isSelected(rule, state, option)) {
-            List<String> parts = new ArrayList<>();
-            if (state != null) {
-                for (String part : state.split(",")) {
-                    String trimmed = part.trim();
-                    if (!trimmed.isEmpty() && !trimmed.equalsIgnoreCase(option)) {
-                        parts.add(trimmed);
-                    }
-                }
-            }
-            return parts.isEmpty() ? SwitchComponentType.NONE : String.join(",", parts);
-        }
-        if (isNoneState(state)) {
-            return option;
-        }
-        return state + "," + option;
-    }
+    // ==============================================================
+    // 显示
+    // ==============================================================
 
     /**
-     * 按钮颜色：照搬 /ec 的规则
+     * 按钮颜色：选中且开启绿、选中且关闭红、未选中灰
      */
-    public static int colorOf(RuleType rule, String option, String state) {
-        boolean selected = isSelected(rule, state, option);
-        if (rule.isMultiSelect()) {
-            return selected ? COLOR_SELECTED_ON : COLOR_UNSELECTED;
+    public static int colorOf(String option, String state) {
+        boolean selected = option != null && option.equalsIgnoreCase(state == null ? "" : state);
+        if (!selected) {
+            return COLOR_UNSELECTED;
         }
-        boolean isOn = isEnabledState(option) && !SwitchComponentType.NONE.equalsIgnoreCase(option);
-        return selected ? (isOn ? COLOR_SELECTED_ON : COLOR_SELECTED_OFF) : COLOR_UNSELECTED;
+        return isEnabledState(option) ? COLOR_SELECTED_ON : COLOR_SELECTED_OFF;
     }
 
     /**
@@ -118,10 +119,13 @@ public final class RuleSwitches {
     }
 
     /**
-     * 当前状态的显示名；空 / none 一律显示 none（和 /ec 提示里一致）
+     * 当前状态的显示名；认不出来的取值（自定义）原样返回，空值返回空串
      */
     public static String currentDisplay(String state) {
-        return isNoneState(state) ? SwitchComponentType.NONE : SwitchComponentType.displayNameOf(state);
+        if (state == null || state.isBlank()) {
+            return "";
+        }
+        return SwitchComponentType.displayNameOf(state);
     }
 
     /**
@@ -131,66 +135,16 @@ public final class RuleSwitches {
         return currentDisplay(RuleCache.getState(rule));
     }
 
-    /** 规则当前状态是不是它自己声明的默认状态（是的话重置按钮置灰） */
+    /**
+     * 规则当前状态是不是它自己声明的默认状态（是的话重置按钮置灰）
+     */
     public static boolean isDefaultState(RuleType rule) {
         String current = RuleCache.getState(rule);
         String fallback = rule.getState();
-        String a = isNoneState(current) ? "" : current;
-        String b = isNoneState(fallback) ? "" : fallback;
-        return a.equalsIgnoreCase(b);
+        return normalize(current).equalsIgnoreCase(normalize(fallback));
     }
 
-    /**
-     * 校验并规范化客户端发来的状态字符串，规则和 {@code /ec <规则> <状态>} 一致。
-     *
-     * @return 规范化后的状态；非法输入返回 null
-     */
-    public static String canonicalize(RuleType rule, String state) {
-        boolean custom = SwitchComponentType.isCustomList(rule.getQuickSwitches());
-
-        if (rule.isMultiSelect()) {
-            Set<String> selected = new LinkedHashSet<>();
-            if (state != null) {
-                for (String part : state.split(",")) {
-                    String trimmed = part.trim();
-                    if (trimmed.isEmpty()) {
-                        continue;
-                    }
-                    if (SwitchComponentType.NONE.equalsIgnoreCase(trimmed)) {
-                        return "";
-                    }
-                    if (custom) {
-                        selected.add(trimmed);
-                    } else {
-                        String match = matchOption(rule, trimmed);
-                        if (match == null) {
-                            return null;
-                        }
-                        selected.add(match);
-                    }
-                }
-            }
-            return String.join(",", selected);
-        }
-
-        if (isNoneState(state)) {
-            return "";
-        }
-        if (custom) {
-            return state.trim();
-        }
-        return matchOption(rule, state.trim());
-    }
-
-    private static String matchOption(RuleType rule, String state) {
-        if (state == null) {
-            return null;
-        }
-        for (String option : rule.getQuickSwitches()) {
-            if (option.equalsIgnoreCase(state)) {
-                return option;
-            }
-        }
-        return null;
+    private static String normalize(String state) {
+        return state == null ? "" : state.trim();
     }
 }

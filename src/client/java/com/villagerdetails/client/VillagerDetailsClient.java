@@ -1,5 +1,6 @@
 package com.villagerdetails.client;
 
+import com.villagerdetails.client.cache.ClientSessionStates;
 import com.villagerdetails.client.feature.selection.BBSelectionHighlightRenderer;
 import com.villagerdetails.client.feature.selection.EBSelectionHighlightRenderer;
 import com.villagerdetails.client.feature.selection.PortalViewHighlightRenderer;
@@ -18,6 +19,8 @@ public class VillagerDetailsClient implements ClientModInitializer {
         VillagerBedLineRenderer.register();
         // 快捷键（默认 J）打开配置界面
         VillagerDetailsKeyMappings.register();
+        // 断线时统一清空所有「只活在本此会话里」的客户端状态（唯一的一处 DISCONNECT 清理）
+        ClientSessionStates.registerEvents();
         // 所有同步包的客户端接收器（村民床缓存、逐条配置数据、规则状态）
         ClientChannels.registerAll();
 

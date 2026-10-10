@@ -6,12 +6,12 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.util.ColorUtil;
+import com.villagerdetails.config.impl.util.JsonIO;
 import net.fabricmc.loader.api.FabricLoader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.Reader;
-import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -230,10 +230,8 @@ public final class ClientRenderConfig {
         clamp();
         Path file = path();
         try {
-            Files.createDirectories(file.getParent());
-            try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
-                GSON.toJson(this, writer);
-            }
+            // 和存档里的配置走同一套原子写：中途崩游戏不会把这份配置截成半截
+            JsonIO.writeString(file, GSON.toJson(this));
         } catch (Exception e) {
             LOGGER.error("保存客户端渲染配置失败：{}", file, e);
         }

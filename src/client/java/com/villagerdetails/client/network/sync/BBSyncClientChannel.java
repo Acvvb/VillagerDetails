@@ -4,7 +4,6 @@ import com.villagerdetails.client.cache.BBSelectionClientState;
 import com.villagerdetails.client.network.channel.ClientReceiver;
 import com.villagerdetails.network.sync.payload.clientbound.BBSyncPayload;
 import com.villagerdetails.network.sync.clientbound.BBSyncChannel;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
 
 /**
@@ -20,11 +19,5 @@ public final class BBSyncClientChannel extends BBSyncChannel implements ClientRe
     @Override
     public void handleClient(Minecraft client, BBSyncPayload payload) {
         BBSelectionClientState.set(payload.pos1(), payload.pos2());
-    }
-
-    @Override
-    public void registerClientEvents() {
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) ->
-                BBSelectionClientState.clear());
     }
 }

@@ -3,14 +3,18 @@ package com.villagerdetails.network.sync.receiver;
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.ServerReceiver;
-import com.villagerdetails.network.sync.payload.serverbound.ServerRuleSetPayload;
 import com.villagerdetails.network.sync.clientbound.ServerRuleSyncChannel;
+import com.villagerdetails.network.sync.payload.serverbound.ServerRuleSetPayload;
+import com.villagerdetails.rule.RuleChangeService;
 import com.villagerdetails.rule.RuleSwitches;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import static com.villagerdetails.command.CommandConstants.RULE_ERROR_INVALID_OPTION;
+import static com.villagerdetails.command.CommandConstants.RULE_ERROR_INVALID_STATE;
 
 /**
  * 客户端改规则状态：等价于 {@code /ec <规则> <状态>}。
@@ -53,24 +57,25 @@ public final class ServerRuleSetReceiver implements ServerReceiver<ServerRuleSet
             return;
         }
 
-        String canonical;
-        if (payload.reset()) {
-            canonical = type.getState();
-        } else {
-            // 和命令同一套校验：预定义列表必须匹配，自定义列表放行，none 归一化成空
-            canonical = RuleSwitches.canonicalize(type, payload.state());
-            if (canonical == null) {
-                player.sendSystemMessage(Component.translatable(
-                        "command.entity_binder.error.invalid_state", payload.state()));
-                LOGGER.warn("玩家 {} 给规则 {} 传了非法状态：{}",
-                        player.getName().getString(), type.getRegisterName(), payload.state());
-                return;
-            }
+        // 和 /ec 命令同一套校验与写入（走 RuleChangeService，命令那边也是它）
+        RuleSwitches.Canonical result = payload.reset()
+                ? RuleChangeService.reset(type)
+                : RuleChangeService.change(type, payload.state());
+        if (result instanceof RuleSwitches.Canonical.BadState(String raw)) {
+            player.sendSystemMessage(Component.translatable(RULE_ERROR_INVALID_STATE, raw));
+            LOGGER.warn("玩家 {} 给规则 {} 传了非法状态：{}",
+                    player.getName().getString(), type.getRegisterName(), raw);
+            return;
+        }
+        if (result instanceof RuleSwitches.Canonical.BadOption(String option)) {
+            player.sendSystemMessage(Component.translatable(RULE_ERROR_INVALID_OPTION, option));
+            LOGGER.warn("玩家 {} 给规则 {} 传了非法选项：{}",
+                    player.getName().getString(), type.getRegisterName(), option);
+            return;
         }
 
-        RuleCache.setState(type, canonical);
-
         // setState 会触发监听器广播，这里再补一次，保证发起者立刻看到最新状态
+        // （内容没变时被 lastSynced 去重，不发包）
         ServerRuleSyncChannel.INSTANCE.syncTo(player);
     }
 }

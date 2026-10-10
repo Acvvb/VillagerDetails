@@ -56,8 +56,9 @@ public class BindHandler {
 
     public static boolean chooseUtil(Level level, Player player, InteractionHand hand) {
         UUID playerUuid = player.getUUID();
-        // 原子取出并清空选择状态：绑定无论成败，缓存都不会残留旧状态导致重复触发
-        EBSelectionStateCache.SelectionState state = EBSelectionStateCache.take(playerUuid);
+        // 先看一眼，别急着消费选区：下面这几项校验没过时（工具换了 / 目标不是村民 / 实体没加载）
+        // 选区必须留着，玩家换回正确工具再点一次就能接着绑
+        EBSelectionStateCache.SelectionState state = EBSelectionStateCache.peek(playerUuid);
         if (state == null || !state.isComplete()) return false;
 
         Entity entity = level.getEntity(state.entityUuid());
@@ -66,6 +67,10 @@ public class BindHandler {
 
         ServerLevel serverLevel = (ServerLevel) level;
         ServerPlayer operator = (ServerPlayer) player;
+
+        // 校验通过 = 确实要进入绑定流程了：这时候才摘掉选区，
+        // 保证同一次选中不会被重复触发绑定
+        EBSelectionStateCache.clear(playerUuid);
 
         boolean isSuccess = VillagerBindHandler.bindVillager(serverLevel, operator, villager, state.blockPos(), type);
         if (isSuccess) {

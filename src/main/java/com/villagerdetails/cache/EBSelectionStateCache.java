@@ -10,9 +10,15 @@ import java.util.concurrent.ConcurrentHashMap;
  * 玩家「实体 + 方块」选择状态缓存。
  * <p>
  * 每个玩家同一时刻只保存一个选择状态（实体 UUID + 方块坐标）。
- * 绑定触发时通过 {@link #take(UUID)} 原子地「取出并清空」，无论绑定成功与否都不会残留旧状态，
- * 从根上避免「选完实体 → 绑定 → 再选同一实体却再次触发绑定」这类重复绑定问题。
+ * 绑定流程分两步取用，别看到缓存就以为"取出来就该清掉"：
  * </p>
+ * <ol>
+ *     <li>{@link #peek(UUID)} —— 先看一眼做校验（手上工具对不对、目标实体是不是村民）。
+ *         校验没过时选区<b>必须留着</b>：玩家换回正确工具再点一次就能接着绑，
+ *         而不是白选一遍</li>
+ *     <li>{@link #clear(UUID)} —— 校验通过、确实要进入绑定流程了，这时候才摘掉，
+ *         避免同一次选中被重复触发绑定</li>
+ * </ol>
  */
 public class EBSelectionStateCache {
 
@@ -46,18 +52,19 @@ public class EBSelectionStateCache {
     }
 
     /**
-     * 原子地取出并清空该玩家的选择状态。
-     * <p>
-     * 这是绑定流程的入口：一旦取出，该玩家的缓存即为空，
-     * 后续任何「再次选中实体」都只会重新开始选择，而不会误触发绑定。
-     * </p>
+     * 看一眼该玩家当前的选择状态，<b>不动缓存</b>；没选过返回 null。
+     *
+     * <p>绑定前的校验一律走这里，校验通过、真的要绑了再 {@link #clear(UUID)}。
      */
-    public static SelectionState take(UUID playerUuid) {
-        return STATES.remove(playerUuid);
+    public static SelectionState peek(UUID playerUuid) {
+        return STATES.get(playerUuid);
     }
 
     /**
      * 清空该玩家的选择状态。
+     *
+     * <p>绑定流程里这一步 = "确认消费掉这次选中"：进去之后无论绑定成败都不会再残留，
+     * 也就不会出现"选完实体 → 绑定 → 再选同一实体又触发一次绑定"。
      */
     public static void clear(UUID playerUuid) {
         STATES.remove(playerUuid);

@@ -37,20 +37,23 @@ public final class EBSelectionHighlightRenderer {
             return;
         }
 
-        renderSelectedBlock();
-        renderSelectedEntity(level);
+        // 一次读全：实体和方块取自同一份快照，两个框永远属于同一次选中
+        EBSelectionClientState.Snapshot selection = EBSelectionClientState.get();
+        if (selection.isEmpty()) {
+            return;
+        }
+        renderSelectedBlock(selection.block());
+        renderSelectedEntity(level, selection.entity());
     }
 
-    private static void renderSelectedBlock() {
-        BlockPos pos = EBSelectionClientState.block();
+    private static void renderSelectedBlock(BlockPos pos) {
         if (pos == null) {
             return;
         }
         HighlightBoxes.drawBlock(pos, ColorUtil.toArgb(ConfigEntryType.SELECTED_BLOCK_COLOR.getColor()));
     }
 
-    private static void renderSelectedEntity(ClientLevel level) {
-        UUID uuid = EBSelectionClientState.entity();
+    private static void renderSelectedEntity(ClientLevel level, UUID uuid) {
         if (uuid == null) {
             return;
         }

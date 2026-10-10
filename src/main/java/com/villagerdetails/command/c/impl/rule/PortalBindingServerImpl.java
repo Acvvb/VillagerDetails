@@ -305,6 +305,10 @@ public class PortalBindingServerImpl implements RegisterServer {
             return 0;
         }
 
+        // 刚删掉的这条很可能正被这个玩家高亮着：顺手清掉客户端那侧的框，
+        // 否则会一直留到下次 view 或断线（清的是所有维度，另一侧的框一并消失）
+        PortalViewSyncChannel.INSTANCE.clear(player);
+
         sendOrBroadcast(player, Component.translatable(K_DELETE_SUCCESS,
                 String.valueOf(index + 1)));
         return 1;

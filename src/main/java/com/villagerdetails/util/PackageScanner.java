@@ -12,12 +12,8 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.CodeSource;
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
@@ -49,13 +45,16 @@ public final class PackageScanner {
     }
 
     /**
-     * 扫一个包，返回加载好（但还没初始化）的类。
+     * 同上，但把「扫到了类却加载不起来」这种情况交给调用方。
      *
-     * @param packageName 包名，例如 {@code com.villagerdetails.network.sync.clientbound}
-     * @param anchor      用来定位输出目录 / jar 的「锚点类」，传调用方自己的类就行
-     * @return 扫到的类；顺序按类名稳定排列，扫不到返回空表
+     * <p>扫包本身永远不抛异常（一个类坏掉不代表别的类也要放弃），但静默跳过会让
+     * 「某个包没注册上」变成一个查不出来的问题 —— 所以调用方可以在这里收口，
+     * 把这些类汇总成一条告警。
+     *
+     * @param onLoadFailure 类加载失败时的回调（类名, 原始异常），可为 {@code null}
      */
-    public static List<Class<?>> scan(String packageName, Class<?> anchor) {
+    public static List<Class<?>> scan(String packageName, Class<?> anchor,
+                                      BiConsumer<String, Throwable> onLoadFailure) {
         String path = packageName.replace('.', '/');
         Set<String> names = new LinkedHashSet<>();
 
@@ -70,6 +69,9 @@ public final class PackageScanner {
                 classes.add(Class.forName(name, false, loader));
             } catch (Throwable t) {
                 LOGGER.warn("扫包 {}：类 {} 加载失败，已跳过", packageName, name, t);
+                if (onLoadFailure != null) {
+                    onLoadFailure.accept(name, t);
+                }
             }
         }
         return classes;
@@ -79,7 +81,9 @@ public final class PackageScanner {
     // 三路来源
     // ==============================================================
 
-    /** 第一路：Fabric 登记的模组根目录 */
+    /**
+     * 第一路：Fabric 登记的模组根目录
+     */
     private static void collectFromModRoots(String path, Set<String> out) {
         try {
             Optional<ModContainer> container = FabricLoader.getInstance().getModContainer(VillagerDetails.MOD_ID);
@@ -94,7 +98,9 @@ public final class PackageScanner {
         }
     }
 
-    /** 第二路：锚点类所在的位置 */
+    /**
+     * 第二路：锚点类所在的位置
+     */
     private static void collectFromCodeSource(Class<?> anchor, String path, Set<String> out) {
         if (anchor == null) {
             return;
@@ -114,7 +120,9 @@ public final class PackageScanner {
         }
     }
 
-    /** 第三路：类加载器的资源查找（兜底） */
+    /**
+     * 第三路：类加载器的资源查找（兜底）
+     */
     private static void collectFromClassLoader(String path, Set<String> out) {
         try {
             ClassLoader loader = Thread.currentThread().getContextClassLoader();
@@ -140,7 +148,9 @@ public final class PackageScanner {
     // 具体来源 → 类名
     // ==============================================================
 
-    /** 一个根：可能是目录（开发环境），也可能是 jar 文件（打包后） */
+    /**
+     * 一个根：可能是目录（开发环境），也可能是 jar 文件（打包后）
+     */
     private static void collectFromRoot(Path root, String path, Set<String> out) {
         if (root == null) {
             return;
@@ -172,7 +182,9 @@ public final class PackageScanner {
         }
     }
 
-    /** 走 jar 文件里以包路径开头的条目（不依赖 jar 里有没有目录条目） */
+    /**
+     * 走 jar 文件里以包路径开头的条目（不依赖 jar 里有没有目录条目）
+     */
     private static void collectFromJar(Path jarPath, String path, Set<String> out) {
         if (jarPath == null || !Files.isRegularFile(jarPath)) {
             return;
@@ -184,7 +196,9 @@ public final class PackageScanner {
         }
     }
 
-    /** 同上，来源是 {@code jar:} 协议的 URL */
+    /**
+     * 同上，来源是 {@code jar:} 协议的 URL
+     */
     private static void collectFromJarUrl(URL url, String path, Set<String> out) {
         try {
             JarURLConnection connection = (JarURLConnection) url.openConnection();

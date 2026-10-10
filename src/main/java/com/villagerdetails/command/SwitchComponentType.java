@@ -25,8 +25,6 @@ public enum SwitchComponentType {
 
     OWNER("owner", "owner", PermissionLevel.OWNERS);
 
-    public static final String NONE = "none";
-
     /**
      * 关闭态命令字符串
      */

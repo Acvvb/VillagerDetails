@@ -54,6 +54,16 @@ public class RuleCache {
         return server;
     }
 
+    /**
+     * 服务器停机时调一次：把静态引用放掉。
+     *
+     * <p>不放的话这个静态字段会一直攥着已经废弃的 {@link MinecraftServer}，
+     * 单人反复换存档时等于把整个旧世界挂在类加载器上。
+     */
+    public static void clearServer() {
+        server = null;
+    }
+
     @FunctionalInterface
     public interface RuleChangeListener {
         void onRuleChanged(RuleType type, String oldValue, String newValue);
@@ -111,7 +121,6 @@ public class RuleCache {
      */
     public static boolean lacksRuleCommandPermission(ServerPlayer serverPlayer) {
         if (serverPlayer == null) {
-            // 没有玩家 = 没权限（和原来 hasXxx 返回 false 是同一个判断，只是取了反）
             return true;
         }
         PermissionLevel level = SwitchComponentType.permissionLevelOf(getState(RuleType.SETTING_EC_COMMAND_PERMISSION));
@@ -119,10 +128,15 @@ public class RuleCache {
                 PERM_BASE, level != null ? level : PermissionLevel.OWNERS);
     }
 
+    /**
+     * 改一条规则的状态：写内存 + 落盘 + 触发回调与监听器。
+     *
+     * <p><b>别直接调这里</b> —— 对外的「改规则」入口是
+     * {@link com.villagerdetails.rule.RuleChangeService}（它负责先做合法性校验）；
+     * 只有两处例外：它自己，以及 {@link #syncRules}（配置回灌）。
+     */
     public static void setState(RuleType type, String state) {
         if (type == null || state == null) return;
-        // 占位符 none 统一规范化为空字符串，允许缓存中保存空值
-        if (SwitchComponentType.NONE.equalsIgnoreCase(state)) state = "";
         String oldValue = getState(type);
         if (state.equals(oldValue)) return;
         rules.put(type, state);
@@ -130,12 +144,9 @@ public class RuleCache {
         fireCallbacks(type, oldValue, state);
     }
 
-    public static void resetAll() {
-        for (RuleType type : RuleType.values()) {
-            setState(type, type.getState());
-        }
-    }
-
+    /**
+     * 配置回灌专用：把磁盘上读到的状态批量写进内存（走 {@link #setState}，所以回调照常触发）。
+     */
     public static void syncRules(Map<RuleType, String> newRules) {
         if (newRules == null) return;
 
@@ -152,7 +163,6 @@ public class RuleCache {
      */
     public static void applyClientMirror(RuleType type, String state) {
         if (type == null || state == null) return;
-        if (SwitchComponentType.NONE.equalsIgnoreCase(state)) state = "";
         rules.put(type, state);
     }
 

@@ -22,81 +22,84 @@ public enum RuleType implements RegisterTypeServer {
 
 
     //设置
-    SETTING_LANGUAGE("Language", "setting.language", "setting.language.desc", List.of(MOD_SETTING), new ArrayList<>(), null, false, ServerLangConfig.getPreloadLanguages(), "en_us"),
+    SETTING_LANGUAGE("Language", "setting.language", "setting.language.desc", List.of(MOD_SETTING), new ArrayList<>(), null, ServerLangConfig.preloadLanguageView(), "en_us"),
 
-    SETTING_EC_COMMAND_PERMISSION("RuleCommand", "setting.ec_command_permission", "setting.ec_command_permission.desc", List.of(MOD_SETTING), new ArrayList<>(), null, false, SETTING_PERMISSIONS, OWNER_STR),
+    SETTING_EC_COMMAND_PERMISSION("RuleCommand", "setting.ec_command_permission", "setting.ec_command_permission.desc", List.of(MOD_SETTING), new ArrayList<>(), null, SETTING_PERMISSIONS, OWNER_STR),
 
 
     // 实体
     // 无挤压：规则状态就是普通的「是 / 否」；具体保护哪些实体由 /ec c NoSqueeze <实体id> true|false
     // 存进 NoSqueezeConfig（以前是把这个实体 id 列表塞在状态里，现在状态只管开关）
-    VILLAGER_NO_SQUEEZE("NoSqueeze", "setting.villager_no_squeeze", "setting.villager_no_squeeze.desc", List.of(ENTITY, VILLAGER), new ArrayList<>(), NoSqueezeServerImpl.INSTANCE, false, ON_OFF, FALSE_STR),
+    VILLAGER_NO_SQUEEZE("NoSqueeze", "setting.villager_no_squeeze", "setting.villager_no_squeeze.desc", List.of(ENTITY, VILLAGER), new ArrayList<>(), NoSqueezeServerImpl.INSTANCE, ON_OFF, FALSE_STR),
 
-    PIGLIN_GOLD_BLOCK_MULTIPLY("PiglinGoldBlockMultiply", "setting.piglin_gold_block_multiply", "setting.piglin_gold_block_multiply.desc", List.of(ENTITY), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+    // 命名牌写 help 贴到僵尸村民 → 立刻走完原版治愈流程（职业 / 交易 / 声望保留）
+    ZOMBIE_VILLAGER_HELP("ZombieVillagerHelp", "setting.zombie_villager_help", "setting.zombie_villager_help.desc", List.of(VILLAGER, MONSTER), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
-    PIGLIN_BARTER_DELAY("PiglinBarterDelay", "setting.piglin_barter_delay", "setting.piglin_barter_delay.desc", List.of(ENTITY), new ArrayList<>(), null, false, List.of("3", "6", "12"), "6"),
+    PIGLIN_GOLD_BLOCK_MULTIPLY("PiglinGoldBlockMultiply", "setting.piglin_gold_block_multiply", "setting.piglin_gold_block_multiply.desc", List.of(ENTITY), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
-    PIGLIN_GOLD_BLOCK_MULTIPLY_PUNISHMENT("PiglinGoldBlockMultiplyPunishment", "setting.piglin_gold_block_multiply_punishment", "setting.piglin_gold_block_multiply_punishment.desc", List.of(ENTITY), new ArrayList<>(), null, false, List.of("1", "3", "9"), "9"),
+    PIGLIN_BARTER_DELAY("PiglinBarterDelay", "setting.piglin_barter_delay", "setting.piglin_barter_delay.desc", List.of(ENTITY), new ArrayList<>(), null, List.of("3", "6", "12"), "6"),
+
+    PIGLIN_GOLD_BLOCK_MULTIPLY_PUNISHMENT("PiglinGoldBlockMultiplyPunishment", "setting.piglin_gold_block_multiply_punishment", "setting.piglin_gold_block_multiply_punishment.desc", List.of(ENTITY), new ArrayList<>(), null, List.of("1", "3", "9"), "9"),
 
 
     //怪物
-    NO_BRAIN_ON_PORTAL("NoBrainOnPortal", "setting.no_brain_on_portal", "setting.no_brain_on_portal.desc", List.of(MONSTER), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+    NO_BRAIN_ON_PORTAL("NoBrainOnPortal", "setting.no_brain_on_portal", "setting.no_brain_on_portal.desc", List.of(MONSTER), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
 
     //植物
-    VILLAGER_BONE_MEAL_FLOWER("VillagerBoneMealFlower", "villagerdetails.rule.villagerbonemealflower", "villagerdetails.rule.villagerbonemealflower.desc", List.of(PLANT), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+    VILLAGER_BONE_MEAL_FLOWER("VillagerBoneMealFlower", "villagerdetails.rule.villagerbonemealflower", "villagerdetails.rule.villagerbonemealflower.desc", List.of(PLANT), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
 
     //动物
-    INFINITE_SHEAR("InfiniteShear", "setting.infinite_shear", "setting.infinite_shear.desc", List.of(ANIMAL), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+    INFINITE_SHEAR("InfiniteShear", "setting.infinite_shear", "setting.infinite_shear.desc", List.of(ANIMAL), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
 
     // 村民
-    VILLAGER_BED_RESET("VillagerBedBinding", "setting.villager_bed_reset", "setting.villager_bed_reset.desc", List.of(VILLAGER), List.of(ListenerType.ENTITY_BLOCK_SELECTION), null, false, PERMISSIONS, FALSE_STR),
+    VILLAGER_BED_RESET("VillagerBedBinding", "setting.villager_bed_reset", "setting.villager_bed_reset.desc", List.of(VILLAGER), List.of(ListenerType.ENTITY_BLOCK_SELECTION), null, PERMISSIONS, FALSE_STR),
 
-    VILLAGER_WORK_BLOCK_RESET("VillagerWorkBlockBinding", "setting.villager_work_block_reset", "setting.villager_work_block_reset.desc", List.of(VILLAGER), List.of(ListenerType.ENTITY_BLOCK_SELECTION), null, false, PERMISSIONS, FALSE_STR),
+    VILLAGER_WORK_BLOCK_RESET("VillagerWorkBlockBinding", "setting.villager_work_block_reset", "setting.villager_work_block_reset.desc", List.of(VILLAGER), List.of(ListenerType.ENTITY_BLOCK_SELECTION), null, PERMISSIONS, FALSE_STR),
 
-    VILLAGER_BATCH_BED_RESET("VillagerBatchBedBinding", "setting.villager_batch_bed_reset", "setting.villager_batch_bed_reset.desc", List.of(VILLAGER, COMMAND), List.of(ListenerType.BLOCK_RANGE_SELECTION), VillagerBatchBedBindingServerImpl.INSTANCE, false, PERMISSIONS, FALSE_STR),
+    VILLAGER_BATCH_BED_RESET("VillagerBatchBedBinding", "setting.villager_batch_bed_reset", "setting.villager_batch_bed_reset.desc", List.of(VILLAGER, COMMAND), List.of(ListenerType.BLOCK_RANGE_SELECTION), VillagerBatchBedBindingServerImpl.INSTANCE, PERMISSIONS, FALSE_STR),
 
-    VILLAGER_AUTO_TRADER("VillagerAutoTrader", "setting.villager_auto_trader", "setting.villager_auto_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+    VILLAGER_AUTO_TRADER("VillagerAutoTrader", "setting.villager_auto_trader", "setting.villager_auto_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
-    VILLAGER_GOD_TOOLS("VillagerGodTools", "setting.villager_god_tools", "setting.villager_god_tools.desc", List.of(VILLAGER), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+    VILLAGER_GOD_TOOLS("VillagerGodTools", "setting.villager_god_tools", "setting.villager_god_tools.desc", List.of(VILLAGER), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
-    VILLAGER_TERRACOTTA_TRADER("VillagerTerracottaTrader", "setting.villager_terracotta_trader", "setting.villager_terracotta_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+    VILLAGER_TERRACOTTA_TRADER("VillagerTerracottaTrader", "setting.villager_terracotta_trader", "setting.villager_terracotta_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
-    VILLAGER_AUTO_LOCK_HIT_TRADER("VillagerAutoLockHitTrader", "setting.villager_auto_lock_hit_trader", "setting.villager_auto_lock_hit_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+    VILLAGER_AUTO_LOCK_HIT_TRADER("VillagerAutoLockHitTrader", "setting.villager_auto_lock_hit_trader", "setting.villager_auto_lock_hit_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
-    VILLAGER_SILENT_AUTO_REROLL_TRADER("VillagerSilentTrader", "setting.villager_silent_auto_reroll_trader", "setting.villager_silent_auto_reroll_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+    VILLAGER_SILENT_AUTO_REROLL_TRADER("VillagerSilentTrader", "setting.villager_silent_auto_reroll_trader", "setting.villager_silent_auto_reroll_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
-    VILLAGER_ONE_TICK_TRADER_COUNT("VillagerOneTickTraderCount", "setting.villager_one_tick_trader_count", "setting.villager_one_tick_trader_count.desc", List.of(VILLAGER), new ArrayList<>(), null, false, List.of("50", "100", "500", "1000"), "500"),
+    VILLAGER_ONE_TICK_TRADER_COUNT("VillagerOneTickTraderCount", "setting.villager_one_tick_trader_count", "setting.villager_one_tick_trader_count.desc", List.of(VILLAGER), new ArrayList<>(), null, List.of("50", "100", "500", "1000"), "500"),
 
-    VILLAGER_HARD_WORKING("VillagerHardWorking", "setting.villager_hard_working", "setting.villager_hard_working.desc", List.of(VILLAGER), new ArrayList<>(), null, false, List.of("1", "2", "5"), "1"),
+    VILLAGER_HARD_WORKING("VillagerHardWorking", "setting.villager_hard_working", "setting.villager_hard_working.desc", List.of(VILLAGER), new ArrayList<>(), null, List.of("1", "2", "5"), "1"),
 
-    VILLAGER_INFINITE_TRADE("VillagerInfiniteTrade", "setting.villager_infinite_trade", "setting.villager_infinite_trade.desc", List.of(VILLAGER), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+    VILLAGER_INFINITE_TRADE("VillagerInfiniteTrade", "setting.villager_infinite_trade", "setting.villager_infinite_trade.desc", List.of(VILLAGER), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
-    VILLAGER_MOVE_CONTROLLER("VillagerMoveController", "setting.villager_move_controller", "setting.villager_move_controller.desc", List.of(VILLAGER), new ArrayList<>(), null, false, PERMISSIONS, FALSE_STR),
+    VILLAGER_MOVE_CONTROLLER("VillagerMoveController", "setting.villager_move_controller", "setting.villager_move_controller.desc", List.of(VILLAGER), new ArrayList<>(), null, PERMISSIONS, FALSE_STR),
 
-    VILLAGER_TOOLSMITH_EXCHANGE("VillagerToolsmithExchange", "setting.villager_toolsmith_exchange", "setting.villager_toolsmith_exchange.desc", List.of(VILLAGER), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+    VILLAGER_TOOLSMITH_EXCHANGE("VillagerToolsmithExchange", "setting.villager_toolsmith_exchange", "setting.villager_toolsmith_exchange.desc", List.of(VILLAGER), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
-    VILLAGER_EMERALD_DECOMPOSE("VillagerEmeraldDecompose", "setting.villager_emerald_decompose", "setting.villager_emerald_decompose.desc", List.of(VILLAGER), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+    VILLAGER_EMERALD_DECOMPOSE("VillagerEmeraldDecompose", "setting.villager_emerald_decompose", "setting.villager_emerald_decompose.desc", List.of(VILLAGER), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
-    VILLAGER_BOOKSHELF_DECOMPOSE("VillagerBookshelfDecompose", "setting.villager_bookshelf_decompose", "setting.villager_bookshelf_decompose.desc", List.of(VILLAGER), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+    VILLAGER_BOOKSHELF_DECOMPOSE("VillagerBookshelfDecompose", "setting.villager_bookshelf_decompose", "setting.villager_bookshelf_decompose.desc", List.of(VILLAGER), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
 
     // 方块
-    BLOCK_MINING_RESISTANCE("BlockMiningResistance", "rule.block.mining_resistance", "rule.block.mining_resistance.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), BlockMiningResistanceServerImpl.INSTANCE, false, ON_OFF, FALSE_STR),
+    BLOCK_MINING_RESISTANCE("BlockMiningResistance", "rule.block.mining_resistance", "rule.block.mining_resistance.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), BlockMiningResistanceServerImpl.INSTANCE, ON_OFF, FALSE_STR),
 
-    BLOCK_COLLECTABLE("BlockCollectable", "rule.block.collectable", "rule.block.collectable.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), BlockCollectableServerImpl.INSTANCE, false, ON_OFF, FALSE_STR),
+    BLOCK_COLLECTABLE("BlockCollectable", "rule.block.collectable", "rule.block.collectable.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), BlockCollectableServerImpl.INSTANCE, ON_OFF, FALSE_STR),
 
-    BLOCK_EXPLOSION_RESISTANCE("BlockExplosionResistance", "rule.block.explosion_resistance", "rule.block.explosion_resistance.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), BlockExplosionResistanceServerImpl.INSTANCE, false, ON_OFF, FALSE_STR),
+    BLOCK_EXPLOSION_RESISTANCE("BlockExplosionResistance", "rule.block.explosion_resistance", "rule.block.explosion_resistance.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), BlockExplosionResistanceServerImpl.INSTANCE, ON_OFF, FALSE_STR),
 
-    TNT_NO_DESTROY_DROPS("TntNoDestroyDrops", "setting.tnt_no_destroy_drops", "setting.tnt_no_destroy_drops.desc", List.of(BLOCK), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+    TNT_NO_DESTROY_DROPS("TntNoDestroyDrops", "setting.tnt_no_destroy_drops", "setting.tnt_no_destroy_drops.desc", List.of(BLOCK), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
-    BOX_CRAFTING("BoxCrafting", "setting.box_crafting", "setting.box_crafting.desc", List.of(BLOCK), new ArrayList<>(), null, false, ON_OFF, FALSE_STR),
+    BOX_CRAFTING("BoxCrafting", "setting.box_crafting", "setting.box_crafting.desc", List.of(BLOCK), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
-    PORTAL_BINDING("PortalBinding", "setting.PortalBinding", "setting.PortalBinding.desc", List.of(BLOCK), List.of(ListenerType.BLOCK_RANGE_SELECTION), PortalBindingServerImpl.INSTANCE, false, ON_OFF, FALSE_STR),
+    PORTAL_BINDING("PortalBinding", "setting.PortalBinding", "setting.PortalBinding.desc", List.of(BLOCK), List.of(ListenerType.BLOCK_RANGE_SELECTION), PortalBindingServerImpl.INSTANCE, ON_OFF, FALSE_STR),
 
-    PORTAL_BINDING_ENHANCED("PortalBindingEnhanced", "setting.PortalBindingEnhanced", "setting.PortalBindingEnhanced.desc", List.of(BLOCK), List.of(ListenerType.BLOCK_RANGE_SELECTION), PortalBindingServerImpl.INSTANCE, false, ON_OFF, FALSE_STR),
+    PORTAL_BINDING_ENHANCED("PortalBindingEnhanced", "setting.PortalBindingEnhanced", "setting.PortalBindingEnhanced.desc", List.of(BLOCK), List.of(ListenerType.BLOCK_RANGE_SELECTION), PortalBindingServerImpl.INSTANCE, ON_OFF, FALSE_STR),
 
     ;
 
@@ -107,18 +110,16 @@ public enum RuleType implements RegisterTypeServer {
     private final List<RuleCategoryType> category;
     private final List<ListenerType> listenerType;
     private final RegisterServer commandObject;
-    private final boolean multiSelect;
     private final List<String> quickSwitches;
     private final String state;
     private final StateSuggestionServer stateSuggestionServer;
 
-    RuleType(String registerName, String displayName, String displayInfo, List<RuleCategoryType> category, List<ListenerType> listenerType, RegisterServer commandClass, boolean multiSelect, List<String> quickSwitches, String state) {
-        this(registerName, displayName, displayInfo, category, listenerType, commandClass, multiSelect, quickSwitches, state, null);
+    RuleType(String registerName, String displayName, String displayInfo, List<RuleCategoryType> category, List<ListenerType> listenerType, RegisterServer commandClass, List<String> quickSwitches, String state) {
+        this(registerName, displayName, displayInfo, category, listenerType, commandClass, quickSwitches, state, null);
     }
 
-    RuleType(String registerName, String displayName, String displayInfo, List<RuleCategoryType> category, List<ListenerType> listenerType, RegisterServer commandClass, boolean multiSelect, List<String> quickSwitches, String state, StateSuggestionServer stateSuggestionServer) {
+    RuleType(String registerName, String displayName, String displayInfo, List<RuleCategoryType> category, List<ListenerType> listenerType, RegisterServer commandClass, List<String> quickSwitches, String state, StateSuggestionServer stateSuggestionServer) {
         this.listenerType = listenerType;
-        this.multiSelect = multiSelect;
         this.quickSwitches = quickSwitches;
         this.registerName = registerName;
         this.displayName = displayName;
@@ -171,10 +172,6 @@ public enum RuleType implements RegisterTypeServer {
     @Override
     public Predicate<CommandSourceStack> requirement() {
         return src -> isEnabled(src, this);
-    }
-
-    public boolean isMultiSelect() {
-        return multiSelect;
     }
 
     public List<String> getQuickSwitches() {

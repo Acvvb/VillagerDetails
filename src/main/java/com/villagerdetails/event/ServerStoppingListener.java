@@ -1,5 +1,6 @@
 package com.villagerdetails.event;
 
+import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.config.impl.RuleConfig;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import org.jspecify.annotations.NonNull;
@@ -12,7 +13,9 @@ public class ServerStoppingListener implements ServerLifecycleEvents.ServerStopp
 
     @Override
     public void onServerStopping(net.minecraft.server.@NonNull MinecraftServer server) {
+        // 顺序要紧：先落盘（这一步还需要 server），再放掉 RuleCache 里的静态引用
         RuleConfig.onServerStopping(server);
+        RuleCache.clearServer();
         LOGGER.info("世界已卸载，配置已保存");
     }
 }

@@ -1,6 +1,8 @@
 package com.villagerdetails.rule.callback;
 
 import com.villagerdetails.rule.type.RuleType;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -10,6 +12,8 @@ import java.util.Map;
  * 每条规则可以注册一个"变更时执行"的处理器。
  */
 public final class RuleCallbacks {
+
+    private static final Logger log = LogManager.getLogger(RuleCallbacks.class);
 
     private RuleCallbacks() {
     }
@@ -46,7 +50,8 @@ public final class RuleCallbacks {
         try {
             h.onChanged(oldValue, newValue);
         } catch (Exception e) {
-            System.err.println("[RuleCallbacks] " + type.getRegisterName() + " 回调失败: " + e);
+            // 异常对象作为最后一个参数交给日志：回调里的 NPE 要能看到堆栈才定位得了
+            log.error("[RuleCallbacks] {} 回调失败", type.getRegisterName(), e);
         }
     }
 }
