@@ -108,6 +108,9 @@ public final class ServerChannels {
         Set<Identifier> serverboundIds = registerPayloads(PAYLOAD_SERVERBOUND_PACKAGE, false, failures);
 
         // 2) 服务端收包、3) 事件、4) 兜底
+        // ServerReceiver 是泛型接口，Java 写不出 ServerReceiver<?>.class，它的 Class 字面量天生是 raw 的。
+        // 这里只用它做类型筛选，实例的真实类型由 forEach 内的 role.cast 在运行期兜住，故就地压制 rawtypes。
+        @SuppressWarnings("rawtypes")
         int receivers = forEach(RECEIVER_PACKAGE, ServerReceiver.class, ServerReceiver::registerServerReceiver, failures);
         int events = forEach(EVENT_PACKAGE, SyncEvents.class, SyncEvents::registerEvents, failures);
         int others = forEach(OTHER_PACKAGE, SyncRegistrar.class, SyncRegistrar::register, failures);

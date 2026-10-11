@@ -5,6 +5,7 @@ import com.villagerdetails.client.setting.config.ClientRenderConfig;
 import com.villagerdetails.client.setting.screen.VillagerBedConfigScreen;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.type.style.StyleType;
+import com.villagerdetails.client.setting.util.InputCompat;
 import com.villagerdetails.rule.RuleSwitches;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -48,7 +49,7 @@ public final class VillagerDetailsKeyMappings {
      */
     public static final KeyMapping OPEN_CONFIG = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.villagerdetails.open_config",
-            InputConstants.Type.KEYSYM,
+            InputCompat.keyboard(),
             DEFAULT_OPEN_KEY,
             CATEGORY));
 
@@ -83,11 +84,11 @@ public final class VillagerDetailsKeyMappings {
         config.save();
 
         InputConstants.Key bound = KeyMappingHelper.getBoundKeyOf(OPEN_CONFIG);
-        if (bound.getType() != InputConstants.Type.KEYSYM) {
+        if (bound.getType() != InputCompat.keyboard()) {
             return;
         }
         if (bound.getValue() == LEGACY_OPEN_KEY) {
-            OPEN_CONFIG.setKey(InputConstants.Type.KEYSYM.getOrCreate(DEFAULT_OPEN_KEY));
+            OPEN_CONFIG.setKey(InputCompat.keyboard().getOrCreate(DEFAULT_OPEN_KEY));
             client.options.save();
         }
     }
@@ -145,7 +146,7 @@ public final class VillagerDetailsKeyMappings {
      */
     private static boolean allKeysDown(Minecraft client, int[] keys) {
         for (int key : keys) {
-            if (!InputConstants.isKeyDown(client.getWindow(), key)) {
+            if (!InputCompat.isKeyDown(client.getWindow(), key)) {
                 return false;
             }
         }

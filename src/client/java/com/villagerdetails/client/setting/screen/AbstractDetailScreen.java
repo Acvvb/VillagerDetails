@@ -34,7 +34,11 @@ public abstract class AbstractDetailScreen extends Screen {
 
     /**
      * 一个可以滚动的行列表（和配置主界面共用同一个组件）
+     *
+     * <p>{@code this::totalRows} 只是交给列表<b>稍后</b>渲染时用的回调，构造期不会被调用，
+     * 所以这里的「this 提前逸出」是安全的；javac 的 this-escape 检查无法区分，故就地压制。
      */
+    @SuppressWarnings("this-escape")
     protected final RowListPage page = new RowListPage(this::totalRows, MAX_ROWS_PER_PAGE);
 
     /**

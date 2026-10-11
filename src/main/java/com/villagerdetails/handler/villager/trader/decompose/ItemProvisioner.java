@@ -3,6 +3,9 @@ package com.villagerdetails.handler.villager.trader.decompose;
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.server.level.ServerPlayer;
+//? if >=26.3 {
+/*import net.minecraft.util.Prediction;
+*///?}
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -93,7 +96,11 @@ public final class ItemProvisioner {
         int produced = recipe.targetPerCraft() * crafts;
         ItemStack result = new ItemStack(target, produced);
         if (!inv.add(result)) {
+            //? if >=26.3 {
+            /*player.drop(result, false, Prediction.SERVER_ONLY);
+            *///?} else {
             player.drop(result, false);
+            //?}
         }
 
     }

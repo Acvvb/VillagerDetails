@@ -22,6 +22,7 @@ import net.minecraft.world.level.storage.loot.functions.LootItemFunction;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -67,14 +68,14 @@ public final class TradePoolChecker {
         TradeSet tradeSet = registry.getValue(key);
         if (tradeSet == null) return false;
 
-        for (Holder<VillagerTrade> holder : tradeSet.getTrades()) {
+        for (Holder<VillagerTrade> holder : tradeSetTrades(tradeSet)) {
             VillagerTradeMixin acc = (VillagerTradeMixin) holder.value();
             ItemStackTemplate gives = acc.getGives();
 
             if (gives.item().value() != Items.ENCHANTED_BOOK
                     && gives.item().value() != Items.BOOK) continue;
 
-            for (LootItemFunction func : acc.getGivenItemModifiers()) {
+            for (LootItemFunction func : givenModifiers(acc)) {
                 if (!(func instanceof EnchantRandomlyFunction erf)) continue;
                 Optional<HolderSet<Enchantment>> options =
                         ((EnchantRandomlyFunctionMixin) erf).getOptions();
@@ -113,11 +114,36 @@ public final class TradePoolChecker {
         if (tradeSet == null) return Set.of();
 
         Set<Item> items = new LinkedHashSet<>();
-        for (Holder<VillagerTrade> holder : tradeSet.getTrades()) {
+        for (Holder<VillagerTrade> holder : tradeSetTrades(tradeSet)) {
             ItemStackTemplate gives = ((VillagerTradeMixin) holder.value()).getGives();
             items.add(gives.item().value());
         }
         return Collections.unmodifiableSet(items);
+    }
+
+    /**
+     * 26.3 把 {@code givenItemModifiers}（{@code List<LootItemFunction>}）换成了
+     * {@code givenItemModifier}（{@code Optional<Holder<LootItemFunction>>}）。
+     * 这里统一成「零个或一个」的列表语义，调用点不必分版本。
+     */
+    private static List<LootItemFunction> givenModifiers(VillagerTradeMixin trade) {
+        //? if >=26.3 {
+        /*Optional<Holder<LootItemFunction>> modifier = trade.getGivenItemModifiers();
+        return modifier.isEmpty() ? List.of() : List.of(modifier.get().value());
+        *///?} else {
+        return trade.getGivenItemModifiers();
+        //?}
+    }
+
+    /**
+     * 26.3 把 {@code TradeSet} 改成了 record，{@code getTrades()} 随之改名成 {@code trades()}。
+     */
+    private static HolderSet<VillagerTrade> tradeSetTrades(TradeSet tradeSet) {
+        //? if >=26.3 {
+        /*return tradeSet.trades();
+        *///?} else {
+        return tradeSet.getTrades();
+        //?}
     }
 
 }

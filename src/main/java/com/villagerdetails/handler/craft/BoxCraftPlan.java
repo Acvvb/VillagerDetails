@@ -3,6 +3,9 @@ package com.villagerdetails.handler.craft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+//? if >=26.3 {
+/*import net.minecraft.util.Prediction;
+*///?}
 import net.minecraft.world.Container;
 import net.minecraft.world.inventory.CraftingContainer;
 import net.minecraft.world.item.Item;
@@ -72,7 +75,11 @@ public final class BoxCraftPlan {
         // 产物给玩家
         for (ItemStack out : result.output()) {
             if (!player.getInventory().add(out)) {
+                //? if >=26.3 {
+                /*player.drop(out, false, Prediction.SERVER_ONLY);
+                *///?} else {
                 player.drop(out, false);
+                //?}
             }
         }
 

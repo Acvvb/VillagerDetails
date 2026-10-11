@@ -14,9 +14,16 @@ import net.minecraft.util.Util;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.BonemealableBlock;
+//? if >=26.3 {
+/*import net.minecraft.world.level.block.BonemealSource;
+*///?} else {
+import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
+//?}
 import net.minecraft.world.level.block.GrassBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
+//? if >=26.3 {
+/*import net.minecraft.world.level.levelgen.feature.Feature;
+*///?}
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -33,7 +40,11 @@ public abstract class GrassBlockBoneMealMixin {
 
     /** ★ 主世界花丛配置——想加更多花丛往这里加 */
     @Unique
+    //? if >=26.3 {
+    /*private static final List<ResourceKey<Feature>> OVERWORLD_FLOWER_KEYS = List.of(
+    *///?} else {
     private static final List<ResourceKey<ConfiguredFeature<?, ?>>> OVERWORLD_FLOWER_KEYS = List.of(
+    //?}
             VegetationFeatures.FLOWER_DEFAULT,          // 蒲公英 / 虞美人
             VegetationFeatures.FLOWER_FLOWER_FOREST,    // 繁花森林（多种花）
             VegetationFeatures.FLOWER_SWAMP,            // 沼泽（兰花）
@@ -46,9 +57,11 @@ public abstract class GrassBlockBoneMealMixin {
     // ==============================================================
 
     @Inject(method = "performBonemeal", at = @At("HEAD"), cancellable = true)
-    private void villagerdetails$boneMealOverride(ServerLevel level, RandomSource random,
-                                                  BlockPos pos, BlockState state,
-                                                  CallbackInfo ci) {
+    //? if >=26.3 {
+    /*private void villagerdetails$boneMealOverride(ServerLevel level, RandomSource random, BlockPos pos, BlockState state, BonemealSource source, CallbackInfo ci) {
+    *///?} else {
+    private void villagerdetails$boneMealOverride(ServerLevel level, RandomSource random, BlockPos pos, BlockState state, CallbackInfo ci) {
+    //?}
         // 规则未开 → 走原版
         if (!RuleCache.isEnabled(RuleType.VILLAGER_BONE_MEAL_FLOWER)) return;
 
@@ -57,13 +70,21 @@ public abstract class GrassBlockBoneMealMixin {
 
         // 拦截原版，用自己的实现
         ci.cancel();
+        //? if >=26.3 {
+        /*performOverworldBonemeal(level, random, pos, source);
+        *///?} else {
         performOverworldBonemeal(level, random, pos);
+        //?}
     }
 
 
     //原版刷花逻辑
     @Unique
+    //? if >=26.3 {
+    /*private static void performOverworldBonemeal(ServerLevel level, RandomSource random, BlockPos pos, BonemealSource source) {
+    *///?} else {
     private static void performOverworldBonemeal(ServerLevel level, RandomSource random, BlockPos pos) {
+    //?}
         BlockPos above = pos.above();
         BlockState grass = Blocks.SHORT_GRASS.defaultBlockState();
         Optional<Holder.Reference<PlacedFeature>> grassFeature = level.registryAccess()
@@ -71,7 +92,11 @@ public abstract class GrassBlockBoneMealMixin {
                 .get(VegetationPlacements.GRASS_BONEMEAL);
 
         // 主世界花列表
+        //? if >=26.3 {
+        /*List<Feature> flowers = resolveOverworldFlowers(level);
+        *///?} else {
         List<ConfiguredFeature<?, ?>> flowers = resolveOverworldFlowers(level);
+        //?}
 
         label48:
         for (int j = 0; j < 128; ++j) {
@@ -93,9 +118,15 @@ public abstract class GrassBlockBoneMealMixin {
 
             if (testState.is(grass.getBlock()) && random.nextInt(10) == 0) {
                 BonemealableBlock unrepealable = (BonemealableBlock) grass.getBlock();
+                //? if >=26.3 {
+                /*if (unrepealable.isValidBonemealTarget(level, testPos, testState, source)) {
+                    unrepealable.performBonemeal(level, random, testPos, testState, source);
+                }
+                *///?} else {
                 if (unrepealable.isValidBonemealTarget(level, testPos, testState)) {
                     unrepealable.performBonemeal(level, random, testPos, testState);
                 }
+                //?}
             }
 
             // 该位置是空气 → 生成花或草
@@ -103,7 +134,11 @@ public abstract class GrassBlockBoneMealMixin {
                 if (random.nextInt(8) == 0) {
                     // ★★★ 这一句换成固定主世界花列表
                     if (!flowers.isEmpty()) {
+                        //? if >=26.3 {
+                        /*Feature feature = Util.getRandom(flowers, random);
+                        *///?} else {
                         ConfiguredFeature<?, ?> feature = Util.getRandom(flowers, random);
+                        //?}
                         feature.place(level, level.getChunkSource().getGenerator(), random, testPos);
                     }
                 } else if (grassFeature.isPresent()) {
@@ -115,11 +150,24 @@ public abstract class GrassBlockBoneMealMixin {
     }
 
     @Unique
+    //? if >=26.3 {
+    /*private static List<Feature> resolveOverworldFlowers(ServerLevel level) {
+    *///?} else {
     private static List<ConfiguredFeature<?, ?>> resolveOverworldFlowers(ServerLevel level) {
+    //?}
+        //? if >=26.3 {
+        /*var registry = level.registryAccess().lookupOrThrow(Registries.FEATURE);
+        List<Feature> list = new ArrayList<>();
+        *///?} else {
         var registry = level.registryAccess().lookupOrThrow(Registries.CONFIGURED_FEATURE);
         List<ConfiguredFeature<?, ?>> list = new ArrayList<>();
+        //?}
 
+        //? if >=26.3 {
+        /*for (ResourceKey<Feature> key : OVERWORLD_FLOWER_KEYS) {
+        *///?} else {
         for (ResourceKey<ConfiguredFeature<?, ?>> key : OVERWORLD_FLOWER_KEYS) {
+        //?}
             registry.get(key).ifPresent(holder -> list.add(holder.value()));
         }
         return list;

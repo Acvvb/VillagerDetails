@@ -1,6 +1,5 @@
 package com.villagerdetails.client.setting.type;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.villagerdetails.client.network.sync.ClientRequests;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
 import com.villagerdetails.client.setting.row.ConfigRow;
@@ -8,6 +7,7 @@ import com.villagerdetails.client.setting.row.ListPreview;
 import com.villagerdetails.client.setting.type.server.BindingServer;
 import com.villagerdetails.client.setting.type.style.StyleType;
 import com.villagerdetails.client.setting.util.ColorUtil;
+import com.villagerdetails.client.setting.util.InputCompat;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 
@@ -401,7 +401,7 @@ public enum ConfigEntryType implements ConfigRow {
             if (i > 0) {
                 text.append(Component.literal(" + "));
             }
-            text.append(InputConstants.Type.KEYSYM.getOrCreate(keys[i]).getDisplayName());
+            text.append(InputCompat.keyboard().getOrCreate(keys[i]).getDisplayName());
         }
         return text;
     }

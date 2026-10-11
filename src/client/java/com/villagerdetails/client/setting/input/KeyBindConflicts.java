@@ -2,6 +2,7 @@ package com.villagerdetails.client.setting.input;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
+import com.villagerdetails.client.setting.util.InputCompat;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
@@ -92,7 +93,7 @@ public final class KeyBindConflicts {
                 continue;
             }
             InputConstants.Key bound = KeyMappingHelper.getBoundKeyOf(mapping);
-            if (bound.getType() != InputConstants.Type.KEYSYM) {
+            if (bound.getType() != InputCompat.keyboard()) {
                 continue;
             }
             int[] keys = {bound.getValue()};

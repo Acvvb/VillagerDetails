@@ -31,8 +31,14 @@ public class EntityPortalMixin {
     @Unique
     private static final Logger log = LogManager.getLogger(EntityPortalMixin.class);
 
+    // 26.3 把 handlePortal 里的 canTeleport + teleport 抽到了新方法 teleportToPortalDestination 里，
+    // 所以重定向的靶子要跟着搬——两处都在 canTeleport 之后，语义一致。
     @Redirect(
+            //? if >=26.3 {
+            /*method = "teleportToPortalDestination",
+            *///?} else {
             method = "handlePortal",
+            //?}
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/world/entity/Entity;teleport(Lnet/minecraft/world/level/portal/TeleportTransition;)Lnet/minecraft/world/entity/Entity;"
