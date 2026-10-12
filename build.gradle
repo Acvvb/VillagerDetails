@@ -3,15 +3,11 @@ plugins {
 }
 
 subprojects { sp ->
-    // 公共编译规范（Java 版本取自 gradle.properties 的 java_version + 告警策略），loom/依赖由各版本子项目自己声明
     sp.plugins.withId('java') {
         def javaVersion = JavaVersion.toVersion(sp.property('java_version').toString())
         def javaRelease = sp.property('java_version').toString().toInteger()
         sp.tasks.withType(JavaCompile).configureEach {
             it.options.release = javaRelease
-            // 打开 javac 的全部告警，这样新出现的真实问题不会被默认设置吞掉。
-            // -classfile：依赖 jar（guava/gson 等）里缺失批注类的噪音，不是我们的代码；
-            // -processing：注解处理器相关的告警当前用不上。
             it.options.compilerArgs += ['-Xlint:all,-classfile,-processing']
             it.options.deprecation = true
         }
@@ -20,45 +16,108 @@ subprojects { sp ->
             targetCompatibility = javaVersion
         }
     }
+
+    // ============================================================
+    // 为每个有 client 源集的子模块注入「客户端 / 服务端」打包任务
+    //
+    // 客户端包：main + client，environment=client
+    //   → 客户端正常加载；服务端看到 environment=client 直接跳过
+    //
+    // 服务端包：仅 main，environment=*
+    //   → 客户端/服务端都能加载，但包里没有 client 类
+    //   → Fabric Loader 按「入口点类型」和「mixin environment」自动跳过
+    //     client 相关内容，不会 ClassNotFoundException
+    //   → 体积明显小于客户端包
+    // ============================================================
+    sp.afterEvaluate {
+        def sourceSets = sp.extensions.findByType(SourceSetContainer)
+        if (sourceSets?.named('client') == null) return
+
+        def baseName = sp.base.archivesName.get()
+        def ver = sp.version
+
+        // -------- 客户端专用包 --------
+        sp.tasks.register('buildClientJar', Jar) {
+            group = 'build'
+            description = '构建客户端专用 JAR（main + client，environment=client）'
+            archiveBaseName = baseName
+            archiveVersion  = ver
+            archiveClassifier = 'client'
+            destinationDirectory = sp.layout.buildDirectory.dir('libs/client')
+
+            from(sourceSets.main.output)
+            from(sourceSets.client.output)
+            from(sp.tasks.named('processResources')) {
+                filesMatching('fabric.mod.json') {
+                    filter { line ->
+                        line.replaceAll(/"environment"\s*:\s*"[^"]*"/,
+                                '"environment": "client"')
+                    }
+                }
+            }
+        }
+
+        // -------- 服务端 / 通用包（仅 main）--------
+        sp.tasks.register('buildServerJar', Jar) {
+            group = 'build'
+            description = '构建服务端 JAR（仅 main 源集，environment=*）'
+            archiveBaseName = baseName
+            archiveVersion  = ver
+            archiveClassifier = 'server'
+            destinationDirectory = sp.layout.buildDirectory.dir('libs/server')
+
+            from(sourceSets.main.output)   // 只含 main，不含 client
+            from(sp.tasks.named('processResources')) {
+                filesMatching('fabric.mod.json') {
+                    filter { line ->
+                        line.replaceAll(/"environment"\s*:\s*"[^"]*"/,
+                                '"environment": "*"')
+                    }
+                }
+            }
+        }
+    }
 }
 
 // ============================================================
-// 收集所有子版本的构建产物到根目录 lib/
+// 收集所有子版本的产物到根目录 lib/<模组版本>/<client|server>/
+//
+// 目录名取「模组版本」（sp.version 里 + 之前的部分，例如 1.0.0）。
+// 各 MC 版本靠文件名区分，都堆在同一个 1.0.0/ 下面：
+//
+//   lib/
+//     1.0.0/
+//       client/
+//         villagerdetails-1.0.0+fabric-0.19.3+26.2-client.jar
+//         villagerdetails-1.0.0+fabric-0.19.3+26.3-client.jar
+//       server/
+//         villagerdetails-1.0.0+fabric-0.19.3+26.2-server.jar
+//         villagerdetails-1.0.0+fabric-0.19.3+26.3-server.jar
 //
 // 用法：
-//   ./gradlew collectJars        // 构建所有子版本 + 收集到 lib/
-//   ./gradlew :v26.2:build       // 只构建 v26.2（产物仍在 v26.2/build/libs/，不进 lib/）
-//
-// 说明：
-//   - 各子项目的标准产物目录仍然保留（v26.x/build/libs/），符合 Gradle 约定；
-//   - lib/ 只是把最终 jar 复制一份过去，方便发布；
-//   - 使用 Copy：同名文件会被本次产物覆盖，lib/ 里其它文件不受影响；
-//   - 自动排除 sources / dev / javadoc 三个附属包；
-//   - 复制进 lib/ 时文件名会插入 Fabric Loader 版本（见下方 eachFile）。
+//   ./gradlew build                    // 构建所有子版本 + 收集到 lib/
+//   ./gradlew :v26.2:buildClientJar    // 只打 v26.2 客户端包
 // ============================================================
-// 在脚本层级取 Loader 版本号：任务配置闭包里的 property() 会解析到任务对象，取不到项目属性。
 def fabricLoaderTag = "+fabric-${property('loader_version').toString()}+"
 
 tasks.register('collectJars', Copy) {
     group = 'build'
-    description = '构建所有子版本，并把各版本产出的 jar 收集到根目录 lib/'
+    description = '构建所有子版本，并按 <模组版本>/<client|server>/ 收集到根目录 lib/'
 
-    // 依赖所有「确实有 build 任务」的子项目
-    dependsOn subprojects
-            .findAll { it.tasks.named('build') != null }
-            .collect { "${it.path}:build" }
+    dependsOn {
+        subprojects.findAll { it.tasks.named('buildClientJar') != null }
+                .collectMany { ["${it.path}:buildClientJar", "${it.path}:buildServerJar"] }
+    }
 
-    // 从每个子项目的 build/libs 目录收集
     subprojects.each { sp ->
-        from(sp.layout.buildDirectory.dir('libs'))
+        def modVer = sp.version.toString().replaceFirst(/\+.*$/, '')  // 1.0.0+26.2 → 1.0.0
+        from(sp.layout.buildDirectory.dir('libs/client')) { into "${modVer}/client" }
+        from(sp.layout.buildDirectory.dir('libs/server')) { into "${modVer}/server" }
     }
 
     include '*.jar'
     exclude '*-sources.jar', '*-dev.jar', '*-javadoc.jar'
 
-    // 收集时把 Fabric Loader 版本插进文件名（取自 gradle.properties 的 loader_version）：
-    //   villagerdetails-1.0.0+26.2.jar → villagerdetails-1.0.0+fabric-0.19.3+26.2.jar
-    // 仅影响 lib/ 下的发布产物；各子项目 build/libs 与 fabric.mod.json 里的 version 保持原样。
     eachFile { f ->
         if (f.name.endsWith('.jar') && f.name.contains('+')) {
             f.name = f.name.replaceFirst('\\+', fabricLoaderTag)
@@ -68,9 +127,6 @@ tasks.register('collectJars', Copy) {
     into layout.projectDirectory.dir('lib')
 }
 
-// 根项目没有 java 插件，默认不存在 build 任务；IDEA 的运行配置「VillagerDetails [build]」
-// 执行的是根项目的 build，之前只靠下方 matching 钩子是不会触发的。
-// 这里显式注册一个 build 生命周期任务，让它直接走 collectJars（内部已 dependsOn 各子项目 :build）。
 tasks.register('build') {
     group = 'build'
     description = '构建所有子版本并收集产物到 lib/（等价于 collectJars）'
