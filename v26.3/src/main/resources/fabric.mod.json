@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "villagerdetails",
+  "version": "${version}",
+  "name": "VillagerDetails",
+  "description": "This is a mod that fixes the infuriating villager AI behavior that makes players rage.",
+  "authors": [
+    "Acvvb"
+  ],
+  "contact": {
+    "homepage": "https://github.com/Acvvb/VillagerDetails",
+    "sources": "https://github.com/Acvvb/VillagerDetails"
+  },
+  "license": "CC0-1.0",
+  "icon": "assets/villagerdetails/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.villagerdetails.VillagerDetails"
+    ],
+    "client": [
+      "com.villagerdetails.client.VillagerDetailsClient"
+    ]
+  },
+  "mixins": [
+    "villagerdetails.mixins.json",
+    {
+      "config": "villagerdetails.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "~${minecraft}",
+    "java": ">=25",
+    "fabric-api": ">=0.149.0"
+  }
+}

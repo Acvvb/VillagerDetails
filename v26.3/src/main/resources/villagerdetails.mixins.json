@@ -1,0 +1,46 @@
+{
+  "required": true,
+  "package": "com.villagerdetails.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "animal.SheepMixin",
+    "block.collectable.CollectableMixin",
+    "block.collectable.PlayerDestroyMixin",
+    "block.explosionResistance.ExplosionResistanceMixin",
+    "block.miningResistance.MiningResistanceMixin",
+    "block.portalBinding.EntityPortalMixin",
+    "block.TntNoDestroyDrops.ExplosionMixin",
+    "craft.AbstractCraftingMenuAccessor",
+    "craft.BoxCraftingMenuMixin",
+    "craft.CrafterBlockMixin",
+    "craft.InventoryMenuMixin",
+    "craft.ResultSlotMixin",
+    "entity.noSqueeze.EntityMixin",
+    "entity.noSqueeze.LivingEntityMixin",
+    "entity.piglinTrade.MerchantMenuProvisionMixin",
+    "entity.piglinTrade.PiglinAiMixin",
+    "monster.noBrainOnPortal.MobInterfaceMixin",
+    "monster.zombieVillager.ZombieVillagerInvoker",
+    "plant.GrassBlockBoneMealMixin",
+    "villager.move.BrainInterfaceMixin",
+    "villager.move.BrainMixin",
+    "villager.move.VillagerBrainGoalsMixin",
+    "villager.sync.VillagerSyncMixin",
+    "villager.trader.autoTrader.AbstractVillagerInterfaceMixin",
+    "villager.trader.autoTrader.MerchantMenuInterfaceMixin",
+    "villager.trader.autoTrader.MerchantOfferInterfaceMixin",
+    "villager.trader.autoTrader.VillagerInterfaceTradesMixin",
+    "villager.trader.autoTrader.VillagerTradeMixin",
+    "villager.trader.autoTrader.book.EnchantRandomlyFunctionMixin",
+    "villager.trader.autoTrader.hardWork.MerchantOfferResetMixin",
+    "villager.trader.autoTrader.trigger.NameTagItemMixin",
+    "villager.trader.emeraldDecompose.AbstractVillagerExchangeMixin",
+    "villager.trader.infiniteTrade.MerchantOfferMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

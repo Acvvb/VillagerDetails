@@ -1,0 +1,111 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+    id 'maven-publish'
+}
+
+// villagerdetails-1.0.0+26.2
+version = "${property('modVersion')}+${property('minecraft_version')}"
+base {
+    archivesName = rootProject.name
+}
+
+loom {
+    splitEnvironmentSourceSets()
+
+    mods {
+        "villagerdetails" {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    // Fabric API. This is technically optional, but you probably want it anyway.
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+// ===== 引入 common 源码（在本版本映射下编译），再叠加本版本专属源码 =====
+sourceSets {
+    main {
+        java {
+            srcDir file('../common/src/main/java')
+            srcDir 'src/main/java'
+        }
+        resources {
+            srcDir file('../common/src/main/resources')
+            srcDir 'src/main/resources'
+        }
+    }
+    client {
+        java {
+            srcDir file('../common/src/client/java')
+            srcDir 'src/client/java'
+        }
+        resources {
+            srcDir file('../common/src/client/resources')
+            srcDir 'src/client/resources'
+        }
+    }
+}
+
+processResources {
+    def version = project.version
+    def minecraftVersion = project.minecraft_version
+    inputs.property "version", version
+    inputs.property "minecraft", minecraftVersion
+
+    // common 与版本目录的 srcDir 全都会进 main 资源；同名的版本文件最后引入，应覆盖 common。
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+
+    filesMatching("fabric.mod.json") {
+        expand "version": version, "minecraft": minecraftVersion
+    }
+}
+
+// client 资源同理（common 与版本目录的 srcDir 合并）
+processClientResources {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+java {
+    // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+    // if it is present.
+    // If you remove this line, sources will not be generated.
+    withSourcesJar()
+}
+
+// main 与 client 两套 sourceSet 会引入同名的资源文件（例如 client mixins 配置），
+// 打进 jar / sourcesJar 时允许重复，按引入顺序后者生效。
+tasks.withType(Jar).configureEach {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+jar {
+    def projectName = rootProject.name
+    inputs.property "projectName", projectName
+
+    from(rootProject.file("LICENSE")) {
+        rename { "${it}_$projectName" }
+    }
+}
+
+// configure the maven publication
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            from components.java
+        }
+    }
+
+    // See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
+    repositories {
+        // Add repositories to publish to here.
+        // Notice: This block does NOT have the same function as the block in the top level.
+        // The repositories here will be used for publishing your artifact, not for
+        // retrieving dependencies.
+    }
+}

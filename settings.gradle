@@ -4,28 +4,12 @@ pluginManagement {
             name = 'Fabric'
             url = 'https://maven.fabricmc.net/'
         }
-        maven {
-            name = 'Kikugie'
-            url = 'https://maven.kikugie.dev/releases'
-        }
         mavenCentral()
         gradlePluginPortal()
     }
 }
 
-plugins {
-    id 'dev.kikugie.stonecutter' version '0.9.8'
-}
-
-stonecutter {
-    kotlinController = false
-    centralScript = 'build.gradle'
-}
-
-stonecutter.create(rootProject) {
-    versions '26.2', '26.3'
-    vcsVersion = '26.2'
-}
-
-// Should match your modid
 rootProject.name = 'villagerdetails'
+
+include 'v26.2'
+include 'v26.3'

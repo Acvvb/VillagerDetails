@@ -1,95 +1,60 @@
 plugins {
-    id 'dev.kikugie.stonecutter' version "${stonecutter_version}"
-    id 'net.fabricmc.fabric-loom' version "${loom_version}"
-    id 'maven-publish'
+    id 'idea'
 }
 
-// villagerdetails-1.0.0+26.2 / villagerdetails-1.0.0+26.3
-version = "${property('modVersion')}+${stonecutter.current.version}"
-base {
-    archivesName = rootProject.name
-}
-
-repositories {
-    // Add repositories to retrieve artifacts from in here.
-    // You should only use this when depending on other mods because
-    // Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-    // See https://docs.gradle.org/current/userguide/declaring_repositories.html
-    // for more information about repositories.
-}
-
-loom {
-    splitEnvironmentSourceSets()
-
-    mods {
-        "villagerdetails" {
-            sourceSet sourceSets.main
-            sourceSet sourceSets.client
+subprojects { sp ->
+    // 公共编译规范（Java 25 + 告警策略），loom/依赖由各版本子项目自己声明
+    sp.plugins.withId('java') {
+        sp.tasks.withType(JavaCompile).configureEach {
+            it.options.release = 25
+            // 打开 javac 的全部告警，这样新出现的真实问题不会被默认设置吞掉。
+            // -classfile：依赖 jar（guava/gson 等）里缺失批注类的噪音，不是我们的代码；
+            // -processing：注解处理器相关的告警当前用不上。
+            it.options.compilerArgs += ['-Xlint:all,-classfile,-processing']
+            it.options.deprecation = true
+        }
+        sp.java {
+            sourceCompatibility = JavaVersion.VERSION_25
+            targetCompatibility = JavaVersion.VERSION_25
         }
     }
 }
 
-dependencies {
-    // To change the versions see the gradle.properties file
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+// ============================================================
+// 收集所有子版本的构建产物到根目录 lib/
+//
+// 用法：
+//   ./gradlew collectJars        // 构建所有子版本 + 收集到 lib/
+//   ./gradlew :v26.2:build       // 只构建 v26.2（产物仍在 v26.2/build/libs/，不进 lib/）
+//
+// 说明：
+//   - 各子项目的标准产物目录仍然保留（v26.x/build/libs/），符合 Gradle 约定；
+//   - lib/ 只是把最终 jar 复制一份过去，方便发布；
+//   - 自动排除 sources / dev / javadoc 三个附属包。
+// ============================================================
+tasks.register('collectJars', Copy) {
+    group = 'build'
+    description = '构建所有子版本，并把各版本产出的 jar 收集到根目录 lib/'
 
-    // Fabric API. This is technically optional, but you probably want it anyway.
-    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-}
+    // 依赖所有「确实有 build 任务」的子项目
+    dependsOn subprojects
+            .findAll { it.tasks.named('build') != null }
+            .collect { "${it.path}:build" }
 
-processResources {
-    def version = project.version
-    def minecraftVersion = project.minecraft_version
-    inputs.property "version", version
-    inputs.property "minecraft", minecraftVersion
-
-    filesMatching("fabric.mod.json") {
-        expand "version": version, "minecraft": minecraftVersion
-    }
-}
-
-tasks.withType(JavaCompile).configureEach {
-    it.options.release = 25
-    // 打开 javac 的全部告警，这样新出现的真实问题不会被默认设置吞掉。
-    // -classfile：依赖 jar（guava/gson 等）里缺失批注类的噪音，不是我们的代码；
-    // -processing：注解处理器相关的告警当前用不上。
-    it.options.compilerArgs += ['-Xlint:all,-classfile,-processing']
-    it.options.deprecation = true
-}
-
-java {
-    // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-    // if it is present.
-    // If you remove this line, sources will not be generated.
-    withSourcesJar()
-
-    sourceCompatibility = JavaVersion.VERSION_25
-    targetCompatibility = JavaVersion.VERSION_25
-}
-
-jar {
-    def projectName = rootProject.name
-    inputs.property "projectName", projectName
-
-    from(rootProject.file("LICENSE")) {
-        rename { "${it}_$projectName" }
-    }
-}
-
-// configure the maven publication
-publishing {
-    publications {
-        create("mavenJava", MavenPublication) {
-            from components.java
-        }
+    // 从每个子项目的 build/libs 目录收集
+    subprojects.each { sp ->
+        from(sp.layout.buildDirectory.dir('libs'))
     }
 
-    // See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-    repositories {
-        // Add repositories to publish to here.
-        // Notice: This block does NOT have the same function as the block in the top level.
-        // The repositories here will be used for publishing your artifact, not for
-        // retrieving dependencies.
-    }
+    include '*.jar'
+    exclude '*-sources.jar', '*-dev.jar', '*-javadoc.jar'
+
+    into layout.projectDirectory.dir('lib')
+}
+
+// 若根项目本身也有 build 任务，让它结束后自动触发 collectJars
+// （你当前的根项目只有 idea 插件，没有 build 任务，所以这段暂时不会生效；
+//  将来若给根项目加了 java/loom 插件，它会自动接力）
+tasks.matching { it.name == 'build' }.configureEach {
+    finalizedBy 'collectJars'
 }

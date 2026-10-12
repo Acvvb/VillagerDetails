@@ -1,10 +1,10 @@
 # Automatically build the project and run any configured tests for every push
 # and submitted pull request. This can help catch issues that only occur on
-# certain platforms or Java versions, and provides a first line of defence
+# certain platforms or Java versions, and provides a first line of defense
 # against bad commits.
 
 name: build
-on: [pull_request, push]
+on: [ pull_request, push ]
 
 jobs:
   build:
@@ -22,11 +22,12 @@ jobs:
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
       - name: build
-        run: ./gradlew build
+        run: ./gradlew :v26.2:build :v26.3:build
       - name: capture build artifacts
         uses: actions/upload-artifact@v7
         with:
           name: Artifacts
           path: |
-            versions/*/build/libs/*.jar
-            !versions/*/build/libs/*-sources.jar
+            v26.2/build/libs/*.jar
+            v26.3/build/libs/*.jar
+            !**/*-sources.jar
