@@ -55,14 +55,20 @@ sourceSets {
 processResources {
     def version = project.version
     def minecraftVersion = project.minecraft_version
+    def loaderVersion = project.loader_version
+    def fabricApiVersion = project.fabric_api_version
+    def javaVersion = project.java_version
     inputs.property "version", version
     inputs.property "minecraft", minecraftVersion
+    inputs.property "loaderVersion", loaderVersion
+    inputs.property "fabricApiVersion", fabricApiVersion
+    inputs.property "javaVersion", javaVersion
 
     // common 与版本目录的 srcDir 全都会进 main 资源；同名的版本文件最后引入，应覆盖 common。
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
 
     filesMatching("fabric.mod.json") {
-        expand "version": version, "minecraft": minecraftVersion
+        expand "version": version, "minecraft": minecraftVersion, "loaderVersion": loaderVersion, "fabricApiVersion": fabricApiVersion, "javaVersion": javaVersion
     }
 }
 

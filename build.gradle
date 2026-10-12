@@ -3,10 +3,12 @@ plugins {
 }
 
 subprojects { sp ->
-    // 公共编译规范（Java 25 + 告警策略），loom/依赖由各版本子项目自己声明
+    // 公共编译规范（Java 版本取自 gradle.properties 的 java_version + 告警策略），loom/依赖由各版本子项目自己声明
     sp.plugins.withId('java') {
+        def javaVersion = JavaVersion.toVersion(sp.property('java_version').toString())
+        def javaRelease = sp.property('java_version').toString().toInteger()
         sp.tasks.withType(JavaCompile).configureEach {
-            it.options.release = 25
+            it.options.release = javaRelease
             // 打开 javac 的全部告警，这样新出现的真实问题不会被默认设置吞掉。
             // -classfile：依赖 jar（guava/gson 等）里缺失批注类的噪音，不是我们的代码；
             // -processing：注解处理器相关的告警当前用不上。
@@ -14,8 +16,8 @@ subprojects { sp ->
             it.options.deprecation = true
         }
         sp.java {
-            sourceCompatibility = JavaVersion.VERSION_25
-            targetCompatibility = JavaVersion.VERSION_25
+            sourceCompatibility = javaVersion
+            targetCompatibility = javaVersion
         }
     }
 }
@@ -30,8 +32,12 @@ subprojects { sp ->
 // 说明：
 //   - 各子项目的标准产物目录仍然保留（v26.x/build/libs/），符合 Gradle 约定；
 //   - lib/ 只是把最终 jar 复制一份过去，方便发布；
-//   - 自动排除 sources / dev / javadoc 三个附属包。
+//   - 自动排除 sources / dev / javadoc 三个附属包；
+//   - 复制进 lib/ 时文件名会插入 Fabric Loader 版本（见下方 eachFile）。
 // ============================================================
+// 在脚本层级取 Loader 版本号：任务配置闭包里的 property() 会解析到任务对象，取不到项目属性。
+def fabricLoaderTag = "+fabric-${property('loader_version').toString()}+"
+
 tasks.register('collectJars', Copy) {
     group = 'build'
     description = '构建所有子版本，并把各版本产出的 jar 收集到根目录 lib/'
@@ -48,6 +54,15 @@ tasks.register('collectJars', Copy) {
 
     include '*.jar'
     exclude '*-sources.jar', '*-dev.jar', '*-javadoc.jar'
+
+    // 收集时把 Fabric Loader 版本插进文件名（取自 gradle.properties 的 loader_version）：
+    //   villagerdetails-1.0.0+26.2.jar → villagerdetails-1.0.0+fabric-0.19.3+26.2.jar
+    // 仅影响 lib/ 下的发布产物；各子项目 build/libs 与 fabric.mod.json 里的 version 保持原样。
+    eachFile { f ->
+        if (f.name.endsWith('.jar') && f.name.contains('+')) {
+            f.name = f.name.replaceFirst('\\+', fabricLoaderTag)
+        }
+    }
 
     into layout.projectDirectory.dir('lib')
 }
