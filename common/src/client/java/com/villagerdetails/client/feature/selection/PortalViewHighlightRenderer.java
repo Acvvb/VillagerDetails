@@ -42,7 +42,9 @@ public final class PortalViewHighlightRenderer {
         if (region == null) {
             return;
         }
-        HighlightBoxes.drawRegion(region.min(), region.max(), ColorUtil.toArgb(colorOf(level)));
+        float lineWidth = (float) ConfigEntryType.PORTAL_HIGHLIGHT_LINE_WIDTH.getNumber();
+        double outset = ConfigEntryType.HIGHLIGHT_REGION_OUTSET.getNumber();
+        HighlightBoxes.drawRegion(region.min(), region.max(), ColorUtil.toArgb(colorOf(level)), outset, lineWidth);
     }
 
     /**

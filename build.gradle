@@ -32,6 +32,7 @@ subprojects { sp ->
 // 说明：
 //   - 各子项目的标准产物目录仍然保留（v26.x/build/libs/），符合 Gradle 约定；
 //   - lib/ 只是把最终 jar 复制一份过去，方便发布；
+//   - 使用 Copy：同名文件会被本次产物覆盖，lib/ 里其它文件不受影响；
 //   - 自动排除 sources / dev / javadoc 三个附属包；
 //   - 复制进 lib/ 时文件名会插入 Fabric Loader 版本（见下方 eachFile）。
 // ============================================================
@@ -67,9 +68,11 @@ tasks.register('collectJars', Copy) {
     into layout.projectDirectory.dir('lib')
 }
 
-// 若根项目本身也有 build 任务，让它结束后自动触发 collectJars
-// （你当前的根项目只有 idea 插件，没有 build 任务，所以这段暂时不会生效；
-//  将来若给根项目加了 java/loom 插件，它会自动接力）
-tasks.matching { it.name == 'build' }.configureEach {
-    finalizedBy 'collectJars'
+// 根项目没有 java 插件，默认不存在 build 任务；IDEA 的运行配置「VillagerDetails [build]」
+// 执行的是根项目的 build，之前只靠下方 matching 钩子是不会触发的。
+// 这里显式注册一个 build 生命周期任务，让它直接走 collectJars（内部已 dependsOn 各子项目 :build）。
+tasks.register('build') {
+    group = 'build'
+    description = '构建所有子版本并收集产物到 lib/（等价于 collectJars）'
+    dependsOn 'collectJars'
 }

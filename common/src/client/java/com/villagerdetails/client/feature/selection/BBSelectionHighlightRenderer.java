@@ -48,15 +48,18 @@ public final class BBSelectionHighlightRenderer {
         BlockPos p1 = selection.pos1();
         BlockPos p2 = selection.pos2();
 
+        float lineWidth = (float) ConfigEntryType.BB_HIGHLIGHT_LINE_WIDTH.getNumber();
+        double outset = ConfigEntryType.HIGHLIGHT_REGION_OUTSET.getNumber();
+
         if (p1 != null) {
-            HighlightBoxes.drawBlock(p1, ColorUtil.toArgb(ConfigEntryType.BB_POS1_COLOR.getColor()));
+            HighlightBoxes.drawBlock(p1, ColorUtil.toArgb(ConfigEntryType.BB_POS1_COLOR.getColor()), lineWidth);
         }
         if (p2 != null) {
-            HighlightBoxes.drawBlock(p2, ColorUtil.toArgb(ConfigEntryType.BB_POS2_COLOR.getColor()));
+            HighlightBoxes.drawBlock(p2, ColorUtil.toArgb(ConfigEntryType.BB_POS2_COLOR.getColor()), lineWidth);
         }
         // 两个都选中 → 用总颜色把整个区域框出来
         if (p1 != null && p2 != null) {
-            HighlightBoxes.drawRegion(p1, p2, ColorUtil.toArgb(ConfigEntryType.BB_BOX_COLOR.getColor()));
+            HighlightBoxes.drawRegion(p1, p2, ColorUtil.toArgb(ConfigEntryType.BB_BOX_COLOR.getColor()), outset, lineWidth);
         }
     }
 }

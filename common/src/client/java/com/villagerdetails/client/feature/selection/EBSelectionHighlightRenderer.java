@@ -50,7 +50,8 @@ public final class EBSelectionHighlightRenderer {
         if (pos == null) {
             return;
         }
-        HighlightBoxes.drawBlock(pos, ColorUtil.toArgb(ConfigEntryType.SELECTED_BLOCK_COLOR.getColor()));
+        float lineWidth = (float) ConfigEntryType.EB_HIGHLIGHT_LINE_WIDTH.getNumber();
+        HighlightBoxes.drawBlock(pos, ColorUtil.toArgb(ConfigEntryType.SELECTED_BLOCK_COLOR.getColor()), lineWidth);
     }
 
     private static void renderSelectedEntity(ClientLevel level, UUID uuid) {
@@ -63,6 +64,7 @@ public final class EBSelectionHighlightRenderer {
         // 所以和原版 F3+B 的实体碰撞箱一样 —— 取本帧插值位置，把盒子整体挪过去。
         float partialTick = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
         int argb = ColorUtil.toArgb(ConfigEntryType.SELECTED_ENTITY_COLOR.getColor());
+        float lineWidth = (float) ConfigEntryType.EB_HIGHLIGHT_LINE_WIDTH.getNumber();
 
         for (Entity entity : level.entitiesForRendering()) {
             if (!entity.getUUID().equals(uuid)) {
@@ -71,7 +73,7 @@ public final class EBSelectionHighlightRenderer {
             AABB box = entity.getBoundingBox()
                     .move(entity.getPosition(partialTick).subtract(entity.position()))
                     .inflate(0.05D);
-            HighlightBoxes.draw(box, argb);
+            HighlightBoxes.draw(box, argb, lineWidth);
             return;
         }
     }

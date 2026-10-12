@@ -106,6 +106,30 @@ public enum ConfigEntryType implements ConfigRow {
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "5.0", "",
             BindingServer.slider(0.0D, 64.0D, 0.5D)),
 
+    BB_HIGHLIGHT_LINE_WIDTH("BBHighlightLineWidth",
+            "villagerdetails.ui.option.bb_highlight_line_width",
+            "villagerdetails.ui.option.bb_highlight_line_width.desc",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "2.0", "",
+            BindingServer.slider(1.0D, 10.0D, 0.5D)),
+
+    EB_HIGHLIGHT_LINE_WIDTH("EBHighlightLineWidth",
+            "villagerdetails.ui.option.eb_highlight_line_width",
+            "villagerdetails.ui.option.eb_highlight_line_width.desc",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "2.0", "",
+            BindingServer.slider(1.0D, 10.0D, 0.5D)),
+
+    PORTAL_HIGHLIGHT_LINE_WIDTH("PortalHighlightLineWidth",
+            "villagerdetails.ui.option.portal_highlight_line_width",
+            "villagerdetails.ui.option.portal_highlight_line_width.desc",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "2.0", "",
+            BindingServer.slider(1.0D, 10.0D, 0.5D)),
+
+    HIGHLIGHT_REGION_OUTSET("HighlightRegionOutset",
+            "villagerdetails.ui.option.highlight_region_outset",
+            "villagerdetails.ui.option.highlight_region_outset.desc",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "0.15", "",
+            BindingServer.slider(0.0D, 0.5D, 0.05D)),
+
     // ---------------- 配置项 / 列表 ----------------
 
     BED_LIST("BedList",
@@ -333,12 +357,16 @@ public enum ConfigEntryType implements ConfigRow {
     }
 
     /**
-     * 滑条的显示文本，例如「粗细：4.0」（翻译键 = 显示名 + {@code .value}）
+     * 滑条的显示文本，例如「粗细：4.0」（翻译键 = 显示名 + {@code .value}）。
+     *
+     * <p>小数位跟着步进走：步进小于 0.1（如外扩的 0.05）时用两位小数，
+     * 否则 0.15 会被 {@code %.1f} 显示成 0.2。
      */
     @Override
     public Component formatNumber(double value) {
+        int decimals = stepNumber() < 0.1D ? 2 : 1;
         return Component.translatable(displayName + ".value",
-                String.format(Locale.ROOT, "%.1f", value));
+                String.format(Locale.ROOT, "%." + decimals + "f", value));
     }
 
     @Override
