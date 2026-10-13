@@ -1,10 +1,8 @@
-# Automatically build the project and run any configured tests for every push
-# and submitted pull request. This can help catch issues that only occur on
-# certain platforms or Java versions, and provides a first line of defense
-# against bad commits.
-
 name: build
 on: [ pull_request, push ]
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -21,13 +19,36 @@ jobs:
           distribution: 'microsoft'
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
+
+      # 走根项目 build → collectJars，所有子版本双端包一次性收集到 lib/
       - name: build
-        run: ./gradlew :v26.2:build :v26.3:build
-      - name: capture build artifacts
+        run: ./gradlew build
+
+      # 平时 push / PR：客户端包作为 Artifact
+      - name: capture client artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: Artifacts
-          path: |
-            v26.2/build/libs/*.jar
-            v26.3/build/libs/*.jar
-            !**/*-sources.jar
+          name: client
+          path: lib/**/client/*.jar
+          if-no-files-found: error
+
+      # 平时 push / PR：服务端包作为 Artifact
+      - name: capture server artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: server
+          path: lib/**/server/*.jar
+          if-no-files-found: error
+
+      # 只有推送 tag 时才发布 Release，客户端 + 服务端都传
+      - name: publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            lib/**/client/*.jar
+            lib/**/server/*.jar
+          generate_release_notes: true
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
