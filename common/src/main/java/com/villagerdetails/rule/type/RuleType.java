@@ -22,7 +22,8 @@ public enum RuleType implements RegisterTypeServer {
 
 
     //设置
-    SETTING_LANGUAGE("Language", "setting.language", "setting.language.desc", List.of(MOD_SETTING), new ArrayList<>(), null, ServerLangConfig.preloadLanguageView(), "en_us"),
+    // 语言默认 zh_cn：和 ServerLangConfig 的 defaultLang 保持一致（语言以这条规则为准，配置里的 default 只是兜底）
+    SETTING_LANGUAGE("Language", "setting.language", "setting.language.desc", List.of(MOD_SETTING), new ArrayList<>(), null, ServerLangConfig.preloadLanguageView(), "zh_cn"),
 
     SETTING_EC_COMMAND_PERMISSION("RuleCommand", "setting.ec_command_permission", "setting.ec_command_permission.desc", List.of(MOD_SETTING), new ArrayList<>(), null, SETTING_PERMISSIONS, OWNER_STR),
 

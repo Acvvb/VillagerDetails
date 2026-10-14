@@ -1,42 +1,39 @@
 package com.villagerdetails.client.setting.row;
 
-import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.client.network.sync.ClientRequests;
-import com.villagerdetails.client.setting.network.ServerRuleClientState;
 import com.villagerdetails.client.setting.type.style.StyleType;
-import com.villagerdetails.rule.type.RuleDataKind;
-import com.villagerdetails.rule.type.RuleType;
+import com.villagerdetails.rule.descriptor.RuleDescriptor;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * 「服务器配置项」里的一行：{@code 规则名 … [列表] [重置]}。
+ * 「服务端配置项」里的一行：{@code 规则名 … [列表] [重置]}。
  *
  * <p>和普通的服务器规则行（{@link ServerRuleRow}）不同：这一行的数据不放在规则状态里，
- * 而是「id → 值」的独立配置，所以右边只有一个「列表」按钮（点进去逐条配）和一个「重置」。
- * 列表按钮的渲染和「配置项 - 列表」那一项一样，都是 {@code [a,b]} 这种预览。
+ * 而是「id → 值」的独立内容，所以右边只有一个「列表」按钮（点进去逐条配）和一个「重置」。
  *
- * <p>列表形态（纯名单 / id → 数字）来自服务端同步下来的标识，这里只是照着渲染。
+ * <p>列表长什么样（纯名单 / id → 数字）完全由服务端下发的 {@link RuleDescriptor#template()} 决定，
+ * 客户端只是照着渲染；内容也是服务端给的 {@link RuleDescriptor#data()}。
  */
-public record ServerRuleDataRow(RuleType rule, RuleDataKind kind) implements ConfigRow {
+public record ServerRuleDataRow(RuleDescriptor rule) implements ConfigRow {
 
     @Override
     public String getRegisterName() {
-        return rule.getRegisterName();
+        return rule.registerName();
     }
 
     @Override
     public Component getDisplayName() {
-        // 和 /ec 命令共用翻译键，保证显示一致
-        return Component.translatable(rule.getDisplayNameKey());
+        return Component.literal(rule.name());
     }
 
     @Override
     public Component getDisplayInfo() {
-        return Component.translatable(rule.getDisplayInfoKey());
+        return Component.literal(rule.info());
     }
 
     @Override
@@ -49,7 +46,7 @@ public record ServerRuleDataRow(RuleType rule, RuleDataKind kind) implements Con
      */
     @Override
     public boolean getToggle() {
-        return RuleCache.isEnabled(rule);
+        return rule.enabled();
     }
 
     @Override
@@ -58,37 +55,48 @@ public record ServerRuleDataRow(RuleType rule, RuleDataKind kind) implements Con
     }
 
     /**
+     * 逐条配置的模板（纯名单 / 值控件形态 / id 来源）
+     */
+    public RuleDescriptor.ListTemplate template() {
+        return rule.template();
+    }
+
+    /**
      * 服务端同步过来的当前数据（id → 值，保持服务端给的顺序）
      */
     public Map<String, String> data() {
-        ServerRuleClientState.RuleData data = ServerRuleClientState.ruleData(rule);
-        return data == null ? Map.of() : data.data();
+        Map<String, String> data = new LinkedHashMap<>();
+        for (RuleDescriptor.DataEntry entry : rule.data()) {
+            data.put(entry.id(), entry.value());
+        }
+        return data;
     }
 
     /**
      * 列表按钮上的预览文字：{@code [id=值,…]}，纯名单就只显示 id
      */
     public Component listDisplay() {
-        return preview(kind, data());
+        return preview(data());
     }
 
     @Override
     public boolean isDefault() {
-        return data().isEmpty();
+        return rule.data().isEmpty();
     }
 
     @Override
     public void reset() {
-        ClientRequests.sendRuleDataReset(rule);
+        ClientRequests.sendRuleDataReset(rule.registerName());
     }
 
     /**
      * {@code [id=值,id=值,…]}；纯名单不显示 {@code =true}（业务上「在名单里」就是是）
      */
-    private static Component preview(RuleDataKind kind, Map<String, String> data) {
+    private Component preview(Map<String, String> data) {
+        boolean plain = rule.template() != null && rule.template().plain();
         List<String> items = new ArrayList<>(data.size());
         for (Map.Entry<String, String> entry : data.entrySet()) {
-            items.add(kind.isPlainList() ? entry.getKey() : entry.getKey() + "=" + entry.getValue());
+            items.add(plain ? entry.getKey() : entry.getKey() + "=" + entry.getValue());
         }
         return ListPreview.of(items);
     }

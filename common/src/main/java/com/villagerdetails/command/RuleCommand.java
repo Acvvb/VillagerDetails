@@ -149,7 +149,7 @@ public class RuleCommand {
         MutableComponent mutableComponent = Component.empty();
         mutableComponent.append(Component.translatable(K_HELP_CATEGORIES));
         mutableComponent.append(categoryDisplay(List.of(RuleCategoryType.values())));
-        sendOrBroadcast(player, mutableComponent);   // ★ 统一走 SendMessengerUtils
+        sendOrBroadcast(player, mutableComponent);
         return 1;
     }
 

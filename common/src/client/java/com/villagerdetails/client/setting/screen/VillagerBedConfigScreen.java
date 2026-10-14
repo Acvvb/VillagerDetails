@@ -122,8 +122,9 @@ public class VillagerBedConfigScreen extends Screen {
         this.syncVersion = ServerRuleClientState.getVersion();
         restoreSelection();
 
-        // 打开界面时向服务器要一份最新的规则状态（服务器没装本 mod 时内部会直接忽略）
-        ClientRequests.requestRuleSync();
+        // 打开界面时跟服务器打个招呼：要一份最新的全量描述符
+        // （顺带把当前界面语言报上去，服务端据此翻译描述符里的文字；服务器没装本 mod 时内部会直接忽略）
+        ClientRequests.sendHello();
     }
 
     // ==============================================================
@@ -670,8 +671,8 @@ public class VillagerBedConfigScreen extends Screen {
      * <p>两种列表：
      * <ul>
      *     <li>本机配置项的列表（{@code ConfigEntryType}）：按钮上显示 {@code [a,b]}，点进去增删值</li>
-     *     <li>「服务器配置项」的规则数据（{@link ServerRuleDataRow}）：按钮上显示 {@code [id=值,…]}，
-     *         点进去逐条配（值可能是数字，也可能是是/否）</li>
+     *     <li>「服务端配置项」的规则数据（{@link ServerRuleDataRow}）：按钮上显示 {@code [id=值,…]}，
+     *         点进去逐条配（值是数字还是文本、是纯名单还是键值，全看服务端下发的模板）</li>
      * </ul>
      */
     private void addListRow(ConfigRow row, int y, List<RowListPage.Widget> out) {
@@ -707,15 +708,17 @@ public class VillagerBedConfigScreen extends Screen {
      * 进详情页：
      * <ul>
      *     <li>颜色项 → RGB 滑条那一页</li>
-     *     <li>列表项（本机配置项 / 服务器的纯名单规则）→ 同一个列表页，
+     *     <li>列表项（本机配置项 / 服务端的纯名单规则）→ 同一个列表页，
      *         只是数据来源不同（{@link ListSourceServer}）</li>
-     *     <li>服务器的键值数据（抗性）→ id + 值那一页</li>
+     *     <li>服务端的键值数据（抗性）→ id + 值那一页</li>
      * </ul>
+     *
+     * <p>服务端那两类走哪一页由服务端下发的模板决定（{@code template().plain()}），客户端不写死规则名单。
      */
     private void openDetail(ConfigRow row) {
         Screen detail = switch (row) {
-            case ServerRuleDataRow dataRow -> dataRow.kind().isPlainList()
-                    ? new ListDetailScreen(this, new RuleListSource(dataRow.rule(), dataRow.kind()))
+            case ServerRuleDataRow dataRow -> dataRow.template().plain()
+                    ? new ListDetailScreen(this, new RuleListSource(dataRow.rule()))
                     : new RuleDataDetailScreen(this, dataRow);
             case ConfigEntryType entry -> entry.getStyle() == StyleType.LIST
                     ? new ListDetailScreen(this, new EntryListSource(entry))

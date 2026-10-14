@@ -28,7 +28,8 @@ public final class ClientChannels {
     private static final List<ClientReceiver<?>> CHANNELS = List.of(
             VillagerBedClientChannel.INSTANCE,
             BlockRuleClientChannel.INSTANCE,
-            ServerRuleClientChannel.INSTANCE,
+            RuleDescriptorClientChannel.INSTANCE,
+            RuleDataOptionsClientChannel.INSTANCE,
             EBSyncClientChannel.INSTANCE,
             BBSyncClientChannel.INSTANCE,
             PortalViewSyncClientChannel.INSTANCE);

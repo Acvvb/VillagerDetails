@@ -3,7 +3,7 @@ package com.villagerdetails.network.sync.receiver;
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.ServerReceiver;
-import com.villagerdetails.network.sync.clientbound.ServerRuleSyncChannel;
+import com.villagerdetails.network.sync.clientbound.RuleDescriptorSyncChannel;
 import com.villagerdetails.network.sync.payload.serverbound.ServerRuleSetPayload;
 import com.villagerdetails.rule.RuleChangeService;
 import com.villagerdetails.rule.RuleSwitches;
@@ -76,6 +76,6 @@ public final class ServerRuleSetReceiver implements ServerReceiver<ServerRuleSet
 
         // setState 会触发监听器广播，这里再补一次，保证发起者立刻看到最新状态
         // （内容没变时被 lastSynced 去重，不发包）
-        ServerRuleSyncChannel.INSTANCE.syncTo(player);
+        RuleDescriptorSyncChannel.INSTANCE.syncTo(player);
     }
 }

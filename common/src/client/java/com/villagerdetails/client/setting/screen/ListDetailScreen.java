@@ -77,6 +77,8 @@ public class ListDetailScreen extends AbstractDetailScreen {
         this.source = source;
         // 进来时拷一份工作副本；之后增删都只改它，按「完成」才写回
         this.values.addAll(source.current());
+        // 候选清单要问服务端要的来源在这里发一次请求（本机配置项不用）
+        source.prepare();
     }
 
     // ==============================================================
@@ -177,9 +179,9 @@ public class ListDetailScreen extends AbstractDetailScreen {
                 Component.translatable("villagerdetails.ui.list.add"));
         box.setHint(Component.translatable("villagerdetails.ui.list.add.hint"));
         box.setMaxLength(MAX_VALUE_LENGTH);
-        // 输入变化时才重算补全（search 会遍历整张 id 表）
+        // 输入变化时才重算补全（本机来源要遍历整张 id 表，服务器来源要扫一遍服务端给的清单）
         box.setResponder(text -> {
-            popup.update(text, maxSuggestions(), source.idRegistry());
+            popup.update(text, maxSuggestions(), source::suggestions);
             box.setTextColor(EditBox.DEFAULT_TEXT_COLOR);
         });
         this.addBox = box;
@@ -243,8 +245,10 @@ public class ListDetailScreen extends AbstractDetailScreen {
         }
         this.adding = false;
         popup.reset();
-        // 只加到工作副本里；真正写回配置要等按「完成」
-        values.add(text);
+        // 只加到工作副本里；真正写回配置要等按「完成」。
+        // 收进来之前先规范化：服务器规则的 id 要写成注册表里的规范形式，
+        // 不然「stone」和已经存在的「minecraft:stone」会被当成两条。
+        values.add(source.normalizeId(text));
         return true;
     }
 

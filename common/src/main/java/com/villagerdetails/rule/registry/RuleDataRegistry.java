@@ -3,6 +3,7 @@ package com.villagerdetails.rule.registry;
 import com.villagerdetails.config.impl.section.item.BlockCollectableConfig;
 import com.villagerdetails.config.impl.section.item.BlockExplosionResistanceConfig;
 import com.villagerdetails.config.impl.section.item.BlockMiningResistanceConfig;
+import com.villagerdetails.config.impl.section.item.BlockStrongPowerConfig;
 import com.villagerdetails.config.impl.section.item.NoSqueezeConfig;
 import com.villagerdetails.rule.type.RuleDataKind;
 import com.villagerdetails.rule.type.RuleType;
@@ -82,6 +83,15 @@ public final class RuleDataRegistry {
                             (id, _) -> BlockCollectableConfig.INSTANCE.add(id),
                             BlockCollectableConfig.INSTANCE::remove,
                             BlockCollectableConfig.INSTANCE::reset),
+                    Block::defaultDestroyTime),
+
+            // 方块强充能：和「可采集」完全同一种形态（方块 id 纯名单），所以也是同一套模板 / 同一套界面
+            new Entry(RuleType.BLOCK_STRONG_POWER, RuleDataKind.BLOCK_LIST,
+                    new DataStore(BlockStrongPowerConfig.INSTANCE::toSyncString,
+                            BlockStrongPowerConfig.INSTANCE::applyFromSyncString,
+                            (id, _) -> BlockStrongPowerConfig.INSTANCE.add(id),
+                            BlockStrongPowerConfig.INSTANCE::remove,
+                            BlockStrongPowerConfig.INSTANCE::reset),
                     Block::defaultDestroyTime),
 
             new Entry(RuleType.BLOCK_MINING_RESISTANCE, RuleDataKind.BLOCK_NUMBER,

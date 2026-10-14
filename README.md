@@ -106,15 +106,20 @@ Everything is done through the `/ec` command:
 ### Building
 
 ```bash
-# Build all versions and collect jars into lib/
-./gradlew collectJars
+# Build every version and collect the packages into lib/
+./gradlew build            # same as ./gradlew collectJars
 
-# Build a specific version
+# Build only one version
 ./gradlew :v26.2:build
 ./gradlew :v26.3:build
 ```
 
-Artifacts are placed in the `lib/` directory.
+Each version produces two packages, collected into `lib/<mod version>/`:
+
+| Folder       | Source sets   | `environment` | Use                                              |
+|--------------|---------------|---------------|--------------------------------------------------|
+| `universal/` | main + client | `*`           | client (also runs on a server)                    |
+| `server/`    | main only     | `*`           | dedicated server (no client classes, smaller jar) |
 
 ### Project Structure
 
@@ -123,7 +128,7 @@ Artifacts are placed in the `lib/` directory.
 ├── v26.2/           # Minecraft 26.2 specific code and config
 ├── v26.3/           # Minecraft 26.3 specific code and config
 ├── tools/           # Helper scripts
-└── lib/             # Collected build artifacts
+└── lib/             # Packages collected by `collectJars` (universal / server)
 ```
 
 ### License
@@ -244,15 +249,20 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 ### 构建
 
 ```bash
-# 构建所有版本并收集 jar 到 lib/
-./gradlew collectJars
+# 构建所有版本并把产物收集到 lib/
+./gradlew build            # 等价于 ./gradlew collectJars
 
 # 仅构建指定版本
 ./gradlew :v26.2:build
 ./gradlew :v26.3:build
 ```
 
-构建产物位于 `lib/` 目录。
+每个版本产出两个包，收集到 `lib/<模组版本>/`：
+
+| 目录         | 内容          | `environment` | 用途                                 |
+|--------------|---------------|---------------|--------------------------------------|
+| `universal/` | main + client | `*`           | 客户端（放到服务端也能跑）           |
+| `server/`    | 仅 main       | `*`           | 专用服务端（不含客户端类，体积更小） |
 
 ### 项目结构
 
@@ -261,7 +271,7 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 ├── v26.2/           # Minecraft 26.2 专属代码与配置
 ├── v26.3/           # Minecraft 26.3 专属代码与配置
 ├── tools/           # 辅助脚本
-└── lib/             # 构建产物收集目录
+└── lib/             # collectJars 收集的成品包（universal / server）
 ```
 
 ### 许可证

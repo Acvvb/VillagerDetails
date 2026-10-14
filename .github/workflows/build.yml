@@ -24,20 +24,20 @@ jobs:
       - name: build
         run: ./gradlew build
 
-      # 平时 push / PR：客户端包作为 Artifact
+      # 平时 push / PR：客户端包作为 Artifact（修改为匹配 *-client.jar）
       - name: capture client artifacts
         uses: actions/upload-artifact@v7
         with:
           name: client
-          path: lib/**/client/*.jar
+          path: lib/**/*-client.jar
           if-no-files-found: error
 
-      # 平时 push / PR：服务端包作为 Artifact
+      # 平时 push / PR：服务端包作为 Artifact（修改为匹配 *-server.jar）
       - name: capture server artifacts
         uses: actions/upload-artifact@v7
         with:
           name: server
-          path: lib/**/server/*.jar
+          path: lib/**/*-server.jar
           if-no-files-found: error
 
       # 只有推送 tag 时才发布 Release，客户端 + 服务端都传
@@ -45,9 +45,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            lib/**/client/*.jar
-            lib/**/server/*.jar
+          # 修改为匹配所有 jar，或者分别写 client 和 server 的匹配规则
+          # 这里匹配 lib 下所有版本的 jar（包含 client, server, sources）
+          files: lib/**/*.jar
           generate_release_notes: true
           draft: false
         env:

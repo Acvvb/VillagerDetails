@@ -1,77 +1,44 @@
 package com.villagerdetails.config.impl.section.item;
 
+import com.villagerdetails.config.impl.section.base.IdSetConfig;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.block.Block;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import static com.villagerdetails.rule.type.RuleType.BLOCK_STRONG_POWER;
 
 /**
- * 方块强充能配置。
- * 存储被配置为"红石导体"的方块。
- * 加入列表的方块会表现得像泥土/石头一样：
- * 被红石火把、中继器、比较器充能后，把充能状态传递给相邻的红石线。
+ * 方块强充能配置：被配置成「红石导体」的方块名单。
+ *
+ * <p>加入名单的方块会表现得像泥土 / 石头一样：被红石火把、中继器、比较器充能后，
+ * 把充能状态传递给相邻的红石线。
+ *
+ * <p>和「方块可采集」共用同一套存储（{@link IdSetConfig}）：统一 {@code config.json} 落盘 +
+ * 同步字符串，服务端和客户端读的是同一份实现。这一点很重要 —— {@code BlockStateBaseConductorMixin}
+ * 在客户端也会跑，本地镜像拿不到名单就会和服务端的判定对不上。
  */
-public final class BlockStrongPowerConfig {
+public final class BlockStrongPowerConfig extends IdSetConfig {
+
+    private BlockStrongPowerConfig() {
+        super(BLOCK_STRONG_POWER.getRegisterName());
+    }
 
     public static final BlockStrongPowerConfig INSTANCE = new BlockStrongPowerConfig();
 
-    private final Set<Identifier> ids = new LinkedHashSet<>();
-
-    private BlockStrongPowerConfig() {
+    @Override
+    public String configName() {
+        return BLOCK_STRONG_POWER.getRegisterName();
     }
 
-    public void add(Identifier id) {
-        ids.add(id);
+    @Override
+    public void reload(MinecraftServer server) {
+        loadStorage();
     }
 
-    public void remove(Identifier id) {
-        ids.remove(id);
-    }
-
-    public void reset() {
-        ids.clear();
-    }
-
-    public List<Identifier> snapshot() {
-        return new ArrayList<>(ids);
-    }
-
-    /** 判断某个方块是否在列表中 */
+    /**
+     * 判断某个方块是否在名单里
+     */
     public boolean contains(Block block) {
-        if (block == null || ids.isEmpty()) return false;
-        Identifier blockId = BuiltInRegistries.BLOCK.getKey(block);
-        return ids.contains(blockId);
-    }
-
-    /** 只读视图，便于调试 */
-    public Set<Identifier> getIds() {
-        return Collections.unmodifiableSet(ids);
-    }
-
-    /** 序列化成同步字符串：id1,id2,id3 */
-    public String toSyncString() {
-        StringBuilder sb = new StringBuilder();
-        for (Identifier id : ids) {
-            if (!sb.isEmpty()) sb.append(',');
-            sb.append(id);
-        }
-        return sb.toString();
-    }
-
-    /** 从同步字符串反序列化（整份替换） */
-    public void applyFromSyncString(String data) {
-        ids.clear();
-        if (data == null || data.isEmpty()) return;
-        for (String part : data.split(",")) {
-            String s = part.trim();
-            if (s.isEmpty()) continue;
-            Identifier id = Identifier.tryParse(s);
-            if (id != null) ids.add(id);
-        }
+        return block != null && containsId(BuiltInRegistries.BLOCK.getKey(block));
     }
 }

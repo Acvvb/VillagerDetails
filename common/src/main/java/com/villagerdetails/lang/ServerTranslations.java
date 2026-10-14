@@ -146,6 +146,38 @@ public final class ServerTranslations {
         return sb.toString();
     }
 
+    /**
+     * 按<b>指定语言</b>解析成纯文本。
+     *
+     * <p>给规则描述符同步用：客户端把自己的界面语言报上来，服务端就用那份语言把名称 / 描述 /
+     * 按钮文字翻译好再下发 —— 于是配置界面里「服务器 / 服务端配置」这两个分类跟<b>客户端</b>语言走，
+     * 不受服务端「模组语言」规则影响（命令输出那类仍然走当前语言，见 {@link #resolve(Component)}）。
+     *
+     * <p>语言没预加载过就按需加载一次（读的是模组自己 jar 里的 lang json）；
+     * 这份语言没有 / 加载不出来（空表）就退回当前语言，免得整屏显示成翻译键。
+     */
+    public static String resolve(Component component, String lang) {
+        if (component == null) return "";
+        StringBuilder sb = new StringBuilder(64);
+        appendComponent(sb, component, tableOf(lang));
+        return sb.toString();
+    }
+
+    /**
+     * 取某个语言对应的翻译表；不认识 / 空表退回当前表
+     */
+    private static Map<String, String> tableOf(String lang) {
+        if (lang == null || lang.isBlank()) {
+            return current;
+        }
+        Map<String, String> map = ALL_LANGUAGES.get(lang);
+        if (map == null) {
+            preload(lang);
+            map = ALL_LANGUAGES.get(lang);
+        }
+        return map == null || map.isEmpty() ? current : map;
+    }
+
     private static void appendComponent(StringBuilder sb, Component component, Map<String, String> table) {
         var contents = component.getContents();
 

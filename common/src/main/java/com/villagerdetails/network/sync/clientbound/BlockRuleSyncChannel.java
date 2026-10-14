@@ -49,7 +49,7 @@ public class BlockRuleSyncChannel extends SyncChannel<BlockRuleSyncPayload> {
     /**
      * 按规则表拼一份当前配置。
      *
-     * <p>每条规则带上自己的开关状态：规则状态那份同步是按权限过滤的，没权限的玩家收不到，
+     * <p>每条规则带上自己的开关状态：规则描述符那份同步是按权限过滤的，没权限的玩家收不到，
      * 但客户端要拿它做本地预测（比如「无挤压」关掉之后客户端也不该再拦推动）。
      */
     private BlockRuleSyncPayload build() {
@@ -57,7 +57,6 @@ public class BlockRuleSyncChannel extends SyncChannel<BlockRuleSyncPayload> {
         for (RuleDataRegistry.Entry entry : RuleDataRegistry.all()) {
             entries.add(new BlockRuleSyncPayload.RuleData(
                     entry.rule().getRegisterName(),
-                    entry.kind().name(),
                     entry.store().serializer().get(),
                     RuleCache.isEnabled(entry.rule())));
         }

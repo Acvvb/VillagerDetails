@@ -3,8 +3,9 @@ package com.villagerdetails.network.sync.receiver;
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.ServerReceiver;
-import com.villagerdetails.network.sync.payload.serverbound.RuleDataPayload;
 import com.villagerdetails.network.sync.clientbound.BlockRuleSyncChannel;
+import com.villagerdetails.network.sync.clientbound.RuleDescriptorSyncChannel;
+import com.villagerdetails.network.sync.payload.serverbound.RuleDataPayload;
 import com.villagerdetails.rule.registry.RuleDataRegistry;
 import com.villagerdetails.rule.type.RuleDataKind;
 import com.villagerdetails.rule.type.RuleType;
@@ -17,12 +18,14 @@ import org.apache.logging.log4j.Logger;
 /**
  * 客户端改「服务器配置项」的逐条数据：等价于 {@code /ec c <规则> ...}。
  *
- * <p>包的收发定义在 {@code network.sync.serverbound.RuleDataChannel}，这里只管收到之后干什么。
+ * <p>包的收发定义在 {@code network.sync.payload.serverbound.RuleDataPayload}，这里只管收到之后干什么。
  * 放在 {@code network.sync.receiver} 包下 = 自动注册。
  *
  * <p>支持哪些规则、值怎么校验，全部查 {@link RuleDataRegistry}（和同步用的是同一张表），
- * 所以客户端只要照着同步下来的标识渲染，服务端这边就不会漏校验。
- * 改完广播一次方块规则同步，所有客户端界面跟着刷新。
+ * 所以客户端只要照着同步下来的模板渲染，服务端这边就不会漏校验。
+ *
+ * <p>改完发两份：{@code block_rule_sync}（客户端玩法预测用的镜像）和描述符
+ * （配置界面两个分类的内容，列表按钮上的预览要跟着刷新）。
  */
 public final class RuleDataReceiver implements ServerReceiver<RuleDataPayload> {
 
@@ -65,6 +68,7 @@ public final class RuleDataReceiver implements ServerReceiver<RuleDataPayload> {
         }
 
         BlockRuleSyncChannel.INSTANCE.broadcastAll();
+        RuleDescriptorSyncChannel.INSTANCE.broadcastAll();
     }
 
     /**

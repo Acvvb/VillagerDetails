@@ -63,10 +63,11 @@ public enum FirstCategoryType {
     /**
      * 当前实际可见的一级分类。
      *
-     * <p>「服务器」要同时满足：服务器装了本 mod，并且这个玩家至少有一条有权限看的规则。
-     * 玩家被下 op 之后服务端就不再下发任何规则，这个分类会跟着整个消失。
+     * <p>「服务器」要同时满足：服务器装了本 mod，并且这个玩家至少收到了一条规则描述符。
+     * 玩家被下 op 之后服务端就不再下发任何描述符，这个分类会跟着整个消失。
      *
-     * <p>「服务器配置项」在上述基础上还要求：那几条需要逐条配置的规则里至少有一条是开着的。
+     * <p>「服务器配置项」在上述基础上还要求：服务端下发的描述符里至少有一条带逐条配置模板
+     * 并且是开着的。
      */
     public static List<FirstCategoryType> visibleValues() {
         boolean serverVisible = ServerRuleClientState.isServerCategoryVisible();

@@ -24,6 +24,9 @@ public final class ConfigRegistry {
     // 静态注册——此时 REGISTRY 已经初始化
     static {
         register(IdTranslationConfig.INSTANCE);
+        // 顺序有讲究：RuleConfig 必须排在 UnifiedConfigFile 前面 ——
+        // 先把持久化的规则状态回灌进 RuleCache，随后 UnifiedConfigFile 里的子配置
+        // （ServerLangConfig 等）才能读到「规则现在是什么」并据此对齐自己的状态。
         register(RuleConfig.INSTANCE);
         register(UnifiedConfigFile.INSTANCE);
     }

@@ -4,7 +4,6 @@ import com.villagerdetails.client.setting.config.ClientRenderConfig;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.type.server.ListSourceServer;
 import com.villagerdetails.client.setting.util.McIds;
-import net.minecraft.core.Registry;
 import net.minecraft.network.chat.Component;
 
 import java.util.List;
@@ -42,7 +41,8 @@ public record EntryListSource(ConfigEntryType entry) implements ListSourceServer
     }
 
     @Override
-    public Registry<?> idRegistry() {
-        return null;
+    public List<McIds.Entry> suggestions(String query, int limit) {
+        // 本机配置项的补全走本地注册表索引（远端来源见 RuleListSource）
+        return McIds.search(query, limit);
     }
 }

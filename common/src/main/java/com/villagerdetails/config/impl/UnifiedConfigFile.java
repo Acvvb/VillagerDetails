@@ -39,6 +39,7 @@ public final class UnifiedConfigFile implements ReloadableConfig {
             BlockMiningResistanceConfig.INSTANCE,
             BlockExplosionResistanceConfig.INSTANCE,
             BlockCollectableConfig.INSTANCE,
+            BlockStrongPowerConfig.INSTANCE,
             PortalBindingConfig.INSTANCE
     );
 

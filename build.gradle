@@ -18,16 +18,18 @@ subprojects { sp ->
     }
 
     // ============================================================
-    // 为每个有 client 源集的子模块注入「客户端 / 服务端」打包任务
+    // 每个版本产出两个包：
     //
-    // 客户端包：main + client，environment=client
-    //   → 客户端正常加载；服务端看到 environment=client 直接跳过
+    //   客户端包 client：main + client —— 客户端用，environment=client
+    //   服务端包 server ：仅 main      —— 服务端用，不含客户端类，体积小
     //
-    // 服务端包：仅 main，environment=*
-    //   → 客户端/服务端都能加载，但包里没有 client 类
-    //   → Fabric Loader 按「入口点类型」和「mixin environment」自动跳过
-    //     client 相关内容，不会 ClassNotFoundException
-    //   → 体积明显小于客户端包
+    // 刻意避开的坑：写成 from(sourceSets.xxx.output) 时，output 里本身就含资源目录，
+    // 再叠一个 processXxxResources 会让每份资源（fabric.mod.json / mixins.json / lang…）
+    // 在包里出现两份，同名条目读到哪份全看运气（environment 字段就被这个坑过）。
+    // 所以：类只从 classesDirs 拿，资源只从 processXxxResources 拿。
+    //
+    // 本工程这套工具链没有 remapJar（新版本 MC 的 Fabric 不再走 intermediary），
+    // 所以这两个包和 build/libs 下的产物是同一种命名空间，直接可发布。
     // ============================================================
     sp.afterEvaluate {
         def sourceSets = sp.extensions.findByType(SourceSetContainer)
@@ -36,37 +38,17 @@ subprojects { sp ->
         def baseName = sp.base.archivesName.get()
         def ver = sp.version
 
-        // -------- 客户端专用包 --------
-        sp.tasks.register('buildClientJar', Jar) {
-            group = 'build'
-            description = '构建客户端专用 JAR（main + client，environment=client）'
-            archiveBaseName = baseName
-            archiveVersion  = ver
-            archiveClassifier = 'client'
-            destinationDirectory = sp.layout.buildDirectory.dir('libs/client')
-
-            from(sourceSets.main.output)
-            from(sourceSets.client.output)
-            from(sp.tasks.named('processResources')) {
-                filesMatching('fabric.mod.json') {
-                    filter { line ->
-                        line.replaceAll(/"environment"\s*:\s*"[^"]*"/,
-                                '"environment": "client"')
-                    }
-                }
-            }
-        }
-
-        // -------- 服务端 / 通用包（仅 main）--------
+        // -------- 服务端包（仅 main）--------
         sp.tasks.register('buildServerJar', Jar) {
             group = 'build'
-            description = '构建服务端 JAR（仅 main 源集，environment=*）'
+            description = '构建服务端包（仅 main 源集，environment=*）'
             archiveBaseName = baseName
-            archiveVersion  = ver
+            archiveVersion = ver
             archiveClassifier = 'server'
-            destinationDirectory = sp.layout.buildDirectory.dir('libs/server')
+            // 【修改点】输出到 libs 根目录，不放在 server 子文件夹
+            destinationDirectory = sp.layout.buildDirectory.dir('libs')
 
-            from(sourceSets.main.output)   // 只含 main，不含 client
+            from(sourceSets.main.output.classesDirs)
             from(sp.tasks.named('processResources')) {
                 filesMatching('fabric.mod.json') {
                     filter { line ->
@@ -75,48 +57,86 @@ subprojects { sp ->
                     }
                 }
             }
+
+            // 再有同名条目就直接构建失败，别悄悄产出「两份资源的包」
+            duplicatesStrategy = DuplicatesStrategy.FAIL
+        }
+
+        // -------- 客户端包（main + client）--------
+        sp.tasks.register('buildClientJar', Jar) {
+            group = 'build'
+            description = '构建客户端包（main + client，environment=client）'
+            archiveBaseName = baseName
+            archiveVersion = ver
+            archiveClassifier = 'client'
+            // 【修改点】输出到 libs 根目录，不放在 client 子文件夹
+            destinationDirectory = sp.layout.buildDirectory.dir('libs')
+
+            from(sourceSets.main.output.classesDirs)
+            from(sourceSets.client.output.classesDirs)
+            from(sp.tasks.named('processResources')) {
+                filesMatching('fabric.mod.json') {
+                    filter { line ->
+                        line.replaceAll(/"environment"\s*:\s*"[^"]*"/,
+                                '"environment": "client"')
+                    }
+                }
+            }
+            from(sp.tasks.named('processClientResources'))
+
+            duplicatesStrategy = DuplicatesStrategy.FAIL
         }
     }
 }
 
 // ============================================================
-// 收集所有子版本的产物到根目录 lib/<模组版本>/<client|server>/
-//
-// 目录名取「模组版本」（sp.version 里 + 之前的部分，例如 1.0.0）。
-// 各 MC 版本靠文件名区分，都堆在同一个 1.0.0/ 下面：
+// 收集所有子版本的产物到根目录 lib/<模组版本>/
 //
 //   lib/
 //     1.0.0/
-//       client/
 //         villagerdetails-1.0.0+fabric-0.19.3+26.2-client.jar
-//         villagerdetails-1.0.0+fabric-0.19.3+26.3-client.jar
-//       server/
 //         villagerdetails-1.0.0+fabric-0.19.3+26.2-server.jar
+//         villagerdetails-1.0.0+fabric-0.19.3+26.2-sources.jar
+//         villagerdetails-1.0.0+fabric-0.19.3+26.3-client.jar
 //         villagerdetails-1.0.0+fabric-0.19.3+26.3-server.jar
+//         villagerdetails-1.0.0+fabric-0.19.3+26.3-sources.jar
 //
 // 用法：
-//   ./gradlew build                    // 构建所有子版本 + 收集到 lib/
-//   ./gradlew :v26.2:buildClientJar    // 只打 v26.2 客户端包
+//   ./gradlew build                       // 构建所有子版本 + 收集到 lib/
+//   ./gradlew collectJars                 // 同上
+//   ./gradlew :v26.2:buildClientJar       // 只打某个包
 // ============================================================
 def fabricLoaderTag = "+fabric-${property('loader_version').toString()}+"
 
 tasks.register('collectJars', Copy) {
     group = 'build'
-    description = '构建所有子版本，并按 <模组版本>/<client|server>/ 收集到根目录 lib/'
+    description = '构建所有子版本，并按 <模组版本>/ 收集到根目录 lib/'
 
     dependsOn {
         subprojects.findAll { it.tasks.named('buildClientJar') != null }
-                .collectMany { ["${it.path}:buildClientJar", "${it.path}:buildServerJar"] }
+                .collectMany { sp ->
+                    def t = ["${sp.path}:buildClientJar", "${sp.path}:buildServerJar"]
+                    // 【修改点】如果子项目有 sourcesJar 任务，也触发它
+                    if (sp.tasks.findByName('sourcesJar')) {
+                        t << "${sp.path}:sourcesJar"
+                    }
+                    // 【修复点】显式依赖 jar 任务，因为 collectJars 读取了整个 build/libs 目录
+                    if (sp.tasks.findByName('jar')) {
+                        t << "${sp.path}:jar"
+                    }
+                    t
+                }
     }
 
     subprojects.each { sp ->
         def modVer = sp.version.toString().replaceFirst(/\+.*$/, '')  // 1.0.0+26.2 → 1.0.0
-        from(sp.layout.buildDirectory.dir('libs/client')) { into "${modVer}/client" }
-        from(sp.layout.buildDirectory.dir('libs/server')) { into "${modVer}/server" }
+        // 【修改点】直接从 libs 目录读取，平铺合并到同一个 modVer 文件夹下，不再区分 client/server 文件夹
+        from(sp.layout.buildDirectory.dir('libs')) { into "${modVer}" }
     }
 
     include '*.jar'
-    exclude '*-sources.jar', '*-dev.jar', '*-javadoc.jar'
+    // 【修改点】不再排除 sources 包
+    exclude '*-dev.jar', '*-javadoc.jar'
 
     eachFile { f ->
         if (f.name.endsWith('.jar') && f.name.contains('+')) {
@@ -129,6 +149,6 @@ tasks.register('collectJars', Copy) {
 
 tasks.register('build') {
     group = 'build'
-    description = '构建所有子版本并收集产物到 lib/（等价于 collectJars）'
+    description = '构建所有子版本并把产物收集到 lib/（等价于 collectJars）'
     dependsOn 'collectJars'
 }

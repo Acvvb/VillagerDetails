@@ -3,6 +3,7 @@ package com.villagerdetails.config.impl.section.item;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.config.ReloadableConfig;
 import com.villagerdetails.config.impl.UnifiedConfigFile;
 import com.villagerdetails.lang.ServerTranslations;
@@ -69,7 +70,14 @@ public final class ServerLangConfig implements ReloadableConfig {
     public void reload(MinecraftServer server) {
         loadFromWorld();
         ServerTranslations.reload();
-        ServerTranslations.switchTo(defaultLang);
+
+        // 语言最终以「模组语言」规则为准，配置里的 default 只是规则还没被应用时的兜底。
+        //
+        // 不能只靠规则回调：规则默认值本来就等于当前语言时 setState 会短路（值没变不触发回调），
+        // 那样这里若直接 switchTo(defaultLang)，就会出现「规则写着 en_us、实际却是 zh_cn」，
+        // 而且用户再设一次同一个值同样被短路 —— 语言从此切不回来。
+        String ruleLanguage = RuleCache.getState(SETTING_LANGUAGE);
+        ServerTranslations.switchTo(ruleLanguage == null || ruleLanguage.isBlank() ? defaultLang : ruleLanguage);
     }
 
     public static void loadFromWorld() {

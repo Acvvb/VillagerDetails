@@ -6,11 +6,10 @@ import com.villagerdetails.client.setting.component.RowListPage;
 import com.villagerdetails.client.setting.component.SuggestionPopup;
 import com.villagerdetails.client.setting.component.SwitchButton;
 import com.villagerdetails.client.setting.config.ui.ComponentLayout;
+import com.villagerdetails.client.setting.network.RuleAuxCache;
 import com.villagerdetails.client.setting.row.ServerRuleDataRow;
 import com.villagerdetails.rule.RuleSwitches;
-import com.villagerdetails.rule.registry.RuleDataRegistry;
-import com.villagerdetails.rule.type.RuleDataKind;
-import com.villagerdetails.rule.type.RuleType;
+import com.villagerdetails.rule.descriptor.RuleDescriptor;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -25,12 +24,12 @@ import java.util.*;
 import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
 
 /**
- * 「服务器配置项」里某条规则的数据详情页：一个「id → 值」的列表。
+ * 「服务端配置项」里某条规则的数据详情页：一个「id → 值」的列表。
  *
  * <pre>
  *  ┌──────────────────────────────────────────────────────┐
- *  │ minecraft:stone            [ 1.5 ]            [ × ]  │ ← 值可能是数字框，也可能是是/否按钮
- *  │ minecraft:deepslate        [ 是   ]           [ × ]  │
+ *  │ minecraft:stone            [ 1.5 ]            [ × ]  │ ← 值可能是数字框，也可能是自由文本
+ *  │ minecraft:deepslate        [ 1.2 ]            [ × ]  │
  *  │ [                       +                       ]    │ ← 最后一行是添加按钮
  *  └──────────────────────────────────────────────────────┘
  *  │              [ 取消 ]          [ 完成 ]              │
@@ -39,12 +38,15 @@ import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
  * <p>分页滚动 / 滚动条 / 画布裁剪 / 面板 / 页脚 / 补全弹窗都在基类
  * {@link AbstractDetailScreen} 和那两个组件里。
  *
+ * <p><b>列表长什么样完全由服务端下发的模板决定</b>（{@link RuleDescriptor.ListTemplate}）：
+ * 值控件是数字框还是文本框、id 该从哪来，客户端只是照着渲染 —— 它不认识「方块抗性」这种语义。
+ *
  * <p><b>改动是临时的</b>：进来时把服务端同步过来的配置拷一份工作副本，增删改都只动副本；
  * 按「<b>完成</b>」时才把<b>和工作副本的差异</b>发给服务端（新增/修改 → 一条设置请求，
  * 删掉的 → 一条删除请求），按「取消」或 ESC 则什么都不发。
  *
- * <p>点「+」会出现 id 和值两个输入框：id 带补全（只补这条规则该用的注册表），
- * 值会按原版值预填（和 {@code /ec c} 的原版值补全是同一套算法），点空白处或回车就收进副本。
+ * <p>点「+」会出现 id 和值两个输入框：id 的候选与「原版值预填」都来自服务端按需下发的清单
+ * （{@link RuleAuxCache}），客户端只做子串过滤。
  */
 public class RuleDataDetailScreen extends AbstractDetailScreen {
 
@@ -58,8 +60,15 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
      */
     private static final int MAX_ADD_ID_LENGTH = 128;
 
-    private final RuleType rule;
-    private final RuleDataKind kind;
+    /**
+     * 正在编辑的规则（描述符：名称 / 描述 / 模板 / 当前数据都是服务端给的）
+     */
+    private final RuleDescriptor rule;
+
+    /**
+     * 逐条配置的模板
+     */
+    private final RuleDescriptor.ListTemplate template;
 
     /**
      * 工作副本：id → 值（保持插入顺序，界面就按这个顺序画）
@@ -86,10 +95,12 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     public RuleDataDetailScreen(Screen parent, ServerRuleDataRow row) {
         super(Component.literal("[ ").append(row.getDisplayName()).append(" ]"), parent);
         this.rule = row.rule();
-        this.kind = row.kind();
-        // 数据是服务端同步过来的镜像（列表形态也是服务端带过来的标识）
+        this.template = row.template();
+        // 数据是服务端同步过来的，列表形态（数字 / 文本）也是服务端带过来的模板
         this.values.putAll(row.data());
         this.original.putAll(this.values);
+        // id 候选和原版值预填都要问服务端要：这一页打开时请求一次
+        RuleAuxCache.requestOnce(rule.registerName());
     }
 
     // ==============================================================
@@ -114,8 +125,8 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
 
     @Override
     protected Component description() {
-        // 规则描述用翻译键取（RuleType#getDisplayInfo 是服务端解析好的纯文本）
-        return Component.translatable(rule.getDisplayInfoKey());
+        // 描述是服务端按我们的界面语言翻译好的，直接用
+        return Component.literal(rule.info());
     }
 
     @Override
@@ -126,11 +137,38 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     }
 
     // ==============================================================
+    // 模板
+    // ==============================================================
+
+    /**
+     * 值合法吗（数字：非负浮点；其余：非空文本）
+     */
+    private boolean isValidValue(String value) {
+        String text = value == null ? "" : value.trim();
+        if (text.isEmpty()) {
+            return false;
+        }
+        if (template.valueKind() != RuleDescriptor.ValueKind.NUMBER) {
+            return true;
+        }
+        try {
+            float parsed = Float.parseFloat(text);
+            return Float.isFinite(parsed) && parsed >= 0.0F;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private String normalizeValue(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    // ==============================================================
     // 行的布局
     // ==============================================================
 
     /**
-     * 值控件（数字框）的 x
+     * 值控件（数字框 / 文本框）的 x
      */
     private int valueX() {
         return rowsRight() - DETAIL_DELETE_WIDTH - WIDGET_GAP - RULE_DATA_VALUE_WIDTH;
@@ -185,10 +223,9 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     }
 
     /**
-     * 值控件：数字输入框，边打边写进工作副本，打错就标红但不动副本。
+     * 值控件：边打边写进工作副本，打错就标红但不动副本。
      *
-     * <p>会走到这一页的都是「id → 数字」形态（纯名单那两条走的是
-     * {@link ListDetailScreen}，一行只有 id），所以这里固定是数字框。
+     * <p>数字 / 文本两种形态用的是同一个输入框，只是校验不同 —— 形态由服务端模板决定。
      */
     private RowListPage.Widget buildValueEditor(String id, String value, int y) {
         EditBox box = new EditBox(this.font, valueX(), y, RULE_DATA_VALUE_WIDTH, WIDGET_HEIGHT,
@@ -196,12 +233,11 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         box.setMaxLength(MAX_VALUE_LENGTH);
         box.setValue(value);
         box.setResponder(text -> {
-            String trimmed = text.trim();
-            if (kind.isValidValue(trimmed)) {
-                values.put(id, kind.normalizeValue(trimmed));
+            if (isValidValue(text)) {
+                values.put(id, normalizeValue(text));
                 box.setTextColor(EditBox.DEFAULT_TEXT_COLOR);
             } else {
-                // 还没打完 / 不是合法数字：只标红，副本里保留原值
+                // 还没打完 / 不合法：只标红，副本里保留原值
                 box.setTextColor(ComponentLayout.POPUP_ERROR);
             }
         });
@@ -229,7 +265,8 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         idBox.setHint(Component.translatable("villagerdetails.ui.rule_data.add.hint"));
         idBox.setMaxLength(MAX_ADD_ID_LENGTH);
         idBox.setResponder(text -> {
-            popup.update(text, maxSuggestions(), kind.registry());
+            popup.update(text, maxSuggestions(),
+                    (query, limit) -> RuleAuxCache.suggestions(rule.registerName(), query, limit));
             idBox.setTextColor(EditBox.DEFAULT_TEXT_COLOR);
             prefillValue(text.trim());
         });
@@ -247,16 +284,20 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     }
 
     /**
-     * id 填成合法值之后，把原版值预填进值输入框（玩家自己改过就不动）
+     * id 填成合法值之后，把原版值预填进值输入框（玩家自己改过就不动）。
+     *
+     * <p>原版值是服务端算好一起下发的（客户端不认识方块，算不出来）。
      */
     private void prefillValue(String id) {
-        if (addValueBox == null || !addValueBox.getValue().isEmpty() || !kind.isValidId(id)) {
+        if (addValueBox == null || !addValueBox.getValue().isEmpty()) {
             return;
         }
-        // 原版值取方块的哪一项由共用的规则表决定（和 /ec c 的原版值补全是同一套算法）
-        RuleDataRegistry.Entry entry = RuleDataRegistry.of(rule);
-        if (entry != null) {
-            addValueBox.setValue(entry.vanillaValue(id));
+        if (!RuleAuxCache.knowsId(rule.registerName(), id)) {
+            return;
+        }
+        String defaultValue = RuleAuxCache.defaultValue(rule.registerName(), id);
+        if (defaultValue != null) {
+            addValueBox.setValue(defaultValue);
         }
     }
 
@@ -302,7 +343,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         if (!adding) {
             return false;
         }
-        String id = addIdBox == null ? "" : addIdBox.getValue().trim().toLowerCase(Locale.ROOT);
+        String id = RuleAuxCache.canonicalId(addIdBox == null ? "" : addIdBox.getValue());
         String value = addValueBox == null ? "" : addValueBox.getValue().trim();
 
         if (id.isEmpty()) {
@@ -310,18 +351,18 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
             this.adding = false;
             return false;
         }
-        if (!kind.isValidId(id)) {
+        if (!RuleAuxCache.knowsId(rule.registerName(), id)) {
             markInvalid(addIdBox, "villagerdetails.ui.rule_data.invalid_id");
             return false;
         }
-        if (!kind.isValidValue(value)) {
+        if (!isValidValue(value)) {
             markInvalid(addValueBox, "villagerdetails.ui.rule_data.invalid_value");
             return false;
         }
 
         this.adding = false;
         popup.reset();
-        values.put(id, kind.normalizeValue(value));
+        values.put(id, normalizeValue(value));
         return true;
     }
 
@@ -370,12 +411,12 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         for (Map.Entry<String, String> entry : values.entrySet()) {
             String id = entry.getKey();
             if (!entry.getValue().equals(original.get(id))) {
-                ClientRequests.sendRuleData(rule, id, entry.getValue());
+                ClientRequests.sendRuleData(rule.registerName(), id, entry.getValue());
             }
         }
         for (String id : original.keySet()) {
             if (!values.containsKey(id)) {
-                ClientRequests.sendRuleDataRemove(rule, id);
+                ClientRequests.sendRuleDataRemove(rule.registerName(), id);
             }
         }
     }
@@ -413,7 +454,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     @Override
     public boolean keyPressed(@NonNull KeyEvent event) {
         if (adding) {
-            boolean idValid = addIdBox != null && kind.isValidId(addIdBox.getValue().trim());
+            boolean idValid = addIdBox != null && RuleAuxCache.knowsId(rule.registerName(), addIdBox.getValue().trim());
             if (handleEditingKey(event, popup, addIdBox, idValid, this::commitAdd, this::cancelAdd)) {
                 return true;
             }

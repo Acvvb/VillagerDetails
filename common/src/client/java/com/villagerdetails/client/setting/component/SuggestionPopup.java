@@ -5,7 +5,6 @@ import com.villagerdetails.client.setting.util.McIds;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.core.Registry;
 import net.minecraft.network.chat.Component;
 
 import java.util.List;
@@ -93,14 +92,22 @@ public final class SuggestionPopup {
     /**
      * 输入内容变了：重算候选。
      *
-     * @param registry 补全范围；{@code null} = 全部注册表
+     * @param source 候选来源；{@code null} = 没有候选。
+     *               本机列表传本地注册表索引（{@code McIds}），服务器规则的名单传
+     *               {@code RuleAuxCache}（候选清单是服务端按需下发的，客户端只做过滤）
      */
-    public void update(String query, int limit, Registry<?> registry) {
+    public void update(String query, int limit, CandidateSource source) {
         this.error = null;
-        this.entries = registry == null
-                ? McIds.search(query, limit)
-                : McIds.searchIn(query, limit, registry);
+        this.entries = source == null ? List.of() : source.search(query, limit);
         this.index = 0;
+    }
+
+    /**
+     * 候选来源：给一个关键字，回一批候选
+     */
+    @FunctionalInterface
+    public interface CandidateSource {
+        List<McIds.Entry> search(String query, int limit);
     }
 
     /**
