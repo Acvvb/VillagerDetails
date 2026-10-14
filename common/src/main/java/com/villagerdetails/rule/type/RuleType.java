@@ -93,6 +93,8 @@ public enum RuleType implements RegisterTypeServer {
 
     BLOCK_EXPLOSION_RESISTANCE("BlockExplosionResistance", "rule.block.explosion_resistance", "rule.block.explosion_resistance.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), BlockExplosionResistanceServerImpl.INSTANCE, ON_OFF, FALSE_STR),
 
+    BLOCK_STRONG_POWER("BlockStrongPower", "rule.block.strong_power", "rule.block.strong_power.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), BlockStrongPowerServerImpl.INSTANCE, ON_OFF, FALSE_STR),
+
     TNT_NO_DESTROY_DROPS("TntNoDestroyDrops", "setting.tnt_no_destroy_drops", "setting.tnt_no_destroy_drops.desc", List.of(BLOCK), new ArrayList<>(), null, ON_OFF, FALSE_STR),
 
     BOX_CRAFTING("BoxCrafting", "setting.box_crafting", "setting.box_crafting.desc", List.of(BLOCK), new ArrayList<>(), null, ON_OFF, FALSE_STR),
