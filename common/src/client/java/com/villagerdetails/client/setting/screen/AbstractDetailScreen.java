@@ -81,9 +81,13 @@ public abstract class AbstractDetailScreen extends Screen {
     protected abstract void buildRows();
 
     /**
-     * 按「完成」：把工作副本写回（本机配置落盘 / 服务器规则发差异给服务端）
+     * 按「完成」：把工作副本写回（本机配置落盘 / 服务器规则发差异给服务端）。
+     *
+     * <p>返回 {@code true} = 校验通过、已写回，基类会关掉这一页回上一页；
+     * 返回 {@code false} = 校验没过（子类自己把错误显示出来），界面保持打开，玩家继续改。
+     * 「取消」不走这里，永远直接丢副本关屏。
      */
-    protected abstract void onFinish();
+    protected abstract boolean onFinish();
 
     /**
      * 子类自己的页脚控件（默认什么都不加）
@@ -150,11 +154,13 @@ public abstract class AbstractDetailScreen extends Screen {
     }
 
     /**
-     * 「完成」：写回工作副本，然后回上一页
+     * 「完成」：只有子类校验通过（{@link #onFinish()} 返回 true）才关屏，
+     * 校验没过就留在原处，等玩家把输入改对。
      */
     private void finish() {
-        onFinish();
-        this.minecraft.gui.setScreen(parent);
+        if (onFinish()) {
+            this.minecraft.gui.setScreen(parent);
+        }
     }
 
     /**
@@ -203,31 +209,32 @@ public abstract class AbstractDetailScreen extends Screen {
      */
     protected final boolean handleEditingKey(KeyEvent event, SuggestionPopup popup, EditBox idBox,
                                              boolean idValid, Runnable onCommit, Runnable onCancel) {
-        int key = event.key();
-        if (key == InputConstants.KEY_RETURN || key == InputConstants.KEY_NUMPADENTER) {
-            if (idBox != null && !idValid && !popup.isEmpty()) {
-                popup.acceptInto(idBox);
+        return switch (event.key()) {
+            case InputConstants.KEY_RETURN, InputConstants.KEY_NUMPADENTER -> {
+                if (idBox != null && !idValid && !popup.isEmpty()) {
+                    popup.acceptInto(idBox);
+                }
+                onCommit.run();
+                yield true;
             }
-            onCommit.run();
-            return true;
-        }
-        if (key == InputConstants.KEY_TAB) {
-            popup.acceptInto(idBox);
-            return true;
-        }
-        if (key == InputConstants.KEY_DOWN) {
-            popup.move(1);
-            return true;
-        }
-        if (key == InputConstants.KEY_UP) {
-            popup.move(-1);
-            return true;
-        }
-        if (key == InputConstants.KEY_ESCAPE) {
-            onCancel.run();
-            return true;
-        }
-        return false;
+            case InputConstants.KEY_TAB -> {
+                popup.acceptInto(idBox);
+                yield true;
+            }
+            case InputConstants.KEY_DOWN -> {
+                popup.move(1);
+                yield true;
+            }
+            case InputConstants.KEY_UP -> {
+                popup.move(-1);
+                yield true;
+            }
+            case InputConstants.KEY_ESCAPE -> {
+                onCancel.run();
+                yield true;
+            }
+            default -> false;
+        };
     }
 
     // ==============================================================

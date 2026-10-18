@@ -52,7 +52,7 @@ import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
  * <p>内容行的分页 / 平滑滚动 / 滚动条 / 画布裁剪都在 {@link RowListPage} 里，
  * 和两个详情页共用同一套。
  */
-public class VillagerBedConfigScreen extends Screen {
+public class BaseConfigScreen extends Screen {
 
     private final Screen parent;
 
@@ -116,7 +116,7 @@ public class VillagerBedConfigScreen extends Screen {
 
     private AbstractWidget focusAfterInit;
 
-    public VillagerBedConfigScreen(Screen parent) {
+    public BaseConfigScreen(Screen parent) {
         super(Component.translatable("villagerdetails.ui.title"));
         this.parent = parent;
         this.syncVersion = ServerRuleClientState.getVersion();

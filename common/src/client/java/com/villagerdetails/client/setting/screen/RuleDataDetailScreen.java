@@ -130,10 +130,21 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     }
 
     @Override
-    protected void onFinish() {
-        // 输入框里还填着东西就一起收进来（校验不过就当作没填）
-        flushAddRow();
+    protected boolean onFinish() {
+        // 「完成」要先校验当前正在填的这一行；不合法就拦住，让玩家改
+        if (adding) {
+            String id = RuleAuxCache.canonicalId(addIdBox == null ? "" : addIdBox.getValue());
+            if (id.isEmpty()) {
+                // id 都没填 = 作废这次添加，正常保存退出
+                this.adding = false;
+                popup.reset();
+            } else if (!flushAddRow()) {
+                // flushAddRow 内部已经把出错的输入框标红 + 弹窗提示，这里只要拦住关闭
+                return false;
+            }
+        }
         sendChanges();
+        return true;
     }
 
     // ==============================================================
@@ -440,10 +451,10 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
                 popup.acceptInto(addIdBox);
                 return true;
             }
-            // 点空白处 = 收下这一条（和绑定快捷键一个手感）
+            // 点列表区内的空白处 = 收下这一条；页脚按钮 / 列表外交给 super（否则「取消 / 完成」会被吞）
             boolean insideBoxes = (addIdBox != null && addIdBox.isMouseOver(event.x(), event.y()))
                     || (addValueBox != null && addValueBox.isMouseOver(event.x(), event.y()));
-            if (!insideBoxes) {
+            if (!insideBoxes && page.isMouseOverRows(event.x(), event.y())) {
                 commitAdd();
                 return true;
             }

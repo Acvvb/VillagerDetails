@@ -2,7 +2,7 @@ package com.villagerdetails.client.setting.input;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
-import com.villagerdetails.client.setting.screen.VillagerBedConfigScreen;
+import com.villagerdetails.client.setting.screen.BaseConfigScreen;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.type.style.StyleType;
 import com.villagerdetails.client.setting.util.InputCompat;
@@ -65,7 +65,7 @@ public final class VillagerDetailsKeyMappings {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             migrateLegacyDefaultKey(client);
             while (OPEN_CONFIG.consumeClick()) {
-                client.gui.setScreen(new VillagerBedConfigScreen(client.gui.screen()));
+                client.gui.setScreen(new BaseConfigScreen(client.gui.screen()));
             }
             handleToggleHotkeys(client);
         });

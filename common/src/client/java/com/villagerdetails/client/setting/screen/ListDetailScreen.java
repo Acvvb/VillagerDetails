@@ -107,10 +107,28 @@ public class ListDetailScreen extends AbstractDetailScreen {
     }
 
     @Override
-    protected void onFinish() {
-        // 输入框里还填着东西就一起收进来（校验不过就当作没填，不拦着完成）
-        flushAddBox();
+    protected boolean onFinish() {
+        // 「完成」要校验通过才能保存退出：还在输入状态就按当前输入分流
+        if (adding && addBox != null) {
+            String text = addBox.getValue().trim();
+            if (text.isEmpty()) {
+                // 什么都没填 = 作废这次添加，正常保存退出
+                this.adding = false;
+                popup.reset();
+            } else if (!source.isValidId(text)) {
+                // 非法：输入框标红 + 弹窗提示，拦住「完成」，留在这一页
+                popup.setError(Component.translatable("villagerdetails.ui.list.invalid"));
+                addBox.setTextColor(ComponentLayout.POPUP_ERROR);
+                return false;
+            } else {
+                // 合法：规范化后收进工作副本
+                this.adding = false;
+                popup.reset();
+                values.add(source.normalizeId(text));
+            }
+        }
         source.apply(values);
+        return true;
     }
 
     // ==============================================================
@@ -305,8 +323,11 @@ public class ListDetailScreen extends AbstractDetailScreen {
                 popup.acceptInto(addBox);
                 return true;
             }
-            // 点空白处 = 保存（和绑定快捷键一个手感）
-            if (addBox != null && !addBox.isMouseOver(event.x(), event.y())) {
+            // 只有点在「列表区」内的空白处才当作提交；
+            // 页脚按钮 / 列表外一律走 super，好让「取消 / 完成」按下去真的能按到
+            if (addBox != null
+                    && !addBox.isMouseOver(event.x(), event.y())
+                    && page.isMouseOverRows(event.x(), event.y())) {
                 commitAdd();
                 return true;
             }
