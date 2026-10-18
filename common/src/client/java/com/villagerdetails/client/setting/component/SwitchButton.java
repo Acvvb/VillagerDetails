@@ -14,11 +14,29 @@ import org.jspecify.annotations.NonNull;
  */
 public class SwitchButton extends Button.Plain {
 
-    private final int argb;
+    private int argb;
 
     public SwitchButton(int x, int y, int width, int height, Component label, int rgb, Runnable onClick) {
         super(x, y, width, height, label, _ -> onClick.run(), DEFAULT_NARRATION);
-        this.argb = 0xFF000000 | (rgb & 0xFFFFFF);
+        this.argb = argbOf(rgb);
+    }
+
+    /**
+     * 原地翻状态：只换文字和字色，<b>不重建控件</b>。
+     *
+     * <p>给「列表里一行一个开关」这种场景用：点一下开关就要立刻变色，
+     * 但重建整个界面会把玩家正在别的输入框里打的字冲掉。
+     */
+    public void setState(Component label, int rgb) {
+        this.argb = argbOf(rgb);
+        setMessage(label);
+    }
+
+    /**
+     * {@code /ec} 给的是 RGB，GUI 要 ARGB —— 补上不透明度
+     */
+    private static int argbOf(int rgb) {
+        return 0xFF000000 | (rgb & 0xFFFFFF);
     }
 
     /**

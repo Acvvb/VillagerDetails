@@ -36,6 +36,7 @@ public final class UnifiedConfigFile implements ReloadableConfig {
     private static final List<ReloadableConfig> CHILDREN = List.of(
             ServerLangConfig.INSTANCE,
             NoSqueezeConfig.INSTANCE,
+            MobNoSpawnConfig.INSTANCE,
             BlockMiningResistanceConfig.INSTANCE,
             BlockExplosionResistanceConfig.INSTANCE,
             BlockCollectableConfig.INSTANCE,

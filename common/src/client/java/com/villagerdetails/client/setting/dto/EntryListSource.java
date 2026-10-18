@@ -42,7 +42,7 @@ public record EntryListSource(ConfigEntryType entry) implements ListSourceServer
 
     @Override
     public List<McIds.Entry> suggestions(String query, int limit) {
-        // 本机配置项的补全走本地注册表索引（远端来源见 RuleListSource）
+        // 本机配置项的补全走本地注册表索引（服务端规则不经过这一页）
         return McIds.search(query, limit);
     }
 }

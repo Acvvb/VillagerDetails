@@ -8,6 +8,7 @@ import com.villagerdetails.event.ServerSessionCaches;
 import com.villagerdetails.event.ServerStoppingListener;
 import com.villagerdetails.handler.monster.noBrainOnPortal.NoBrainOnPortalHandler;
 import com.villagerdetails.network.channel.ServerChannels;
+import com.villagerdetails.rule.registry.RuleDataRegistry;
 import com.villagerdetails.rule.registry.RuleModuleRegistry;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -40,6 +41,10 @@ public class VillagerDetails implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPING.register(new ServerStoppingListener());
 
         RuleModuleRegistry.initAll();
+
+        // 启动自检：RuleType 的 RuleConfigKind（哪些规则要下发列表内容）必须和
+        // RuleDataRegistry 的 Entry（怎么下发）一一对应，不一致在这里直接抛异常
+        RuleDataRegistry.verifyConsistency();
 
         // 注册指令
         CommandRegistrationCallback.EVENT.register((dispatcher, _, _) -> RuleCommand.register(dispatcher));

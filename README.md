@@ -41,6 +41,7 @@ VillagerDetails is a Fabric mod that provides a large collection of behavior fix
 | Rule                              | Description                                                          |
 |-----------------------------------|----------------------------------------------------------------------|
 | NoSqueeze                         | No squeeze — specified entities are immune to entity cramming damage |
+| MobNoSpawn                        | No mob spawning — listed entity types never spawn (natural spawn, spawners, eggs, `/summon`, breeding) |
 | PiglinBarterDelay                 | Piglin barter delay adjustment                                       |
 | PiglinGoldBlockMultiply           | Gold block barter — piglins accept gold blocks, 9x output            |
 | PiglinGoldBlockMultiplyPunishment | Gold block barter punishment timer adjustment                        |
@@ -184,6 +185,7 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 | 规则名                            | 说明                                      |
 |-----------------------------------|-------------------------------------------|
 | NoSqueeze                         | 无挤压 — 指定实体不参与挤压、不受挤压伤害 |
+| MobNoSpawn                        | 禁止生物生成 — 名单里的实体类型不再生成（自然生成 / 刷怪笼 / 刷怪蛋 / `/summon` / 繁殖） |
 | PiglinBarterDelay                 | 猪灵交易等待时间调整                      |
 | PiglinGoldBlockMultiply           | 金块交易 — 猪灵愿捡金块，9 倍产出         |
 | PiglinGoldBlockMultiplyPunishment | 金块交易惩罚时间调整                      |

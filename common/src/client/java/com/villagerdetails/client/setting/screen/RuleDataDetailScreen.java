@@ -5,12 +5,14 @@ import com.villagerdetails.client.setting.component.OptionLabel;
 import com.villagerdetails.client.setting.component.RowListPage;
 import com.villagerdetails.client.setting.component.SuggestionPopup;
 import com.villagerdetails.client.setting.component.SwitchButton;
+import com.villagerdetails.client.setting.component.ToggleSwitchButton;
 import com.villagerdetails.client.setting.config.ui.ComponentLayout;
 import com.villagerdetails.client.setting.network.RuleAuxCache;
 import com.villagerdetails.client.setting.row.ServerRuleDataRow;
 import com.villagerdetails.rule.RuleSwitches;
 import com.villagerdetails.rule.descriptor.RuleDescriptor;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -26,26 +28,31 @@ import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
 /**
  * 「服务端配置项」里某条规则的数据详情页：一个「id → 值」的列表。
  *
+ * <p>行长什么样由服务端下发的模板决定（{@link RuleDescriptor.ListTemplate}），分两种编辑模式：
+ *
  * <pre>
+ * ① 值模式（valueKind = NUMBER，例如「方块挖掘抗性」）
  *  ┌──────────────────────────────────────────────────────┐
- *  │ minecraft:stone            [ 1.5 ]            [ × ]  │ ← 值可能是数字框，也可能是自由文本
- *  │ minecraft:deepslate        [ 1.2 ]            [ × ]  │
- *  │ [                       +                       ]    │ ← 最后一行是添加按钮
+ *  │ minecraft:stone            [ 1.5 ]            [ × ]  │
+ *  │ [                       +                       ]    │
  *  └──────────────────────────────────────────────────────┘
- *  │              [ 取消 ]          [ 完成 ]              │
+ *
+ * ② 开关模式（valueKind = NONE，纯名单，例如「可采集」「无挤压」「禁止生成」）
+ *  ┌──────────────────────────────────────────────────────┐
+ *  │ minecraft:stone            [  是  ]           [ × ]  │
+ *  │ [ 输入 id… ]               [  否  ]                  │
+ *  └──────────────────────────────────────────────────────┘
  * </pre>
  *
- * <p>分页滚动 / 滚动条 / 画布裁剪 / 面板 / 页脚 / 补全弹窗都在基类
- * {@link AbstractDetailScreen} 和那两个组件里。
- *
- * <p><b>列表长什么样完全由服务端下发的模板决定</b>（{@link RuleDescriptor.ListTemplate}）：
- * 值控件是数字框还是文本框、id 该从哪来，客户端只是照着渲染 —— 它不认识「方块抗性」这种语义。
+ * <p><b>开关模式的值从哪来</b>：就是这条规则的数据里有没有这个 id —— 有 = 是，没有 = 否。
+ * 全部来自本地的工作副本（跟着描述符同步那套原有的增量），不额外问服务端。
+ * 新增那一行的开关默认是「否」，填好 id 之后会按那个 id 现在的状态摆好，玩家也可以自己拨。
  *
  * <p><b>改动是临时的</b>：进来时把服务端同步过来的配置拷一份工作副本，增删改都只动副本；
  * 按「<b>完成</b>」时才把<b>和工作副本的差异</b>发给服务端（新增/修改 → 一条设置请求，
  * 删掉的 → 一条删除请求），按「取消」或 ESC 则什么都不发。
  *
- * <p>点「+」会出现 id 和值两个输入框：id 的候选与「原版值预填」都来自服务端按需下发的清单
+ * <p>点「+」会出现 id（和值）输入框：id 的候选与「原版值预填」都来自服务端按需下发的清单
  * （{@link RuleAuxCache}），客户端只做子串过滤。
  */
 public class RuleDataDetailScreen extends AbstractDetailScreen {
@@ -59,6 +66,12 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
      * 新增那一行 id 输入框的长度上限
      */
     private static final int MAX_ADD_ID_LENGTH = 128;
+
+    /**
+     * 开关模式下代表「是」/「否」的两个值（和 {@code RuleDataKind#isValidValue} 认的写法一致）
+     */
+    private static final String TRUE_VALUE = "true";
+    private static final String FALSE_VALUE = "false";
 
     /**
      * 正在编辑的规则（描述符：名称 / 描述 / 模板 / 当前数据都是服务端给的）
@@ -86,11 +99,21 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     private final SuggestionPopup popup = new SuggestionPopup();
 
     /**
-     * 正在新增（最后一行变成 id + 值两个输入框）
+     * 正在新增（最后一行变成输入框）
      */
     private boolean adding;
     private EditBox addIdBox;
     private EditBox addValueBox;
+
+    /**
+     * 开关模式新增行的「是 / 否」（值模式这个是 null）
+     */
+    private SwitchButton addToggle;
+
+    /**
+     * 开关模式新增行当前的开关值；刚开始新增时默认「否」
+     */
+    private boolean addToggleOn;
 
     public RuleDataDetailScreen(Screen parent, ServerRuleDataRow row) {
         super(Component.literal("[ ").append(row.getDisplayName()).append(" ]"), parent);
@@ -148,6 +171,38 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     }
 
     // ==============================================================
+    // 两种编辑模式
+    // ==============================================================
+
+    /**
+     * 这一页是不是「开关模式」：纯名单（列表里只有 id，没有值控件）。
+     *
+     * <p>由服务端模板决定，客户端不写死哪条规则属于哪种。
+     */
+    private boolean isPlain() {
+        return template != null && template.valueKind() == RuleDescriptor.ValueKind.NONE;
+    }
+
+    /**
+     * {@code "true"} / 其它 → 开关状态。
+     *
+     * <p>纯名单里存下来的值只有 {@code "true"}；工作副本里为了表达「拨到否」会存
+     * {@code "false"}，真正落库时服务端会把它当成「从名单移除」。
+     */
+    private static boolean isOn(String value) {
+        return !FALSE_VALUE.equalsIgnoreCase(value == null ? "" : value.trim());
+    }
+
+    /**
+     * 把一个开关按钮刷成指定状态（原地刷新，不重建界面 —— 重建会把正在打的 id 冲掉）
+     */
+    private static void applyToggleVisual(SwitchButton button, boolean on) {
+        if (button != null) {
+            button.setState(ToggleSwitchButton.labelOf(on), ToggleSwitchButton.colorOf(on));
+        }
+    }
+
+    // ==============================================================
     // 模板
     // ==============================================================
 
@@ -179,14 +234,14 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     // ==============================================================
 
     /**
-     * 值控件（数字框 / 文本框）的 x
+     * 中间那个控件的 x（开关模式下是「是 / 否」开关，值模式下是值输入框）
      */
     private int valueX() {
         return rowsRight() - DETAIL_DELETE_WIDTH - WIDGET_GAP - RULE_DATA_VALUE_WIDTH;
     }
 
     /**
-     * 「×」删除按钮的 x
+     * 「×」删除按钮的 x（两种模式的最后一列都是删除）
      */
     private int deleteX() {
         return rowsRight() - DETAIL_DELETE_WIDTH;
@@ -213,24 +268,48 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     }
 
     /**
-     * 一个已配置的条目：id 标签 + 值控件 + 删除
+     * 一个已配置的条目：id 标签 +（是/否开关 或 值控件）+「×」
      */
     private List<RowListPage.Widget> buildRow(Map.Entry<String, String> entry, int y) {
         String id = entry.getKey();
         List<RowListPage.Widget> widgets = new ArrayList<>();
+        widgets.add(idLabel(id, y));
 
-        // id：太长就截断（免得压到右边的值控件上）
-        String shown = this.font.plainSubstrByWidth(id, idLabelWidth() - ComponentLayout.LABEL_PADDING * 2);
-        widgets.add(RowListPage.at(addWidget(new OptionLabel(contentX() + ComponentLayout.LABEL_PADDING, y,
-                idLabelWidth(), WIDGET_HEIGHT, Component.literal(shown)))));
-
-        widgets.add(buildValueEditor(id, entry.getValue(), y));
-
-        widgets.add(RowListPage.at(addWidget(new SwitchButton(deleteX(), y, DETAIL_DELETE_WIDTH, WIDGET_HEIGHT,
-                Component.literal("×"), RuleSwitches.COLOR_SELECTED_OFF,
-                () -> deleteValue(id))
-                .withTooltip(Component.translatable("villagerdetails.ui.list.delete")))));
+        if (isPlain()) {
+            widgets.add(buildToggle(id, entry.getValue(), y));
+        } else {
+            widgets.add(buildValueEditor(id, entry.getValue(), y));
+        }
+        widgets.add(buildDeleteButton(id, y));
         return widgets;
+    }
+
+    /**
+     * id 标签：太长就截断（免得压到右边的控件上）
+     */
+    private RowListPage.Widget idLabel(String id, int y) {
+        String shown = this.font.plainSubstrByWidth(id, idLabelWidth() - ComponentLayout.LABEL_PADDING * 2);
+        return RowListPage.at(addWidget(new OptionLabel(contentX() + ComponentLayout.LABEL_PADDING, y,
+                idLabelWidth(), WIDGET_HEIGHT, Component.literal(shown))));
+    }
+
+    /**
+     * 开关模式的「是 / 否」：拨一下直接改工作副本（值就是 {@code true} / {@code false}）。
+     *
+     * <p>按钮原地刷新，不重建界面 —— 重建会把新增行里正在打的 id 冲掉。
+     */
+    private RowListPage.Widget buildToggle(String id, String value, int y) {
+        SwitchButton[] self = new SwitchButton[1];
+        boolean on = isOn(value);
+        SwitchButton toggle = ToggleSwitchButton.create(valueX(), y, RULE_DATA_VALUE_WIDTH, WIDGET_HEIGHT,
+                on, () -> {
+                    boolean next = !isOn(values.get(id));
+                    values.put(id, next ? TRUE_VALUE : FALSE_VALUE);
+                    applyToggleVisual(self[0], next);
+                })
+                .withTooltip(Component.translatable("villagerdetails.ui.rule_data.toggle"));
+        self[0] = toggle;
+        return RowListPage.at(addWidget(toggle));
     }
 
     /**
@@ -256,15 +335,23 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     }
 
     /**
-     * 最后一行：「+」添加按钮 / 点开后变成 id + 值两个输入框
+     * 「×」删除这一行（两种模式都有）
+     */
+    private RowListPage.Widget buildDeleteButton(String id, int y) {
+        return RowListPage.at(addWidget(new SwitchButton(deleteX(), y, DETAIL_DELETE_WIDTH, WIDGET_HEIGHT,
+                Component.literal("×"), RuleSwitches.COLOR_SELECTED_OFF,
+                () -> deleteValue(id))
+                .withTooltip(Component.translatable("villagerdetails.ui.list.delete"))));
+    }
+
+    /**
+     * 最后一行：「+」添加按钮 / 点开后变成输入框
      */
     private List<RowListPage.Widget> buildAddRow(int y) {
         List<RowListPage.Widget> widgets = new ArrayList<>();
 
         if (!adding) {
-            this.addIdBox = null;
-            this.addValueBox = null;
-            popup.reset();
+            clearAddWidgets();
             widgets.add(RowListPage.at(addWidget(Button.builder(Component.literal("+"), button -> startAdd())
                     .bounds(contentX(), y, rowsRight() - contentX(), WIDGET_HEIGHT)
                     .build())));
@@ -280,10 +367,17 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
                     (query, limit) -> RuleAuxCache.suggestions(rule.registerName(), query, limit));
             idBox.setTextColor(EditBox.DEFAULT_TEXT_COLOR);
             prefillValue(text.trim());
+            syncAddToggle(text);
         });
         this.addIdBox = idBox;
         widgets.add(RowListPage.at(addWidget(idBox)));
         requestFocus(idBox);
+
+        if (isPlain()) {
+            // 开关模式：右边是「是 / 否」，没有值输入框（这一行还没落库，所以也没有「×」）
+            buildAddToggle(y, widgets);
+            return widgets;
+        }
 
         EditBox valueBox = new EditBox(this.font, valueX(), y, RULE_DATA_VALUE_WIDTH, WIDGET_HEIGHT,
                 Component.translatable("villagerdetails.ui.rule_data.value"));
@@ -295,9 +389,57 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     }
 
     /**
+     * 开关模式新增行的「是 / 否」：默认「否」，填好 id 之后按那个 id 现在的状态摆。
+     */
+    private void buildAddToggle(int y, List<RowListPage.Widget> widgets) {
+        this.addToggleOn = false;
+
+        SwitchButton toggle = ToggleSwitchButton.create(valueX(), y, RULE_DATA_VALUE_WIDTH, WIDGET_HEIGHT,
+                false, () -> {
+                    this.addToggleOn = !this.addToggleOn;
+                    applyToggleVisual(addToggle, addToggleOn);
+                })
+                .withTooltip(Component.translatable("villagerdetails.ui.rule_data.toggle"));
+
+        this.addToggle = toggle;
+        widgets.add(RowListPage.at(addWidget(toggle)));
+    }
+
+    /**
+     * 新增行里当前填的 id（规范化后）；没填就是空串
+     */
+    private String addIdValue() {
+        return RuleAuxCache.canonicalId(addIdBox == null ? "" : addIdBox.getValue());
+    }
+
+    /**
+     * 新增行 id 变化后：把这个 id <b>现在</b>的状态摆到开关上（没配置过就是「否」）。
+     */
+    private void syncAddToggle(String rawId) {
+        if (addToggle == null) {
+            return;
+        }
+        String id = RuleAuxCache.canonicalId(rawId);
+        this.addToggleOn = !id.isEmpty() && isOn(values.get(id));
+        applyToggleVisual(addToggle, addToggleOn);
+    }
+
+    /**
+     * 新一轮新增开始时，把上一轮留下的控件引用清干净
+     */
+    private void clearAddWidgets() {
+        this.addIdBox = null;
+        this.addValueBox = null;
+        this.addToggle = null;
+        this.addToggleOn = false;
+        popup.reset();
+    }
+
+    /**
      * id 填成合法值之后，把原版值预填进值输入框（玩家自己改过就不动）。
      *
      * <p>原版值是服务端算好一起下发的（客户端不认识方块，算不出来）。
+     * 开关模式没有值输入框，走的是 {@link #syncAddToggle}。
      */
     private void prefillValue(String id) {
         if (addValueBox == null || !addValueBox.getValue().isEmpty()) {
@@ -354,9 +496,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         if (!adding) {
             return false;
         }
-        String id = RuleAuxCache.canonicalId(addIdBox == null ? "" : addIdBox.getValue());
-        String value = addValueBox == null ? "" : addValueBox.getValue().trim();
-
+        String id = addIdValue();
         if (id.isEmpty()) {
             // 什么都没填 = 取消，不算错
             this.adding = false;
@@ -366,14 +506,34 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
             markInvalid(addIdBox, "villagerdetails.ui.rule_data.invalid_id");
             return false;
         }
-        if (!isValidValue(value)) {
-            markInvalid(addValueBox, "villagerdetails.ui.rule_data.invalid_value");
-            return false;
+
+        // 开关模式的值来自那个「是 / 否」，没有输入框要校验
+        String value;
+        if (isPlain()) {
+            value = addToggleOn ? TRUE_VALUE : FALSE_VALUE;
+        } else {
+            value = addValueBox == null ? "" : addValueBox.getValue().trim();
+            if (value.isEmpty()) {
+                // 兼容：值没填就退回这个 id 的原版值（和服务端的预填是同一套算法）。
+                // 清单还没到 / 刚打开页面就回车时，输入框可能还是空的 —— 不能因此把人卡死在
+                // 「值不合法」上，那不是玩家填错了。
+                String fallback = RuleAuxCache.defaultValue(rule.registerName(), id);
+                if (fallback != null) {
+                    value = fallback.trim();
+                    if (addValueBox != null) {
+                        addValueBox.setValue(value);
+                    }
+                }
+            }
+            if (!isValidValue(value)) {
+                markInvalid(addValueBox, "villagerdetails.ui.rule_data.invalid_value");
+                return false;
+            }
         }
 
         this.adding = false;
         popup.reset();
-        values.put(id, normalizeValue(value));
+        values.put(id, isPlain() ? value : normalizeValue(value));
         return true;
     }
 
@@ -443,6 +603,13 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         }
     }
 
+    /**
+     * 鼠标是不是落在这个控件上（控件可能为 null：两种模式的控件不是同一套）
+     */
+    private static boolean isOver(AbstractWidget widget, double x, double y) {
+        return widget != null && widget.isMouseOver(x, y);
+    }
+
     @Override
     public boolean mouseClicked(@NonNull MouseButtonEvent event, boolean doubleClick) {
         if (adding) {
@@ -452,8 +619,10 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
                 return true;
             }
             // 点列表区内的空白处 = 收下这一条；页脚按钮 / 列表外交给 super（否则「取消 / 完成」会被吞）
-            boolean insideBoxes = (addIdBox != null && addIdBox.isMouseOver(event.x(), event.y()))
-                    || (addValueBox != null && addValueBox.isMouseOver(event.x(), event.y()));
+            // 开关模式的开关也算「这一行的控件」，点它不能当成「点空白」
+            boolean insideBoxes = isOver(addIdBox, event.x(), event.y())
+                    || isOver(addValueBox, event.x(), event.y())
+                    || isOver(addToggle, event.x(), event.y());
             if (!insideBoxes && page.isMouseOverRows(event.x(), event.y())) {
                 commitAdd();
                 return true;

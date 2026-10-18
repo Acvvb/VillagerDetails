@@ -5,6 +5,7 @@ import com.villagerdetails.command.SwitchComponentType;
 import com.villagerdetails.config.impl.RuleConfig;
 import com.villagerdetails.event.type.ListenerType;
 import com.villagerdetails.rule.callback.RuleCallbacks;
+import com.villagerdetails.rule.type.RuleConfigKind;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.resources.Identifier;
@@ -14,6 +15,7 @@ import net.minecraft.server.permissions.PermissionLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
@@ -37,10 +39,38 @@ public class RuleCache {
      */
     private static volatile MinecraftServer server;
 
+    /**
+     * 「逐条配置类」规则（不可变）—— 只有它们的配置内容需要下发给客户端。
+     *
+     * <p>由下面的 static 块在遍历 {@link RuleType#values()} 时顺手筛出来，
+     * 「要不要下发」只看 {@link RuleConfigKind#needsSync()} 一处，
+     * 同步那边（{@code BlockRuleSyncEvents}）不再手写规则列表。
+     */
+    private static final List<RuleType> CONFIG_RULE_TYPES;
+
     static {
+        List<RuleType> configTypes = new ArrayList<>();
         for (RuleType type : RuleType.values()) {
             setState(type, type.getState());
+            // 顺手收集：不额外多跑一轮 values()
+            if (type.getConfigKind().needsSync()) {
+                configTypes.add(type);
+            }
         }
+        // List.copyOf = 不可变快照；这里必须放 static 块里赋值，
+        // 写成字段初始化表达式会在 RuleType 未被初始化时就读它的静态字段
+        CONFIG_RULE_TYPES = List.copyOf(configTypes);
+
+        // 打一行便于排查「客户端列表页空白 / 规则开关不同步」这类问题
+        log.info("[RuleCache] 逐条配置类规则 {} 条：{}", CONFIG_RULE_TYPES.size(),
+                CONFIG_RULE_TYPES.stream().map(RuleType::getRegisterName).toList());
+    }
+
+    /**
+     * 需要同步配置内容的规则（不可变列表）
+     */
+    public static List<RuleType> configRuleTypes() {
+        return CONFIG_RULE_TYPES;
     }
 
     /**

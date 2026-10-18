@@ -1,21 +1,20 @@
 package com.villagerdetails.client.setting.type.server;
 
 import com.villagerdetails.client.setting.dto.EntryListSource;
-import com.villagerdetails.client.setting.dto.RuleListSource;
 import com.villagerdetails.client.setting.util.McIds;
 import net.minecraft.network.chat.Component;
 
 import java.util.List;
 
 /**
- * 列表详情页（{@code ListDetailScreen}）的数据来源：那一页只管「一串 id 的增删」，
- * 具体是本机配置项的列表、还是服务器规则的名单，由这个接口的实现决定。
+ * 列表详情页（{@code ListDetailScreen}）的数据来源：那一页只管「一串 id 的增删」。
  *
- * <p>这样两种列表就能共用同一个页面 —— 比如「无挤压 / 可采集」业务上就是「是 / 否」
- * （在名单里就是是），所以它们的详情页和「配置项 - 列表」完全一致，不需要值那一列。
+ * <p>目前只有本机配置项的列表用它（{@link EntryListSource}）。
  *
- * <p>实现见 {@link EntryListSource}（本机配置项，本地注册表补全）与
- * {@link RuleListSource}（服务器规则名单，候选清单由服务端按需下发）。
+ * <p><b>服务端配置项的逐条规则不走这里</b>：它们统一走 {@code RuleDataDetailScreen}，
+ * 由服务端下发的模板决定是「id + 值」还是「id + 是/否 + 重置」——
+ * 纯名单规则虽然业务上也是「是 / 否」，但它需要一个能表达 false 的开关和一个
+ * 「重置到默认值」的按钮，不是单纯的一串 id。
  */
 public interface ListSourceServer {
 
@@ -35,7 +34,7 @@ public interface ListSourceServer {
     List<String> current();
 
     /**
-     * 按「完成」时写回（本机配置直接落盘；服务器规则发差异给服务端）
+     * 按「完成」时写回（本机配置直接落盘）
      */
     void apply(List<String> values);
 
@@ -45,23 +44,21 @@ public interface ListSourceServer {
     boolean isValidId(String id);
 
     /**
-     * id 输入框的补全候选；客户端只做过滤 / 本地注册表查询，规则语义在服务端
+     * id 输入框的补全候选
      */
     List<McIds.Entry> suggestions(String query, int limit);
 
     /**
      * 收进工作副本之前把玩家敲的 id 规范化。
      *
-     * <p>本机配置项原样收（{@code #标签}、裸路径都允许，存的就是玩家写的那串）；
-     * 服务器规则要按注册表 id 的规范写法收（{@code stone} → {@code minecraft:stone}），
-     * 否则和已有条目比对时会被当成「新的一条」，反手把原来的删掉。
+     * <p>本机配置项原样收（{@code #标签}、裸路径都允许，存的就是玩家写的那串）。
      */
     default String normalizeId(String id) {
         return id;
     }
 
     /**
-     * 打开详情页时调一次；候选清单要问服务端要的实现（{@link RuleListSource}）在这里发请求
+     * 打开详情页时调一次（需要向服务端要数据的实现在这里发请求）
      */
     default void prepare() {
     }

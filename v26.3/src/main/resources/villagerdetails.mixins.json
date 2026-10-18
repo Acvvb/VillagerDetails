@@ -16,6 +16,8 @@
     "craft.CrafterBlockMixin",
     "craft.InventoryMenuMixin",
     "craft.ResultSlotMixin",
+    "entity.noSpawn.EntityTypeMixin",
+    "entity.noSpawn.NaturalSpawnerMixin",
     "entity.noSqueeze.EntityMixin",
     "entity.noSqueeze.LivingEntityMixin",
     "entity.piglinTrade.MerchantMenuProvisionMixin",

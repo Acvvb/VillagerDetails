@@ -45,7 +45,7 @@ public final class RuleAuxCache {
     private static final Map<String, Options> CACHE = new ConcurrentHashMap<>();
 
     /**
-     * 已经请求过的规则（同一条规则只问服务端要一次）
+     * 已经请求过全量清单的规则（同一条规则只问服务端要一次）
      */
     private static final Set<String> REQUESTED = ConcurrentHashMap.newKeySet();
 
@@ -63,7 +63,10 @@ public final class RuleAuxCache {
     }
 
     /**
-     * 打开详情页时调一次：这条规则还没要过清单就发一次请求
+     * 打开详情页时调一次：这条规则还没要过清单就发一次请求。
+     *
+     * <p>要的是<b>全量</b>清单（补全 / 校验 / 预填都靠它）。进服时那份
+     * {@code rule_data_defaults} 只含配置过的 id，不能顶替它，所以这里照旧按规则请求一次。
      */
     public static void requestOnce(String registerName) {
         if (registerName == null || !REQUESTED.add(registerName)) {

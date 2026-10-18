@@ -5,7 +5,6 @@ import com.villagerdetails.client.setting.component.*;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
 import com.villagerdetails.client.setting.config.ui.ComponentLayout;
 import com.villagerdetails.client.setting.dto.EntryListSource;
-import com.villagerdetails.client.setting.dto.RuleListSource;
 import com.villagerdetails.client.setting.dto.UiTabsSource;
 import com.villagerdetails.client.setting.network.ServerRuleClientState;
 import com.villagerdetails.client.setting.row.ConfigRow;
@@ -13,7 +12,6 @@ import com.villagerdetails.client.setting.row.ServerRuleDataRow;
 import com.villagerdetails.client.setting.tabs.ConfigTabs;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.type.FirstCategoryType;
-import com.villagerdetails.client.setting.type.server.ListSourceServer;
 import com.villagerdetails.client.setting.type.style.StyleType;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -708,18 +706,17 @@ public class BaseConfigScreen extends Screen {
      * 进详情页：
      * <ul>
      *     <li>颜色项 → RGB 滑条那一页</li>
-     *     <li>列表项（本机配置项 / 服务端的纯名单规则）→ 同一个列表页，
-     *         只是数据来源不同（{@link ListSourceServer}）</li>
-     *     <li>服务端的键值数据（抗性）→ id + 值那一页</li>
+     *     <li>本机配置项的列表 → {@link ListDetailScreen}（值就是本机的一串字符串）</li>
+     *     <li>「服务端配置项」的规则数据 → 统一走 {@link RuleDataDetailScreen}，
+     *         由它按服务端下发的模板分成「id + 值」（抗性）和「id + 是/否 + 重置」（纯名单）两种排版</li>
      * </ul>
      *
-     * <p>服务端那两类走哪一页由服务端下发的模板决定（{@code template().plain()}），客户端不写死规则名单。
+     * <p>服务端的规则数据<b>不再按「纯名单 / 键值」分成两个页面</b>：纯名单那一套（开关 + 重置）
+     * 就在 {@link RuleDataDetailScreen} 里，客户端不写死规则名单。
      */
     private void openDetail(ConfigRow row) {
         Screen detail = switch (row) {
-            case ServerRuleDataRow dataRow -> dataRow.template().plain()
-                    ? new ListDetailScreen(this, new RuleListSource(dataRow.rule()))
-                    : new RuleDataDetailScreen(this, dataRow);
+            case ServerRuleDataRow dataRow -> new RuleDataDetailScreen(this, dataRow);
             case ConfigEntryType entry -> entry.getStyle() == StyleType.LIST
                     ? new ListDetailScreen(this, new EntryListSource(entry))
                     : new OptionDetailScreen(this, entry);
