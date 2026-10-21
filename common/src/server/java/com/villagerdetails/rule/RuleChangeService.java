@@ -27,7 +27,7 @@ public final class RuleChangeService {
      */
     public static RuleSwitches.Canonical change(RuleType rule, String rawState, @Nullable CommandSourceStack source) {
         Objects.requireNonNull(rule, "rule");
-        RuleSwitches.Canonical canonical = RuleSwitches.canonicalize(rule, rawState);
+        RuleSwitches.Canonical canonical = RuleSwitches.canonicalize(rule.getQuickSwitches(), rawState);
 
         if (canonical instanceof RuleSwitches.Canonical.Ok(String state)) {
             RuleChangeContext.setSource(source);

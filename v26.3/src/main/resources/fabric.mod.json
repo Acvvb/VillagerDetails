@@ -20,13 +20,19 @@
     ],
     "client": [
       "com.villagerdetails.client.VillagerDetailsClient"
+    ],
+    "server": [
+      "com.villagerdetails.server.VillagerDetailsServer"
     ]
   },
   "mixins": [
-    "villagerdetails.mixins.json",
     {
       "config": "villagerdetails.client.mixins.json",
       "environment": "client"
+    },
+    {
+      "config": "villagerdetails.server.mixins.json",
+      "environment": "server"
     }
   ],
   "depends": {

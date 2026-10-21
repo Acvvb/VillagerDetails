@@ -2,7 +2,7 @@ package com.villagerdetails.client.network.sync;
 
 import com.villagerdetails.client.cache.PortalViewClientState;
 import com.villagerdetails.client.network.channel.ClientReceiver;
-import com.villagerdetails.network.sync.clientbound.PortalViewSyncChannel;
+import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.sync.payload.clientbound.PortalViewSyncPayload;
 import net.minecraft.client.Minecraft;
 
@@ -12,13 +12,16 @@ import net.minecraft.client.Minecraft;
  * <p>服务端对一条绑定的两侧各发一个包，这里就按维度分别记下来（同维度覆盖旧的），
  * 玩家进到哪个维度渲染器就画哪一侧。收到空包（三字段 null）即清空所有维度。
  */
-public final class PortalViewSyncClientChannel extends PortalViewSyncChannel
-        implements ClientReceiver<PortalViewSyncPayload> {
+public final class PortalViewSyncClientChannel implements ClientReceiver<PortalViewSyncPayload> {
 
     public static final PortalViewSyncClientChannel INSTANCE = new PortalViewSyncClientChannel();
 
     private PortalViewSyncClientChannel() {
-        super();
+    }
+
+    @Override
+    public PayloadId<PortalViewSyncPayload> id() {
+        return PortalViewSyncPayload.ID;
     }
 
     @Override

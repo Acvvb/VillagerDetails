@@ -21,8 +21,15 @@ public abstract class EntityMixin {
         }
     }
 
-    /** 名单里的实体不会去推别人，别人也不会推它 */
-    @Inject(method = "push*", at = @At("HEAD"), cancellable = true)
+    /**
+     * 名单里的实体不会去推别人，别人也不会推它。
+     *
+     * <p>只认 {@code push(Entity)} 这一个重载：挤压是实体之间的互相推挤。
+     * {@code push(Vec3)} / {@code push(DDD)} 是爆炸、末影龙、劫掠兽吼叫等击退路径，
+     * 和挤压无关，而且回调和它们签名对不上（旧写法用 {@code push*} 通配时，
+     * Mixin 只会注入到签名匹配的 {@code push(Entity)}，其余目标直接跳过）。
+     */
+    @Inject(method = "push(Lnet/minecraft/world/entity/Entity;)V", at = @At("HEAD"), cancellable = true)
     private void villagerdetails$noPush(Entity entity, CallbackInfo ci) {
         Entity self = (Entity) (Object) this;
         if (SqueezeHandler.isProtected(self) || SqueezeHandler.isProtected(entity)) {

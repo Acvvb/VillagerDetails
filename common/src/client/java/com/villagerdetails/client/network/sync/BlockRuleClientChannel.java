@@ -1,23 +1,21 @@
 package com.villagerdetails.client.network.sync;
 
-import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.client.network.channel.ClientReceiver;
-import com.villagerdetails.network.sync.clientbound.BlockRuleSyncChannel;
+import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.sync.payload.clientbound.BlockRuleSyncPayload;
-import com.villagerdetails.rule.registry.RuleDataRegistry;
-import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.client.Minecraft;
 
 /**
- * 逐条配置内容的客户端侧：只负责把内容写进本地镜像，供客户端 {@code getDestroyProgress}
- * 这类游戏逻辑使用（走 {@link RuleDataRegistry}，两边同一张表）。
+ * 逐条配置内容的客户端侧。
  *
- * <p><b>配置界面不读这里</b> —— 「服务器 / 服务端配置」两个分类的内容来自
- * {@code rule_descriptor_sync} 的全量描述符（{@code ServerRuleClientState}）。
- * 这份包留着是因为本地预测对谁都一样要做。
+ * <p>三端分离之后客户端不再跑任何规则判定 / 本地预测（那些 Mixin 已随服务端逻辑移入
+ * {@code server} 源集），所以这份「逐条配置镜像」在客户端已无读取方：收到包只做记录级别的忽略。
+ *
+ * <p>保留这个收包注册是<b>有意的</b>：Fabric 的 {@code ServerPlayNetworking.canSend(player, type)}
+ * 取决于客户端有没有登记同名通道，服务端侧的 {@code canSendTo}/{@code syncTo} 会据此决定要不要下发。
+ * 这里不注册会让服务端误以为对面是原版客户端，从而改变服务端行为。
  */
-public final class BlockRuleClientChannel extends BlockRuleSyncChannel
-        implements ClientReceiver<BlockRuleSyncPayload> {
+public final class BlockRuleClientChannel implements ClientReceiver<BlockRuleSyncPayload> {
 
     public static final BlockRuleClientChannel INSTANCE = new BlockRuleClientChannel();
 
@@ -25,20 +23,12 @@ public final class BlockRuleClientChannel extends BlockRuleSyncChannel
     }
 
     @Override
+    public PayloadId<BlockRuleSyncPayload> id() {
+        return BlockRuleSyncPayload.ID;
+    }
+
+    @Override
     public void handleClient(Minecraft client, BlockRuleSyncPayload payload) {
-        for (BlockRuleSyncPayload.RuleData entry : payload.ruleData()) {
-            RuleType type = RuleType.getRuleTypeByRegisterName(entry.registerName());
-            if (type == null) {
-                continue;
-            }
-            // 写进本地镜像（落盘由服务端负责，客户端这边只覆盖内存）
-            RuleDataRegistry.applySynced(entry.registerName(), entry.data());
-            // 开关状态也照服务端给的写：客户端的本地预测要用
-            // （比如「无挤压」关掉之后客户端也不该再拦推动）。
-            // 只在「服务端说关了」或「本地还以为是关的」时动，避免把 ops 这类权限等级覆盖成 true。
-            if (!entry.enabled() || !RuleCache.isEnabled(type)) {
-                RuleCache.applyClientMirror(type, Boolean.toString(entry.enabled()));
-            }
-        }
+        // 客户端没有规则判定逻辑，不需要镜像；配置界面用的数据来自 rule_descriptor_sync。
     }
 }

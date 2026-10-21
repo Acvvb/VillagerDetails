@@ -1,3 +1,6 @@
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+
 plugins {
     id 'idea'
 }
@@ -18,78 +21,221 @@ subprojects { sp ->
     }
 
     // ============================================================
-    // 每个版本产出两个包：
+    // 三端分离打包
     //
-    //   客户端包 client：main + client —— 客户端用，environment=client
-    //   服务端包 server ：仅 main      —— 服务端用，不含客户端类，体积小
+    //   main   —— 两端契约：包定义 / 编解码 / 包类型注册 / 规则描述符 / 纯数据
+    //   client —— 物理客户端专属（UI / 渲染 / 按键 / 客户端收包）
+    //   server —— 全部服务端逻辑（指令 / 配置 / 规则实现 / 服务端收包 / Mixin / 入口点）
+    //
+    // 产出：
+    //   buildClientJar = main + client        environment=client
+    //   buildServerJar = main + server        environment=server
+    //   buildAllJar    = main + client + server  environment=*（通用包，装客户端或专用服都能用）
+    //
+    // 关于单人：Fabric 只有「物理端」概念，单人里的逻辑服务端跑在客户端进程内。
+    // 严格三端的客户端包不含 server 源集，所以单人里没有 /ec、没有服务端规则判定。
+    // 想要「一个包单人/多人/专用服都能用」→ 用 -all 包（server 初始化并进 main 入口点、
+    // server 的 mixin 配置放宽成 environment=*）。
+    // 也可以让 client 包本身带上 server 源集：gradle.properties  includeServerInClient=true
     //
     // 刻意避开的坑：写成 from(sourceSets.xxx.output) 时，output 里本身就含资源目录，
-    // 再叠一个 processXxxResources 会让每份资源（fabric.mod.json / mixins.json / lang…）
-    // 在包里出现两份，同名条目读到哪份全看运气（environment 字段就被这个坑过）。
+    // 再叠一个 processXxxResources 会让每份资源在包里出现两份，同名条目读到哪份全看运气。
     // 所以：类只从 classesDirs 拿，资源只从 processXxxResources 拿。
     //
-    // 本工程这套工具链没有 remapJar（新版本 MC 的 Fabric 不再走 intermediary），
-    // 所以这两个包和 build/libs 下的产物是同一种命名空间，直接可发布。
+    // fabric.mod.json 不是「过滤文本」，而是按端重新生成（见 generateXxxFabricModJson）：
+    //   - 客户端包：client + main 入口点；只留 client 的 mixin 配置
+    //   - 服务端包：server + main 入口点；只留 server 的 mixin 配置
+    //   - 通用包  ：client + main 入口点（server 初始化并进 main，不单挂 server 入口点，避免重复初始化）；
+    //               client / server 的 mixin 都带，server 的 environment 放宽成 *
+    // 这样两端不会出现「指向不存在的入口点 / mixin 配置文件」的条目。
     // ============================================================
     sp.afterEvaluate {
         def sourceSets = sp.extensions.findByType(SourceSetContainer)
-        if (sourceSets?.named('client') == null) return
+        if (sourceSets == null) return
+
+        // 注意：这里必须用 findByName 拿到真实的 SourceSet。
+        // 用 sourceSets.named(...) 得到的是 NamedDomainObjectProvider：
+        //   - 普通构建里，任务 realize 时 SourceSet 往往已经被别处 realized，属性访问会被代理到真实对象，看着能跑；
+        //   - IDEA 的 Gradle 模型预热 / `gradlew tasks --all` 会「先把所有任务 realize 一遍」，
+        //     这时 provider 还没绑定，mainSet.output / serverSet.allSource 会抛 MissingPropertyException。
+        def mainSet = sourceSets.findByName('main')
+        def clientSet = sourceSets.findByName('client')
+        def serverSet = sourceSets.findByName('server')
+        if (mainSet == null || clientSet == null) return
+
+        def includeServerInClient =
+                (sp.findProperty('includeServerInClient') ?: 'false').toString().toBoolean()
 
         def baseName = sp.base.archivesName.get()
         def ver = sp.version
 
-        // ★ 新增：禁用默认的 jar 任务，阻止生成无后缀的包
+        // 默认 jar（无后缀）不再产出，避免和 client / server 包混在一起
         sp.tasks.named('jar', Jar) {
             enabled = false
         }
 
-        // -------- 服务端包（仅 main）--------
+        def fmjDir = { String side ->
+            sp.layout.buildDirectory.dir("generated/fabricmod/${side}")
+        }
+
+        // -------- 按端生成 fabric.mod.json --------
+        // 模板见 src/main/resources/fabric.mod.json：一份文件描述两端，
+        // 由这里的规则裁剪出「这一端真正生效的入口点与 mixin 配置」。
+        def registerModJsonTask = { String taskName, String side, boolean withServer ->
+            sp.tasks.register(taskName) {
+                group = 'build'
+                description = "生成 ${side} 包的 fabric.mod.json"
+                // processResources 已经把 ${version} 之类的占位符展开过了
+                dependsOn sp.tasks.named('processResources')
+
+                def srcFile = sp.layout.buildDirectory.file('resources/main/fabric.mod.json').get().asFile
+                def outDir = fmjDir(side).get().asFile
+                def outFile = new File(outDir, 'fabric.mod.json')
+
+                inputs.file(srcFile)
+                // side / withServer 会改变输出内容，必须声明成输入，
+                // 否则改了 includeServerInClient 之后任务被判定 UP-TO-DATE，包里的 metadata 还是旧的
+                inputs.property('side', side)
+                inputs.property('withServer', withServer)
+                outputs.dir(outDir)
+
+                doLast {
+                    def json = new JsonSlurper().parse(srcFile)
+
+                    // 环境：client / server；all 包两端都能装，写 *
+                    json.environment = side == 'all' ? '*' : side
+
+                    // 入口点：
+                    //   main   —— 两端都会执行（包类型注册）；all / includeServerInClient 时把 server 初始化并进来
+                    //   client —— 物理客户端才有（all 包里也有）
+                    //   server —— 只有专用服走这个入口点；all 包里不挂（避免和 main 里的初始化重复执行）
+                    def entrypoints = [:]
+                    def mainEntrypoints = new ArrayList<String>()
+                    if (json.entrypoints?.main) mainEntrypoints.addAll(json.entrypoints.main)
+                    if (side != 'server' && json.entrypoints?.client) entrypoints.client = json.entrypoints.client
+                    if (json.entrypoints?.server) {
+                        if (side == 'server') {
+                            entrypoints.server = json.entrypoints.server
+                        } else if (side == 'all' || withServer) {
+                            mainEntrypoints.addAll(json.entrypoints.server)
+                        }
+                    }
+                    if (!mainEntrypoints.isEmpty()) entrypoints.main = mainEntrypoints
+                    json.entrypoints = entrypoints
+
+                    // mixin 配置：
+                    //   - 字符串条目 = 公共，谁都有
+                    //   - environment: client 在 client / all 包里保留（all 包装到专用服时会被环境过滤掉）
+                    //   - environment: server 在 server 包里保留；all / includeServerInClient 时放宽成 *
+                    //     （单人是 client 物理端，写 server 的配置在单人里根本不会加载）
+                    def kept = (json.mixins ?: []).findAll { entry ->
+                        if (!(entry instanceof Map)) return true
+                        def env = entry.environment ?: '*'
+                        if (env == '*') return true
+                        if (side == 'all') return true
+                        if (env == side) return true
+                        return side == 'client' && withServer && env == 'server'
+                    }
+                    json.mixins = kept.collect { entry ->
+                        if (entry instanceof Map && entry.environment == 'server'
+                                && (side == 'all' || (side == 'client' && withServer))) {
+                            return [config: entry.config, environment: '*']
+                        }
+                        return entry
+                    }
+
+                    outFile.parentFile.mkdirs()
+                    outFile.setText(JsonOutput.prettyPrint(JsonOutput.toJson(json)), 'UTF-8')
+                }
+            }
+        }
+
+        registerModJsonTask('generateClientFabricModJson', 'client', includeServerInClient)
+        registerModJsonTask('generateServerFabricModJson', 'server', false)
+        registerModJsonTask('generateAllFabricModJson', 'all', false)
+
+        // -------- 服务端包：main + server --------
         sp.tasks.register('buildServerJar', Jar) {
             group = 'build'
-            description = '构建服务端包（仅 main 源集，environment=*）'
+            description = '构建服务端包（main + server，environment=server）'
             archiveBaseName = baseName
             archiveVersion = ver
             archiveClassifier = 'server'
-            // 【修改点】输出到 libs 根目录，不放在 server 子文件夹
             destinationDirectory = sp.layout.buildDirectory.dir('libs')
 
-            from(sourceSets.main.output.classesDirs)
+            from(mainSet.output.classesDirs)
+            if (serverSet != null) from(serverSet.output.classesDirs)
+
             from(sp.tasks.named('processResources')) {
-                filesMatching('fabric.mod.json') {
-                    filter { line ->
-                        line.replaceAll(/"environment"\s*:\s*"[^"]*"/,
-                                '"environment": "*"')
-                    }
-                }
+                exclude 'fabric.mod.json' // 由 generateServerFabricModJson 提供
             }
+            if (serverSet != null) from(sp.tasks.named('processServerResources'))
+
+            from(fmjDir('server'))
+            dependsOn 'generateServerFabricModJson'
 
             // 再有同名条目就直接构建失败，别悄悄产出「两份资源的包」
             duplicatesStrategy = DuplicatesStrategy.FAIL
         }
 
-        // -------- 客户端包（main + client）--------
+        // -------- 客户端包：main + client（可选 + server）--------
         sp.tasks.register('buildClientJar', Jar) {
             group = 'build'
-            description = '构建客户端包（main + client，environment=client）'
+            description = includeServerInClient
+                    ? '构建客户端包（main + client + server，environment=client）'
+                    : '构建客户端包（main + client，environment=client）'
             archiveBaseName = baseName
             archiveVersion = ver
             archiveClassifier = 'client'
-            // 【修改点】输出到 libs 根目录，不放在 client 子文件夹
             destinationDirectory = sp.layout.buildDirectory.dir('libs')
 
-            from(sourceSets.main.output.classesDirs)
-            from(sourceSets.client.output.classesDirs)
+            from(mainSet.output.classesDirs)
+            from(clientSet.output.classesDirs)
+            if (serverSet != null && includeServerInClient) from(serverSet.output.classesDirs)
+
             from(sp.tasks.named('processResources')) {
-                filesMatching('fabric.mod.json') {
-                    filter { line ->
-                        line.replaceAll(/"environment"\s*:\s*"[^"]*"/,
-                                '"environment": "client"')
-                    }
-                }
+                exclude 'fabric.mod.json'
             }
             from(sp.tasks.named('processClientResources'))
+            if (serverSet != null && includeServerInClient) from(sp.tasks.named('processServerResources'))
+
+            from(fmjDir('client'))
+            dependsOn 'generateClientFabricModJson'
 
             duplicatesStrategy = DuplicatesStrategy.FAIL
+        }
+
+        // -------- 通用包：main + client + server（装哪端都能用）--------
+        sp.tasks.register('buildAllJar', Jar) {
+            group = 'build'
+            description = '构建通用包（main + client + server，environment=*）'
+            archiveBaseName = baseName
+            archiveVersion = ver
+            archiveClassifier = 'all'
+            destinationDirectory = sp.layout.buildDirectory.dir('libs')
+
+            from(mainSet.output.classesDirs)
+            from(clientSet.output.classesDirs)
+            if (serverSet != null) from(serverSet.output.classesDirs)
+
+            from(sp.tasks.named('processResources')) {
+                exclude 'fabric.mod.json' // 由 generateAllFabricModJson 提供
+            }
+            from(sp.tasks.named('processClientResources'))
+            if (serverSet != null) from(sp.tasks.named('processServerResources'))
+
+            from(fmjDir('all'))
+            dependsOn 'generateAllFabricModJson'
+
+            duplicatesStrategy = DuplicatesStrategy.FAIL
+        }
+
+        // sources 包把 server 源码也带上（只是给人看的，不影响两端二进制包）
+        def sourcesJarTask = sp.tasks.findByName('sourcesJar')
+        if (sourcesJarTask != null && serverSet != null) {
+            sp.tasks.named('sourcesJar', Jar) {
+                from(serverSet.allSource)
+            }
         }
     }
 }
@@ -98,56 +244,78 @@ subprojects { sp ->
 // 收集所有子版本的产物到根目录 lib/<模组版本>/
 //
 //   lib/
-//     1.0.0/
-//         villagerdetails-1.0.0+fabric-0.19.3+26.2-client.jar
-//         villagerdetails-1.0.0+fabric-0.19.3+26.2-server.jar
-//         villagerdetails-1.0.0+fabric-0.19.3+26.2-sources.jar
-//         villagerdetails-1.0.0+fabric-0.19.3+26.3-client.jar
-//         villagerdetails-1.0.0+fabric-0.19.3+26.3-server.jar
-//         villagerdetails-1.0.0+fabric-0.19.3+26.3-sources.jar
+//     1.0.1/
+//         villagerdetails-1.0.1+fabric-0.19.3+api-0.160.0+26.2-client.jar
+//         villagerdetails-1.0.1+fabric-0.19.3+api-0.160.0+26.2-server.jar
+//         villagerdetails-1.0.1+fabric-0.19.3+api-0.160.0+26.2-all.jar
+//         villagerdetails-1.0.1+fabric-0.19.3+api-0.160.0+26.2-sources.jar
+//         villagerdetails-1.0.1+fabric-0.19.3+api-0.162.0+26.3-client.jar
+//         villagerdetails-1.0.1+fabric-0.19.3+api-0.162.0+26.3-server.jar
+//         villagerdetails-1.0.1+fabric-0.19.3+api-0.162.0+26.3-all.jar
+//         villagerdetails-1.0.1+fabric-0.19.3+api-0.162.0+26.3-sources.jar
+//
+//   命名规则：<模组名>-<模组版本>+fabric-<loader 版本>+api-<fabric-api 版本>+<MC 版本>-<classifier>.jar
 //
 // 用法：
 //   ./gradlew build                       // 构建所有子版本 + 收集到 lib/
 //   ./gradlew collectJars                 // 同上
-//   ./gradlew :v26.2:buildClientJar       // 只打某个包
+//   ./gradlew :v26.2:buildClientJar       // 只打某个包（buildServerJar / buildAllJar 同理）
 // ============================================================
-def fabricLoaderTag = "+fabric-${property('loader_version').toString()}+"
+def loaderVersion = property('loader_version').toString()
 
 tasks.register('collectJars', Copy) {
     group = 'build'
     description = '构建所有子版本，并按 <模组版本>/ 收集到根目录 lib/'
 
     dependsOn {
-        subprojects.findAll { it.tasks.named('buildClientJar') != null }
+        // 用 findByName：named() 在任务不存在时会抛异常，而且返回的是 provider，
+        // 这里只是做「有没有这个任务」的判断，不需要延迟解析。
+        subprojects.findAll { it.tasks.findByName('buildClientJar') != null }
                 .collectMany { sp ->
-                    def t = ["${sp.path}:buildClientJar", "${sp.path}:buildServerJar"]
+                    def t = ["${sp.path}:buildClientJar", "${sp.path}:buildServerJar", "${sp.path}:buildAllJar"]
                     // 如果子项目有 sourcesJar 任务，也触发它
-                    if (sp.tasks.findByName('sourcesJar')) {
+                    if (sp.tasks.findByName('sourcesJar') != null) {
                         t << "${sp.path}:sourcesJar"
                     }
-                    // ★ 修改点：移除了对 jar 任务的依赖
                     t
                 }
     }
 
     subprojects.each { sp ->
         def modVer = sp.version.toString().replaceFirst(/\+.*$/, '')  // 1.0.0+26.2 → 1.0.0
-        // 直接从 libs 目录读取，平铺合并到同一个 modVer 文件夹下，不再区分 client/server 文件夹
-        from(sp.layout.buildDirectory.dir('libs')) { into "${modVer}" }
+
+        // 文件名要带上 loader 与 fabric-api 的版本：<模组名>-<模组版本>+fabric-<loader>+api-<api>+<MC>-<classifier>.jar
+        // fabric_api_version 每个子项目不同（26.2 是 0.160.0+26.2，26.3 是 0.162.0+26.3）：
+        //   ① 不能再用根项目里算好的单一 tag，必须在 subprojects 循环里按 sp 取；
+        //   ② 它的 "+26.x" 后缀和文件名里已有的 MC 版本重复，且 "+" 是这里的字段分隔符，所以只取 "+" 之前的部分。
+        def apiVersion = (sp.findProperty('fabric_api_version') ?: '').toString().replaceFirst(/\+.*$/, '')
+        def apiTag = apiVersion ? "+api-${apiVersion}" : ''
+        def versionTag = "+fabric-${loaderVersion}${apiTag}+"
+
+        // 直接从 libs 目录读取，平铺合并到同一个 modVer 文件夹下，不再区分 client/server 文件夹。
+        // 只收本版本本次产出的包：build/libs 里常留着上一版的 jar，
+        // 不过滤的话会把 1.0.1 的目录里塞进 1.0.0 的旧包，发布时很容易发错。
+        def libsTree = sp.provider {
+            sp.layout.buildDirectory.dir('libs').get().asFileTree
+                    .matching { include("*-${sp.version}-*.jar") }
+        }
+        from(libsTree) {
+            into "${modVer}"
+            // 重命名放在每个子项目自己的 spec 里：tag 是按版本算的，放在任务级会全部用同一个
+            eachFile { f ->
+                if (f.name.endsWith('.jar') && f.name.contains('+')) {
+                    f.name = f.name.replaceFirst('\\+', versionTag)
+                }
+            }
+        }
     }
 
     include '*.jar'
     // 不再排除 sources 包
     exclude '*-dev.jar', '*-javadoc.jar'
 
-    // ★ 新增过滤：只保留带特定后缀的包，排除无后缀的包
-    exclude { it.name.endsWith('.jar') && !it.name.contains('-client') && !it.name.contains('-server') && !it.name.contains('-sources') }
-
-    eachFile { f ->
-        if (f.name.endsWith('.jar') && f.name.contains('+')) {
-            f.name = f.name.replaceFirst('\\+', fabricLoaderTag)
-        }
-    }
+    // 只保留带特定后缀的包，排除无后缀的包
+    exclude { it.name.endsWith('.jar') && !it.name.contains('-client') && !it.name.contains('-server') && !it.name.contains('-all') && !it.name.contains('-sources') }
 
     into layout.projectDirectory.dir('lib')
 }

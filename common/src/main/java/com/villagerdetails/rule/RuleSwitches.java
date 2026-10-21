@@ -1,14 +1,18 @@
 package com.villagerdetails.rule;
 
-import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.command.SwitchComponentType;
-import com.villagerdetails.rule.type.RuleType;
+
+import java.util.List;
 
 /**
  * 规则开关的取值 / 显示逻辑 —— <b>唯一来源</b>：{@code /ec} 命令和客户端界面都调这里，
  * 两边不会再各自长出一套。
  *
- * <p>开关是<b>单选</b>：一条规则的 {@link RuleType#getQuickSwitches()} 就是它的全部合法取值，
+ * <p>这里只保留<b>纯字符串</b>的判定（颜色、显示名、合法性校验）：客户端只用这部分，
+ * 而与本模组「规则表 / 规则状态」相关的重载在 {@code main} 里不能出现，
+ * 否则客户端会被迫依赖服务端类。调用方传入 {@code getQuickSwitches()} / 当前状态字符串即可。
+ *
+ * <p>开关是<b>单选</b>：一条规则的 {@code getQuickSwitches()} 就是它的全部合法取值，
  * 当前状态永远是其中之一（自定义列表规则除外，它放行任意非空文本）。
  * 历史上那套「多选 + none 占位」的机制已经删掉：没有规则声明多选，
  * 「关掉」就是选 {@code false}，空状态不再有任何含义。
@@ -80,15 +84,15 @@ public final class RuleSwitches {
      *     <li>预定义列表 → 忽略大小写命中，返回列表里的原文；否则 {@link Canonical.BadOption}</li>
      * </ul>
      */
-    public static Canonical canonicalize(RuleType rule, String state) {
+    public static Canonical canonicalize(List<String> quickSwitches, String state) {
         String trimmed = state == null ? "" : state.trim();
         if (trimmed.isEmpty()) {
             return new Canonical.BadState(trimmed);
         }
-        if (SwitchComponentType.isCustomList(rule.getQuickSwitches())) {
+        if (SwitchComponentType.isCustomList(quickSwitches)) {
             return new Canonical.Ok(trimmed);
         }
-        for (String option : rule.getQuickSwitches()) {
+        for (String option : quickSwitches) {
             if (option.equalsIgnoreCase(trimmed)) {
                 return new Canonical.Ok(option);
             }
@@ -129,19 +133,12 @@ public final class RuleSwitches {
     }
 
     /**
-     * 便捷方法：取某条规则当前状态的显示名
+     * 当前状态是不是它自己声明的默认状态（是的话重置按钮置灰）。
+     *
+     * <p>状态由调用方传进来（服务端从规则缓存取），这里不依赖规则表。
      */
-    public static String currentDisplay(RuleType rule) {
-        return currentDisplay(RuleCache.getState(rule));
-    }
-
-    /**
-     * 规则当前状态是不是它自己声明的默认状态（是的话重置按钮置灰）
-     */
-    public static boolean isDefaultState(RuleType rule) {
-        String current = RuleCache.getState(rule);
-        String fallback = rule.getState();
-        return normalize(current).equalsIgnoreCase(normalize(fallback));
+    public static boolean isDefaultState(String currentState, String defaultState) {
+        return normalize(currentState).equalsIgnoreCase(normalize(defaultState));
     }
 
     private static String normalize(String state) {

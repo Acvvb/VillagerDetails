@@ -1,9 +1,6 @@
 package com.villagerdetails.network.channel;
 
 import com.villagerdetails.util.PackageScanner;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.Identifier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -12,7 +9,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -25,10 +21,9 @@ import java.util.function.Consumer;
  *
  * <table>
  *     <tr><th>目录</th><th>放什么</th><th>自动干什么</th></tr>
- *     <tr><td>{@code sync.payload.clientbound}</td><td>{@link SyncPayload} 子类（包定义）</td>
- *         <td>用它自己的 {@code ID} + {@code CODEC} 注册「服务端 → 客户端」包类型</td></tr>
- *     <tr><td>{@code sync.payload.serverbound}</td><td>{@link SyncPayload} 子类（包定义）</td>
- *         <td>同上，注册「客户端 → 服务端」包类型</td></tr>
+ *     <tr><td>{@code sync.payload.clientbound} / {@code sync.payload.serverbound}</td>
+ *         <td>{@link SyncPayload} 子类（包定义）</td>
+ *         <td>包<b>类型</b>注册已移到 main 的 {@link PayloadTypes}（两端都要登记），这里只负责校验</td></tr>
  *     <tr><td>{@code sync.receiver}</td><td>{@link ServerReceiver} 实现</td>
  *         <td>注册服务端收包（自动切回主线程）</td></tr>
  *     <tr><td>{@code sync.event}</td><td>{@link SyncEvents} 实现</td>
@@ -55,16 +50,6 @@ public final class ServerChannels {
     private static final Logger LOGGER = LogManager.getLogger(ServerChannels.class);
 
     private static final String SYNC_PACKAGE = "com.villagerdetails.network.sync";
-
-    /**
-     * 包定义（S→C）：放 {@link SyncPayload} 子类，自动注册成「服务端 → 客户端」包类型
-     */
-    public static final String PAYLOAD_CLIENTBOUND_PACKAGE = SYNC_PACKAGE + ".payload.clientbound";
-
-    /**
-     * 包定义（C→S）：放 {@link SyncPayload} 子类，自动注册成「客户端 → 服务端」包类型
-     */
-    public static final String PAYLOAD_SERVERBOUND_PACKAGE = SYNC_PACKAGE + ".payload.serverbound";
 
     /**
      * 发包 API（S→C）：放 {@link SyncChannel} 子类，只负责发，不参与注册
@@ -103,9 +88,11 @@ public final class ServerChannels {
         // 这一轮的所有失败：先收集、继续扫完，最后汇总成一条告警（别让第一个错就把后面的挡住）
         List<Failure> failures = new ArrayList<>();
 
-        // 1) 包类型：注册内容全部来自包类自己的 ID / CODEC，这里不碰任何具体实现
-        Set<Identifier> clientboundIds = registerPayloads(PAYLOAD_CLIENTBOUND_PACKAGE, true, failures);
-        Set<Identifier> serverboundIds = registerPayloads(PAYLOAD_SERVERBOUND_PACKAGE, false, failures);
+        // 1) 包类型：两端共用的注册在 main（PayloadTypes），这里只是确保先登记完
+        //    注册内容全部来自包类自己的 ID / CODEC，这里不碰任何具体实现
+        PayloadTypes.Registered payloads = PayloadTypes.registerAll();
+        Set<Identifier> clientboundIds = payloads.clientbound();
+        Set<Identifier> serverboundIds = payloads.serverbound();
 
         // 2) 服务端收包、3) 事件、4) 兜底
         // ServerReceiver 是泛型接口，Java 写不出 ServerReceiver<?>.class，它的 Class 字面量天生是 raw 的。
@@ -175,51 +162,8 @@ public final class ServerChannels {
     }
 
     // ==============================================================
-    // 包类型（注册内容由包类自己声明）
+    // 包类型（两端共用的注册在 main 的 PayloadTypes）
     // ==============================================================
-
-    /**
-     * 扫一个 payload 目录，把里面的包逐个登记到对应方向。
-     *
-     * @return 登记成功的包 id
-     */
-    private static Set<Identifier> registerPayloads(String packageName, boolean clientbound, List<Failure> failures) {
-        Set<Identifier> registered = new LinkedHashSet<>();
-        for (Class<?> candidate : PackageScanner.scan(packageName, ServerChannels.class,
-                (name, cause) -> failures.add(new Failure("包类型", name,
-                        "类加载失败（扫包时被跳过），这个包不会生效", cause)))) {
-            if (!SyncPayload.class.isAssignableFrom(candidate)
-                    || candidate.isInterface()
-                    || Modifier.isAbstract(candidate.getModifiers())) {
-                continue;
-            }
-            try {
-                registerPayloadType(candidate, clientbound);
-                registered.add(((PayloadId<?>) staticField(candidate, "ID")).id());
-            } catch (Throwable t) {
-                failures.add(new Failure("包类型", candidate.getName(),
-                        "注册失败，这个包不会生效", t));
-            }
-        }
-        return registered;
-    }
-
-    /**
-     * 包类自己声明的 {@code ID} / {@code CODEC} → 登记到对应方向的注册表。
-     *
-     * <p>扫包时泛型已经擦掉了，这里只能按原始类型交过去；类型对不对由包自己的声明保证。
-     */
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private static void registerPayloadType(Class<?> payloadClass, boolean clientbound) throws ReflectiveOperationException {
-        PayloadId id = (PayloadId) staticField(payloadClass, "ID");
-        StreamCodec<? super RegistryFriendlyByteBuf, ?> codec =
-                (StreamCodec<? super RegistryFriendlyByteBuf, ?>) staticField(payloadClass, "CODEC");
-        if (clientbound) {
-            PayloadTypeRegistry.clientboundPlay().register(id.type(), (StreamCodec) codec);
-        } else {
-            PayloadTypeRegistry.serverboundPlay().register(id.type(), (StreamCodec) codec);
-        }
-    }
 
     /**
      * 通道里的包定义是不是也放进了 payload 目录。
@@ -287,14 +231,5 @@ public final class ServerChannels {
         Constructor<?> constructor = clazz.getDeclaredConstructor();
         constructor.setAccessible(true);
         return constructor.newInstance();
-    }
-
-    /**
-     * 读一个类的静态常量（包定义就是这么把自己的 ID / CODEC 交出来的）
-     */
-    private static Object staticField(Class<?> clazz, String name) throws ReflectiveOperationException {
-        Field field = clazz.getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(null);
     }
 }

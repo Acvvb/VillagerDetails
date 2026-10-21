@@ -25,15 +25,34 @@ jobs:
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
 
-      # 走根项目 build → collectJars，所有子版本双端包一次性收集到 lib/
+      # 走根项目 build → collectJars：每个子版本产出 client / server / all / sources 四件套，
+      # 统一收进 lib/<模组版本>/，文件名形如：
+      #   villagerdetails-<模组版本>+fabric-<loader>+api-<fabric-api>+minecraft-<MC>-<classifier>.jar
       - name: build
-        run: ./gradlew build
+        run: ./gradlew build --no-daemon --console=plain --stacktrace
 
-      # ★ 调试步骤：打印 lib 目录下的所有文件，方便你在日志里检查是否生成了 jar
+      # ★ 调试步骤：打印 lib 目录下的所有 jar，方便在日志里检查产物
       - name: Print lib folder
-        run: ls -R lib
+        run: find lib -type f -name '*.jar' | sort
 
-      # 平时 push / PR：上传客户端包
+      # 产物自检：四种 classifier 一个都不能少（collectJars 的过滤/重命名改坏时这里会直接失败）
+      - name: verify artifacts
+        run: |
+          set -euo pipefail
+          missing=0
+          for suffix in client server all sources; do
+            if ! find lib -type f -name "*-${suffix}.jar" | grep -q .; then
+              echo "::error::missing *-${suffix}.jar in lib/"
+              missing=1
+            fi
+          done
+          echo "found $(find lib -type f -name '*.jar' | wc -l) jars"
+          if [ "$missing" -ne 0 ]; then
+            find lib -type f -name '*.jar' | sort
+            exit 1
+          fi
+
+      # 平时 push / PR：上传客户端包（main + client，联机客户端用，体积最小）
       - name: capture client artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -41,7 +60,7 @@ jobs:
           path: lib/**/*-client.jar
           if-no-files-found: error
 
-      # 平时 push / PR：上传服务端包
+      # 平时 push / PR：上传服务端包（main + server，专用服用）
       - name: capture server artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -49,16 +68,34 @@ jobs:
           path: lib/**/*-server.jar
           if-no-files-found: error
 
-      # 只有推送 tag 时才发布 Release，客户端 + 服务端 + 源码包 都传
+      # 平时 push / PR：上传通用包（main + client + server，装哪端都能用）
+      - name: capture all artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: all
+          path: lib/**/*-all.jar
+          if-no-files-found: error
+
+      # 平时 push / PR：上传源码包
+      - name: capture sources artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sources
+          path: lib/**/*-sources.jar
+          if-no-files-found: error
+
+      # 只有推送 tag 时才发布 Release：客户端 + 服务端 + 通用包 + 源码包 全传
       - name: publish release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          # ★ 确保上传包含 client、server 和 sources 的包
+          # ★ 四种产物按 glob 收，新增 classifier 时这里和上面的 upload 一起改
           files: |
             lib/**/*-client.jar
             lib/**/*-server.jar
+            lib/**/*-all.jar
             lib/**/*-sources.jar
+          fail_on_unmatched_files: true
           generate_release_notes: true
           draft: false
         env:

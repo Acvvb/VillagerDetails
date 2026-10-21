@@ -9,12 +9,12 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 /**
  * 同步通道的<b>客户端侧</b>能力（默认方法）。
  *
- * <p>用法：客户端的通道类
- * {@code XxxClientChannel extends XxxChannel implements ClientReceiver<XxxPayload>}，
- * 于是既继承服务端那套（id / codec / 广播），又白拿这里的「收包 + 发包到服务端」。
- * 由 {@code ClientChannels} 统一注册一次。
+ * <p>用法：客户端的通道类直接 {@code implements ClientReceiver<XxxPayload>}，
+ * 并实现 {@link #id()} 返回包定义里的 {@code XxxPayload.ID}。
  *
- * <p>{@link #id()} 由父类 {@code SyncChannel} 提供。
+ * <p>三端分离之后客户端<b>不再继承</b>服务端的发包通道（{@code network.sync.clientbound} 在
+ * server 源集），客户端只依赖「包定义 + 收包接口 + 包类型注册」这些 main 里的契约。
+ * 由 {@code ClientChannels} 统一注册一次。
  */
 public interface ClientReceiver<P extends SyncPayload<P>> {
 

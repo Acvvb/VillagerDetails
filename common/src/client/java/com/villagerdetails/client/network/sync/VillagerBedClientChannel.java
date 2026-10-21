@@ -2,8 +2,8 @@ package com.villagerdetails.client.network.sync;
 
 import com.villagerdetails.client.feature.villagerbed.VillagerBedHelper;
 import com.villagerdetails.client.network.channel.ClientReceiver;
+import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.sync.payload.clientbound.VillagerBedPayload;
-import com.villagerdetails.network.sync.clientbound.VillagerBedSyncChannel;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.npc.villager.Villager;
@@ -13,12 +13,16 @@ import net.minecraft.world.entity.npc.villager.Villager;
  *
  * <p>收包、切线程的代码在 {@link ClientReceiver} 里，这里只写「收到之后干什么」和客户端自己的事件。
  */
-public final class VillagerBedClientChannel extends VillagerBedSyncChannel
-        implements ClientReceiver<VillagerBedPayload> {
+public final class VillagerBedClientChannel implements ClientReceiver<VillagerBedPayload> {
 
     public static final VillagerBedClientChannel INSTANCE = new VillagerBedClientChannel();
 
     private VillagerBedClientChannel() {
+    }
+
+    @Override
+    public PayloadId<VillagerBedPayload> id() {
+        return VillagerBedPayload.ID;
     }
 
     @Override

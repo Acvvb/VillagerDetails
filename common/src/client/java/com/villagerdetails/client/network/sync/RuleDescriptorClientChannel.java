@@ -1,13 +1,10 @@
 package com.villagerdetails.client.network.sync;
 
-import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.client.network.channel.ClientReceiver;
 import com.villagerdetails.client.setting.network.ServerRuleClientState;
+import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.SyncProtocol;
-import com.villagerdetails.network.sync.clientbound.RuleDescriptorSyncChannel;
 import com.villagerdetails.network.sync.payload.clientbound.RuleDescriptorSyncPayload;
-import com.villagerdetails.rule.descriptor.RuleDescriptor;
-import com.villagerdetails.rule.type.RuleType;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
@@ -19,8 +16,7 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>客户端在这里<b>不解析规则语义</b> —— 收到什么存什么，行 / 页签 / 详情页都照它渲染。
  */
-public final class RuleDescriptorClientChannel extends RuleDescriptorSyncChannel
-        implements ClientReceiver<RuleDescriptorSyncPayload> {
+public final class RuleDescriptorClientChannel implements ClientReceiver<RuleDescriptorSyncPayload> {
 
     private static final Logger LOGGER = LogManager.getLogger(RuleDescriptorClientChannel.class);
 
@@ -35,19 +31,16 @@ public final class RuleDescriptorClientChannel extends RuleDescriptorSyncChannel
     }
 
     @Override
+    public PayloadId<RuleDescriptorSyncPayload> id() {
+        return RuleDescriptorSyncPayload.ID;
+    }
+
+    @Override
     public void handleClient(Minecraft client, RuleDescriptorSyncPayload payload) {
         if (payload.protocol() != SyncProtocol.VERSION) {
             LOGGER.warn("服务端的同步协议版本是 {}，客户端是 {}，忽略这次描述符同步",
                     payload.protocol(), SyncProtocol.VERSION);
             return;
-        }
-        // 顺带把状态写进客户端镜像：破坏进度 / 挤压判定这类游戏逻辑在客户端也要读它。
-        // 只有客户端认识的规则写得进去（镜像按 RuleType 存）；不认识的规则本来也没有客户端逻辑要用。
-        for (RuleDescriptor rule : payload.rules()) {
-            RuleType type = RuleType.getRuleTypeByRegisterName(rule.registerName());
-            if (type != null) {
-                RuleCache.applyClientMirror(type, rule.state());
-            }
         }
         // 先记内容再 bumpVersion：界面重建时会用这份新内容
         ServerRuleClientState.setDescriptors(payload.categories(), payload.rules());

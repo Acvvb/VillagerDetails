@@ -9,6 +9,46 @@ base {
     archivesName = rootProject.name
 }
 
+// ============================================================
+// 三端分离的源集
+//
+//   main   ：两端契约（包定义 / 编解码 / 包类型注册 / 规则描述符 / 纯数据）
+//   client ：物理客户端专属，由 loom.splitEnvironmentSourceSets() 创建
+//   server ：全部服务端逻辑（指令 / 配置 / 规则实现 / 服务端收包 / Mixin / 入口点）
+//
+// 依赖方向：server → main。反方向（main → server）不允许，
+// 否则 main 就编译不过（main 的 classpath 里没有 server）。
+// 需要「main 触发、server 实现」时用 main 里的接口 + 事件 + 反射。
+//
+// 目录结构（common 里的代码会被各版本共用，版本目录里的同名文件覆盖 common）：
+//   common/src/main/java   common/src/main/resources
+//   common/src/client/java common/src/client/resources
+//   common/src/server/java common/src/server/resources
+//   src/main/java          src/main/resources
+//   src/client/java        src/client/resources
+//   src/server/java        src/server/resources
+// ============================================================
+sourceSets {
+    server {
+        java {
+            srcDir file('../common/src/server/java')
+            srcDir 'src/server/java'
+        }
+        resources {
+            srcDir file('../common/src/server/resources')
+            srcDir 'src/server/resources'
+        }
+    }
+}
+
+// Loom 的 splitEnvironmentSourceSets() 只会给 main / client 挂上 minecraft 依赖，
+// 手动建的 server 源集默认拿不到任何 MC 类型。把 main 的 classpath 借过来：
+//   - compileClasspath：编译期能看见 main 的类 + minecraft + loader + fabric-api
+//   - runtimeClasspath：dev 的 runServer 跑得起来（和产出的 server 包同一套类）
+// 不要写 server.compileClasspath += client.compileClasspath —— server 不能看见客户端类。
+sourceSets.server.compileClasspath += sourceSets.main.output.classesDirs + sourceSets.main.compileClasspath
+sourceSets.server.runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+
 loom {
     splitEnvironmentSourceSets()
 
@@ -16,6 +56,17 @@ loom {
         "villagerdetails" {
             sourceSet sourceSets.main
             sourceSet sourceSets.client
+            // 让 server 源集也进 dev 的 classpath group，否则 dev 里 server 的类
+            // 不在「本模组」的加载组里，mixin 引用解析会出岔子
+            sourceSet sourceSets.server
+        }
+    }
+
+    runs {
+        server {
+            // dev 的服务端跑 server + main，和产出的 server 包一致；
+            // 默认值是 main，那样 server 源集里的类在 dev 里根本不会被加载
+            sourceSet.set('server')
         }
     }
 }
@@ -32,21 +83,21 @@ dependencies {
 sourceSets {
     main {
         java {
-            srcDir file('../common/src/main/java')
+            srcDir file('../common/src/main/java')       // ← 改这里
             srcDir 'src/main/java'
         }
         resources {
-            srcDir file('../common/src/main/resources')
+            srcDir file('../common/src/main/resources')  // ← 改这里
             srcDir 'src/main/resources'
         }
     }
     client {
         java {
-            srcDir file('../common/src/client/java')
+            srcDir file('../common/src/client/java')     // ← 改这里
             srcDir 'src/client/java'
         }
         resources {
-            srcDir file('../common/src/client/resources')
+            srcDir file('../common/src/client/resources') // ← 改这里
             srcDir 'src/client/resources'
         }
     }
@@ -77,6 +128,11 @@ processClientResources {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }
 
+// server 资源同理（common/src/server/resources 与 src/server/resources 合并）
+processServerResources {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
 java {
     // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
     // if it is present.
@@ -84,15 +140,18 @@ java {
     withSourcesJar()
 }
 
-// main 与 client 两套 sourceSet 会引入同名的资源文件（例如 client mixins 配置），
-// 打进 jar / sourcesJar 时允许重复，按引入顺序后者生效。
-tasks.withType(Jar).configureEach {
+// 只有 sourcesJar 需要「同名资源按顺序后者生效」：根 build.gradle 里的
+// buildClientJar / buildServerJar 用的是 DuplicatesStrategy.FAIL（重名即构建失败），
+// 所以这里不能一刀切给所有 Jar 任务设 INCLUDE。
+tasks.named('sourcesJar', Jar) {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }
 
 jar {
     def projectName = rootProject.name
     inputs.property "projectName", projectName
+
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
 
     from(rootProject.file("LICENSE")) {
         rename { "${it}_$projectName" }
