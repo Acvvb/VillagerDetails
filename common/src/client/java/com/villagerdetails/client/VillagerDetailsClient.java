@@ -1,6 +1,7 @@
 package com.villagerdetails.client;
 
 import com.villagerdetails.client.cache.ClientSessionStates;
+import com.villagerdetails.client.feature.furnace.FurnaceDirtyHighlightRenderer;
 import com.villagerdetails.client.feature.selection.BBSelectionHighlightRenderer;
 import com.villagerdetails.client.feature.selection.EBSelectionHighlightRenderer;
 import com.villagerdetails.client.feature.selection.PortalViewHighlightRenderer;
@@ -29,5 +30,7 @@ public class VillagerDetailsClient implements ClientModInitializer {
         BBSelectionHighlightRenderer.register();
 
         PortalViewHighlightRenderer.register();
+
+        FurnaceDirtyHighlightRenderer.register();
     }
 }

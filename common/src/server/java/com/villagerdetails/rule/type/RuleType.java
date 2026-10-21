@@ -249,6 +249,13 @@ public enum RuleType implements RegisterTypeServer {
      */
     ENDER_PORTAL_GRAVITY_BLOCK("EndPortalGravityBlock", "rule.block.end_portal_gravity", "rule.block.end_portal_gravity.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> EndPortalGravityBlockServerImpl.INSTANCE, () -> EndPortalGravityBlockConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR, null),
 
+    /**
+     * 熔炉脏东西高亮。熔炉的输入槽里有烧不了的东西、或者燃料槽里不是有效燃料时，
+     * 在客户端把这个熔炉框成高亮（服务端判定，客户端只负责画）。
+     * 扫描半径 / 间隔在 {@code villagerdetails/config.json} 的 {@code FurnaceDirtyHighlight} 节里配。
+     */
+    FURNACE_DIRTY_HIGHLIGHT("FurnaceDirtyHighlight", "rule.block.furnace_dirty_highlight", "rule.block.furnace_dirty_highlight.desc", List.of(BLOCK), new ArrayList<>(), null, () -> FurnaceDirtyHighlightConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+
     ;
 
 

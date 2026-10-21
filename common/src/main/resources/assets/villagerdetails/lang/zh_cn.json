@@ -286,5 +286,14 @@
   "setting.global_speed_bypass.desc": "开启后，玩家自身移动或骑乘任何载具（包括模组载具）移动过快时，将绕过服务端因位移过大触发的回弹和警告日志。",
   "rule.block.end_portal_gravity": "末地门重力方块",
   "rule.block.end_portal_gravity.desc": "通过指令配置的方块，如果在末地传送门水平相邻且下方为空气，将获得类似沙子的重力掉落特性。",
+  "rule.block.furnace_dirty_highlight": "熔炉脏东西高亮",
+  "rule.block.furnace_dirty_highlight.desc": "普通熔炉 / 高炉 / 烟熏炉的输入槽里放了这台机器烧不了的东西时，在客户端把这个熔炉框成高亮。服务端判定，客户端只负责渲染。",
+  "villagerdetails.ui.option.render_furnace_dirty": "渲染熔炉脏东西高亮",
+  "villagerdetails.ui.option.render_furnace_dirty.desc": "在输入槽脏了的熔炉外面画一个框。关闭后不仅不画，还会通知服务端别再给你发熔炉高亮数据。",
+  "villagerdetails.ui.option.furnace_dirty_color": "熔炉脏东西高亮颜色",
+  "villagerdetails.ui.option.furnace_dirty_color.desc": "输入槽里放着烧不了的东西时，高亮框的颜色。",
+  "villagerdetails.ui.option.furnace_dirty_line_width": "熔炉高亮线宽",
+  "villagerdetails.ui.option.furnace_dirty_line_width.desc": "熔炉脏东西高亮框每条线的粗细，数值越大线越粗。",
+  "villagerdetails.ui.option.furnace_dirty_line_width.value": "粗细：%s",
   "rule.category.fix":"修复"
 }

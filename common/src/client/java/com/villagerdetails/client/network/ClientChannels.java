@@ -32,7 +32,8 @@ public final class ClientChannels {
             RuleDataOptionsClientChannel.INSTANCE,
             EBSyncClientChannel.INSTANCE,
             BBSyncClientChannel.INSTANCE,
-            PortalViewSyncClientChannel.INSTANCE);
+            PortalViewSyncClientChannel.INSTANCE,
+            FurnaceDirtyClientChannel.INSTANCE);
 
     private ClientChannels() {
     }

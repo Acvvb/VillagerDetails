@@ -1,6 +1,7 @@
 package com.villagerdetails.client.cache;
 
 import com.villagerdetails.client.feature.villagerbed.VillagerBedHelper;
+import com.villagerdetails.client.network.sync.SyncSubscriptionClient;
 import com.villagerdetails.client.setting.network.RuleAuxCache;
 import com.villagerdetails.client.setting.network.ServerRuleClientState;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
@@ -29,6 +30,8 @@ public final class ClientSessionStates {
             BBSelectionClientState::clear,
             EBSelectionClientState::clear,
             PortalViewClientState::clearAll,
+            FurnaceDirtyClientState::clear,
+            SyncSubscriptionClient::clearSession,
             ServerRuleClientState::clearSession,
             RuleAuxCache::clear);
 

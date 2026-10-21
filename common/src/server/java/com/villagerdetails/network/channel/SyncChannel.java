@@ -67,8 +67,16 @@ public abstract class SyncChannel<P extends SyncPayload<P>> {
         }
     }
 
-    /** 对方客户端装没装本 mod */
+    /**
+     * 这条包能不能发给这个玩家：装没装本 mod <b>且</b> 客户端没有把这条通道静音。
+     *
+     * <p>静音是客户端单方面的决定（{@link SyncSubscriptions}，由通用的
+     * {@code sync_subscription} 包维护）：关掉之后连扫描 / 组包都省了，
+     * 客户端重新打开时会再发一个「恢复」包。
+     */
     public final boolean canSendTo(ServerPlayer player) {
-        return player != null && ServerPlayNetworking.canSend(player, id.type());
+        return player != null
+                && !SyncSubscriptions.isMuted(player, id.id())
+                && ServerPlayNetworking.canSend(player, id.type());
     }
 }

@@ -286,5 +286,14 @@
   "setting.global_speed_bypass.desc": "When enabled, bypasses the server-side 'moved too quickly' rubber-banding and warning logs for both player movement and any vehicle movement.",
   "rule.block.end_portal_gravity": "End Portal Gravity Block",
   "rule.block.end_portal_gravity.desc": "Configured blocks will fall like sand if placed horizontally adjacent to an End Portal and there is air below.",
+  "rule.block.furnace_dirty_highlight": "Furnace Dirty Highlight",
+  "rule.block.furnace_dirty_highlight.desc": "Highlights regular furnaces, blast furnaces and smokers when the input slot holds an item that cannot be smelted in that furnace type. Detection runs on the server; the client only renders the box.",
+  "villagerdetails.ui.option.render_furnace_dirty": "Render furnace dirty highlight",
+  "villagerdetails.ui.option.render_furnace_dirty.desc": "Draws a box around furnaces whose input slot is dirty. Turning this off also asks the server to stop sending furnace highlight data for you.",
+  "villagerdetails.ui.option.furnace_dirty_color": "Furnace dirty highlight color",
+  "villagerdetails.ui.option.furnace_dirty_color.desc": "Color of the box drawn around furnaces whose input slot holds an item that cannot be smelted.",
+  "villagerdetails.ui.option.furnace_dirty_line_width": "Furnace highlight line width",
+  "villagerdetails.ui.option.furnace_dirty_line_width.desc": "Thickness of each line of the furnace dirty highlight box. Higher values draw thicker lines.",
+  "villagerdetails.ui.option.furnace_dirty_line_width.value": "Width: %s",
   "rule.category.fix":"fix"
 }

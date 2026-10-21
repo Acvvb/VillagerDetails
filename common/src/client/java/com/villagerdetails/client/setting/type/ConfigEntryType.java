@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 所有配置项。写法参考 {@link com.villagerdetails.rule.type.RuleType}：
+ * 所有配置项。写法参考
  * <b>显示名称、显示描述、默认值、行样式</b>都在枚举常量上声明，不再散落在各处。
  *
  * <p>每个常量依次声明：
@@ -94,6 +94,15 @@ public enum ConfigEntryType implements ConfigRow {
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#FF4D4D", "",
             BindingServer.color()),
 
+    /**
+     * 熔炉脏高亮：输入槽里有烧不了的东西
+     */
+    FURNACE_DIRTY_COLOR("FurnaceDirtyColor",
+            "villagerdetails.ui.option.furnace_dirty_color",
+            "villagerdetails.ui.option.furnace_dirty_color.desc",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#FF4D4D", "",
+            BindingServer.color()),
+
     // ---------------- 配置项 / 滑块 ----------------
 
     LINE_WIDTH("LineWidth",
@@ -130,6 +139,15 @@ public enum ConfigEntryType implements ConfigRow {
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "0.15", "",
             BindingServer.slider(0.0D, 0.5D, 0.05D)),
 
+    /**
+     * 熔炉脏高亮的线宽
+     */
+    FURNACE_DIRTY_LINE_WIDTH("FurnaceDirtyLineWidth",
+            "villagerdetails.ui.option.furnace_dirty_line_width",
+            "villagerdetails.ui.option.furnace_dirty_line_width.desc",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "2.0", "",
+            BindingServer.slider(1.0D, 10.0D, 0.5D)),
+
     // ---------------- 配置项 / 列表 ----------------
 
     BED_LIST("BedList",
@@ -154,6 +172,18 @@ public enum ConfigEntryType implements ConfigRow {
             "villagerdetails.ui.option.render_bb_highlight",
             "villagerdetails.ui.option.render_bb_highlight.desc",
             List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER), "true", "",
+            BindingServer.toggle()),
+
+    /**
+     * 熔炉脏高亮的本地显示开关。
+     *
+     * <p>关掉不只是不画：客户端会通过通用的 {@code sync_subscription} 包告诉服务端
+     * 「这条通道别发给我」，服务端随即停止扫描和发包；重新打开时再通知一次，恢复同步。
+     */
+    RENDER_FURNACE_DIRTY("RenderFurnaceDirty",
+            "villagerdetails.ui.option.render_furnace_dirty",
+            "villagerdetails.ui.option.render_furnace_dirty.desc",
+            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_ALL), "true", "",
             BindingServer.toggle()),
 
     // ---------------- 功能开关 / 村民 ----------------
