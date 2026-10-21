@@ -54,7 +54,7 @@ public final class RuleDescriptorClientChannel implements ClientReceiver<RuleDes
 
         // 玩家在选项里改了界面语言 → 重新打个招呼，让服务端按新语言重推一份。
         // （描述符里是已经翻译好的纯文本，不会像普通 Component 那样自己跟着语言变，所以得主动重来一次。）
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+        ClientTickEvents.END_CLIENT_TICK.register(_ -> {
             String now = ClientRequests.currentLanguage();
             if (!now.equals(lastLanguage)) {
                 lastLanguage = now;

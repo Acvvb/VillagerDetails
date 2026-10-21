@@ -59,13 +59,6 @@ public enum RuleDataKind {
     }
 
     /**
-     * id 是不是方块 id（否则是实体类型 id）—— 决定补全范围和校验
-     */
-    public boolean isBlockId() {
-        return blockId;
-    }
-
-    /**
      * 这条规则的 id 属于哪个注册表
      */
     public Registry<?> registry() {
@@ -104,18 +97,4 @@ public enum RuleDataKind {
         return plainList ? text.toLowerCase(Locale.ROOT) : text;
     }
 
-    /**
-     * 同步用的名字 → 枚举；不认识返回 null
-     */
-    public static RuleDataKind byName(String name) {
-        if (name == null) {
-            return null;
-        }
-        for (RuleDataKind kind : values()) {
-            if (kind.name().equals(name)) {
-                return kind;
-            }
-        }
-        return null;
-    }
 }

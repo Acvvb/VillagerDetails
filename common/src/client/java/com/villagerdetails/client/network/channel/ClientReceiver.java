@@ -41,20 +41,6 @@ public interface ClientReceiver<P extends SyncPayload<P>> {
     default void registerClientEvents() {
     }
 
-    /** 客户端发给服务端（自带「服务器装没装本 mod」判断） */
-    default boolean sendToServer(P payload) {
-        if (!canSendToServer()) {
-            return false;
-        }
-        ClientPlayNetworking.send(payload);
-        return true;
-    }
-
-    /** 服务器装没装本 mod（能收我们的包） */
-    default boolean canSendToServer() {
-        return ClientPlayNetworking.canSend(id().type());
-    }
-
     /**
      * 给「只有静态发送方法」的场景用：不持有通道实例也能发（拿包的 type 直接判 + 发）。
      */

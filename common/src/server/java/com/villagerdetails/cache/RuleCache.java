@@ -15,11 +15,7 @@ import net.minecraft.server.permissions.PermissionLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.villagerdetails.command.CommandConstants.PERM_BASE;
@@ -185,15 +181,6 @@ public class RuleCache {
             if (newValue == null) continue;
             setState(type, newValue);
         }
-    }
-
-    /**
-     * 客户端镜像专用：只把状态写进本地缓存，不落盘、不触发规则回调
-     * （回调是服务端行为，客户端只是拿它显示界面）。
-     */
-    public static void applyClientMirror(RuleType type, String state) {
-        if (type == null || state == null) return;
-        rules.put(type, state);
     }
 
     private static void persist(RuleType type, String state) {

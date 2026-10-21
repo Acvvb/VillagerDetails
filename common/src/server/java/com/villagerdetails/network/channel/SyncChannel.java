@@ -2,7 +2,6 @@ package com.villagerdetails.network.channel;
 
 import com.villagerdetails.cache.RuleCache;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -39,11 +38,6 @@ public abstract class SyncChannel<P extends SyncPayload<P>> {
 
     public final PayloadId<P> id() {
         return id;
-    }
-
-    /** 完整包 id，例如 {@code villagerdetails:rule_data} */
-    public final Identifier packetId() {
-        return id.id();
     }
 
     // ==============================================================

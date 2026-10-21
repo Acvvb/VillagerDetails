@@ -47,10 +47,6 @@ public final class ConfigRegistry {
         return REGISTRY.get(name);
     }
 
-    public static List<ReloadableConfig> getAll() {
-        return List.copyOf(REGISTRY.values());
-    }
-
     public static List<String> getAllNames() {
         return List.copyOf(REGISTRY.keySet());
     }

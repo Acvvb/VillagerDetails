@@ -86,7 +86,7 @@ public class EntityPortalMixin {
                 portalPos = bottomOfPortal(targetLevel, dest.pos());
                 log.debug("[PortalBinding] binding position itself is portal at {}", portalPos);
             } else {
-                portalPos = findPortalNear(targetLevel, dest.pos(), 16);
+                portalPos = findPortalNear(targetLevel, dest.pos());
                 if (portalPos != null) {
                     log.debug("[PortalBinding] found nearby portal at {}", portalPos);
                 } else {
@@ -136,7 +136,7 @@ public class EntityPortalMixin {
     }
 
     @Unique
-    private static BlockPos findPortalNear(ServerLevel level, BlockPos center, int radius) {
+    private static BlockPos findPortalNear(ServerLevel level, BlockPos center) {
         if (level.getBlockState(center).getBlock() instanceof NetherPortalBlock) {
             return bottomOfPortal(level, center);
         }
@@ -144,9 +144,9 @@ public class EntityPortalMixin {
         BlockPos closest = null;
         double closestDist = Double.MAX_VALUE;
 
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dy = -radius; dy <= radius; dy++) {
-                for (int dz = -radius; dz <= radius; dz++) {
+        for (int dx = -16; dx <= 16; dx++) {
+            for (int dy = -16; dy <= 16; dy++) {
+                for (int dz = -16; dz <= 16; dz++) {
                     BlockPos p = center.offset(dx, dy, dz);
                     if (level.getBlockState(p).getBlock() instanceof NetherPortalBlock) {
                         double dist = p.distSqr(center);

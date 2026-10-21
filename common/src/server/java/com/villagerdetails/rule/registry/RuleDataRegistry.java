@@ -2,7 +2,6 @@ package com.villagerdetails.rule.registry;
 
 import com.villagerdetails.config.ReloadableConfig;
 import com.villagerdetails.config.impl.section.base.IdSetConfig;
-import com.villagerdetails.config.impl.section.item.*;
 import com.villagerdetails.config.impl.server.NumberConfigServer;
 import com.villagerdetails.rule.type.RuleConfigKind;
 import com.villagerdetails.rule.type.RuleDataKind;
@@ -159,28 +158,4 @@ public final class RuleDataRegistry {
         return null;
     }
 
-    /**
-     * 按注册名反查（客户端同步回来的名字用它）
-     */
-    public static Entry byName(String registerName) {
-        if (registerName == null) {
-            return null;
-        }
-        for (Entry entry : ENTRIES) {
-            if (entry.rule().getRegisterName().equals(registerName)) {
-                return entry;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * 客户端：把服务端同步过来的内容写进本地镜像
-     */
-    public static void applySynced(String registerName, String data) {
-        Entry entry = byName(registerName);
-        if (entry != null) {
-            entry.store().deserializer().accept(data);
-        }
-    }
 }

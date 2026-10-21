@@ -1,11 +1,7 @@
 package com.villagerdetails.client.setting.screen;
 
 import com.villagerdetails.client.network.sync.ClientRequests;
-import com.villagerdetails.client.setting.component.OptionLabel;
-import com.villagerdetails.client.setting.component.RowListPage;
-import com.villagerdetails.client.setting.component.SuggestionPopup;
-import com.villagerdetails.client.setting.component.SwitchButton;
-import com.villagerdetails.client.setting.component.ToggleSwitchButton;
+import com.villagerdetails.client.setting.component.*;
 import com.villagerdetails.client.setting.config.ui.ComponentLayout;
 import com.villagerdetails.client.setting.network.RuleAuxCache;
 import com.villagerdetails.client.setting.row.ServerRuleDataRow;
@@ -21,7 +17,10 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.NonNull;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
 

@@ -49,10 +49,6 @@ public final class PortalBindingManager {
         return null;
     }
 
-    public boolean isBound(ResourceKey<Level> dim, BlockPos pos) {
-        return findDestination(dim, pos) != null;
-    }
-
     /**
      * 清空全部绑定（连同配置文件里的）
      */

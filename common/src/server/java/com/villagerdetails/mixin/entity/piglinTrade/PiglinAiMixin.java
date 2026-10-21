@@ -20,6 +20,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static com.villagerdetails.rule.type.RuleType.*;
 
@@ -102,12 +103,7 @@ public abstract class PiglinAiMixin {
             List<ItemStack> merged = new ArrayList<>(cir.getReturnValue());
 
             // 第 2~9 次：独立再跑 8 次原版战利品表
-            for (int i = 0; i < 8; i++) {
-                List<ItemStack> one = getBarterResponseItems(body);
-                if (one != null && !one.isEmpty()) {
-                    merged.addAll(one);
-                }
-            }
+            IntStream.range(0, 8).mapToObj(_ -> getBarterResponseItems(body)).filter(one -> one != null && !one.isEmpty()).forEach(merged::addAll);
 
             cir.setReturnValue(merged);
         } finally {

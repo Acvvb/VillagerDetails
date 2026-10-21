@@ -1,16 +1,13 @@
 package com.villagerdetails.mixin.villager.trader.autoTrader;
 
+import net.minecraft.core.Holder;
 import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.trading.VillagerTrade;
 import net.minecraft.world.level.storage.loot.functions.LootItemFunction;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
-
-import net.minecraft.core.Holder;
 import java.util.Optional;
-
-
 
 
 @Mixin(VillagerTrade.class)

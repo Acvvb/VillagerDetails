@@ -5,13 +5,7 @@ import com.villagerdetails.client.setting.util.McIds;
 import com.villagerdetails.rule.descriptor.RuleDescriptor;
 import net.minecraft.resources.Identifier;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**

@@ -54,16 +54,16 @@ public class BindHandler {
         return true;
     }
 
-    public static boolean chooseUtil(Level level, Player player, InteractionHand hand) {
+    public static void chooseUtil(Level level, Player player, InteractionHand hand) {
         UUID playerUuid = player.getUUID();
         // 先看一眼，别急着消费选区：下面这几项校验没过时（工具换了 / 目标不是村民 / 实体没加载）
         // 选区必须留着，玩家换回正确工具再点一次就能接着绑
         EBSelectionStateCache.SelectionState state = EBSelectionStateCache.peek(playerUuid);
-        if (state == null || !state.isComplete()) return false;
+        if (state == null || !state.isComplete()) return;
 
         Entity entity = level.getEntity(state.entityUuid());
         BindingType type = BindingUtil.isHoldingAnyTool(player, hand, entity);
-        if (type == null || !(entity instanceof Villager villager)) return false;
+        if (type == null || !(entity instanceof Villager villager)) return;
 
         ServerLevel serverLevel = (ServerLevel) level;
         ServerPlayer operator = (ServerPlayer) player;
@@ -77,7 +77,6 @@ public class BindHandler {
             // 只有真正绑定成功才消耗工具，避免"已绑定过 / 失败"时白白消耗拴绳
             player.getItemInHand(hand).shrink(1);
         }
-        return isSuccess;
     }
 }
 

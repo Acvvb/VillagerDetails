@@ -1,6 +1,5 @@
 package com.villagerdetails.handler.block;
 
-import com.villagerdetails.network.sync.clientbound.BlockRuleSyncChannel;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
@@ -26,9 +25,4 @@ public final class BlockRuleContext {
         MINING_PLAYER.remove();
     }
 
-    /** 当前操作者是否为「未安装本 mod 的客户端」，是则对其走原版逻辑。 */
-    public static boolean isVanillaClient() {
-        ServerPlayer player = MINING_PLAYER.get();
-        return player != null && !BlockRuleSyncChannel.INSTANCE.canSendTo(player);
-    }
 }

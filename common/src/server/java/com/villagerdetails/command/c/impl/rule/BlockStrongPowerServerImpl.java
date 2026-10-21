@@ -45,7 +45,7 @@ public final class BlockStrongPowerServerImpl extends AbstractRuleCommand {
 
     @Override
     protected SuggestionProvider<CommandSourceStack> valueSuggester() {
-        return (ctx, builder) -> {
+        return (_, builder) -> {
             builder.suggest("true");
             builder.suggest("false");
             return builder.buildFuture();

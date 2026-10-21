@@ -2,8 +2,8 @@ package com.villagerdetails.event;
 
 import com.villagerdetails.cache.BBSectionStateCache;
 import com.villagerdetails.handler.binding.bbselection.SelectionInteractionHandler;
-import com.villagerdetails.network.sync.payload.clientbound.BBSyncPayload;
 import com.villagerdetails.network.sync.clientbound.BBSyncChannel;
+import com.villagerdetails.network.sync.payload.clientbound.BBSyncPayload;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.core.BlockPos;

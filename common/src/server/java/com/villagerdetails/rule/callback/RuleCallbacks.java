@@ -35,13 +35,6 @@ public final class RuleCallbacks {
     }
 
     /**
-     * 取消某条规则的回调
-     */
-    public static void unregister(RuleType type) {
-        HANDLERS.remove(type);
-    }
-
-    /**
      * 内部调用：触发某条规则的回调
      */
     public static void fire(RuleType type, String oldValue, String newValue) {

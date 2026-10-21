@@ -20,11 +20,7 @@ import net.minecraft.world.item.trading.VillagerTrade;
 import net.minecraft.world.level.storage.loot.functions.EnchantRandomlyFunction;
 import net.minecraft.world.level.storage.loot.functions.LootItemFunction;
 
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 public final class TradePoolChecker {
 
@@ -129,7 +125,7 @@ public final class TradePoolChecker {
     private static List<LootItemFunction> givenModifiers(VillagerTradeMixin trade) {
 
         Optional<Holder<LootItemFunction>> modifier = trade.getGivenItemModifiers();
-        return modifier.isEmpty() ? List.of() : List.of(modifier.get().value());
+        return modifier.map(lootItemFunctionHolder -> List.of(lootItemFunctionHolder.value())).orElseGet(List::of);
 
 
 

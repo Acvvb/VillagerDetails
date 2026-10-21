@@ -96,11 +96,7 @@ public final class ItemProvisioner {
         int produced = recipe.targetPerCraft() * crafts;
         ItemStack result = new ItemStack(target, produced);
         if (!inv.add(result)) {
-
-
-
             player.drop(result, false);
-
         }
 
     }

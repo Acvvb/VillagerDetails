@@ -57,10 +57,6 @@ public final class ServerLangConfig implements ReloadableConfig {
         };
     }
 
-    public static String getDefaultLang() {
-        return defaultLang;
-    }
-
     @Override
     public String configName() {
         return SETTING_LANGUAGE.getRegisterName();

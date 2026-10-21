@@ -3,11 +3,7 @@ package com.villagerdetails.client.setting.network;
 import com.villagerdetails.client.network.sync.ClientRequests;
 import com.villagerdetails.rule.descriptor.RuleDescriptor;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.UnaryOperator;
 
 /**
@@ -82,13 +78,6 @@ public final class ServerRuleClientState {
             update(s -> s.withAvailable(detected));
         }
         return detected;
-    }
-
-    /**
-     * 上一次检测的结果（不重新检测，绘制时用）
-     */
-    public static boolean isAvailableCached() {
-        return current().available();
     }
 
     // ==============================================================

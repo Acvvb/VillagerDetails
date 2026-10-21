@@ -162,7 +162,7 @@ public class VillagerBindHandler extends VillagerBindServer {
         return true;
     }
 
-    public static boolean bindMove(ServerLevel level, ServerPlayer operator, Villager villager, BlockPos targetPos) {
+    public static boolean bindMove(ServerPlayer operator, Villager villager, BlockPos targetPos) {
         VillagerMoveHandler.sendTo(villager,targetPos);
         SendMessengerUtils.sendOverlayOrBroadcast(operator,
                 Component.translatable(getMessageKey(BindingType.MOVE, "success"), villager.getUUID().toString(),targetPos.toShortString()));
