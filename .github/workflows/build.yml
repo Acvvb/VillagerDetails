@@ -9,14 +9,19 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # ★ 重要：拉取完整的 git 历史，用于自动生成 Release Notes
+
       - name: validate gradle wrapper
-        uses: gradle/actions/wrapper-validation@v6
+        uses: gradle/actions/wrapper-validation@v3
+
       - name: setup jdk
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           java-version: '25'
           distribution: 'microsoft'
+
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
 
@@ -24,30 +29,36 @@ jobs:
       - name: build
         run: ./gradlew build
 
-      # 平时 push / PR：客户端包作为 Artifact（修改为匹配 *-client.jar）
+      # ★ 调试步骤：打印 lib 目录下的所有文件，方便你在日志里检查是否生成了 jar
+      - name: Print lib folder
+        run: ls -R lib
+
+      # 平时 push / PR：上传客户端包
       - name: capture client artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: client
           path: lib/**/*-client.jar
           if-no-files-found: error
 
-      # 平时 push / PR：服务端包作为 Artifact（修改为匹配 *-server.jar）
+      # 平时 push / PR：上传服务端包
       - name: capture server artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: server
           path: lib/**/*-server.jar
           if-no-files-found: error
 
-      # 只有推送 tag 时才发布 Release，客户端 + 服务端都传
+      # 只有推送 tag 时才发布 Release，客户端 + 服务端 + 源码包 都传
       - name: publish release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          # 修改为匹配所有 jar，或者分别写 client 和 server 的匹配规则
-          # 这里匹配 lib 下所有版本的 jar（包含 client, server, sources）
-          files: lib/**/*.jar
+          # ★ 确保上传包含 client、server 和 sources 的包
+          files: |
+            lib/**/*-client.jar
+            lib/**/*-server.jar
+            lib/**/*-sources.jar
           generate_release_notes: true
           draft: false
         env:

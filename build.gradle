@@ -38,6 +38,11 @@ subprojects { sp ->
         def baseName = sp.base.archivesName.get()
         def ver = sp.version
 
+        // ★ 新增：禁用默认的 jar 任务，阻止生成无后缀的包
+        sp.tasks.named('jar', Jar) {
+            enabled = false
+        }
+
         // -------- 服务端包（仅 main）--------
         sp.tasks.register('buildServerJar', Jar) {
             group = 'build'
@@ -116,27 +121,27 @@ tasks.register('collectJars', Copy) {
         subprojects.findAll { it.tasks.named('buildClientJar') != null }
                 .collectMany { sp ->
                     def t = ["${sp.path}:buildClientJar", "${sp.path}:buildServerJar"]
-                    // 【修改点】如果子项目有 sourcesJar 任务，也触发它
+                    // 如果子项目有 sourcesJar 任务，也触发它
                     if (sp.tasks.findByName('sourcesJar')) {
                         t << "${sp.path}:sourcesJar"
                     }
-                    // 【修复点】显式依赖 jar 任务，因为 collectJars 读取了整个 build/libs 目录
-                    if (sp.tasks.findByName('jar')) {
-                        t << "${sp.path}:jar"
-                    }
+                    // ★ 修改点：移除了对 jar 任务的依赖
                     t
                 }
     }
 
     subprojects.each { sp ->
         def modVer = sp.version.toString().replaceFirst(/\+.*$/, '')  // 1.0.0+26.2 → 1.0.0
-        // 【修改点】直接从 libs 目录读取，平铺合并到同一个 modVer 文件夹下，不再区分 client/server 文件夹
+        // 直接从 libs 目录读取，平铺合并到同一个 modVer 文件夹下，不再区分 client/server 文件夹
         from(sp.layout.buildDirectory.dir('libs')) { into "${modVer}" }
     }
 
     include '*.jar'
-    // 【修改点】不再排除 sources 包
+    // 不再排除 sources 包
     exclude '*-dev.jar', '*-javadoc.jar'
+
+    // ★ 新增过滤：只保留带特定后缀的包，排除无后缀的包
+    exclude { it.name.endsWith('.jar') && !it.name.contains('-client') && !it.name.contains('-server') && !it.name.contains('-sources') }
 
     eachFile { f ->
         if (f.name.endsWith('.jar') && f.name.contains('+')) {

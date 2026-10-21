@@ -168,13 +168,24 @@ public class RuleConfig implements ReloadableConfig {
      */
     public void setBindingState(String key, String state) {
         RuleType type = RuleType.getRuleTypeByRegisterName(key);
+        String oldState = bindingStates.get(key);
+        boolean changed = false;
         if (type != null && type.getState().equals(state)) {
-            bindingStates.remove(key);
+            // 如果新状态等于默认值，且 map 里确实存在这个 key，则移除
+            if (bindingStates.containsKey(key)) {
+                bindingStates.remove(key);
+                changed = true;
+            }
         } else {
-            bindingStates.put(key, state);
+            if (!state.equals(oldState)) {
+                bindingStates.put(key, state);
+                changed = true;
+            }
         }
-        markDirty();
-        save();
+        if (changed) {
+            markDirty();
+            save();
+        }
     }
 
     public String getBindingState(String key) {

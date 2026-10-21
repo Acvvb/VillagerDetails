@@ -230,7 +230,7 @@ public class RuleCommand {
         }
 
         // 校验 + 写入：和收包端（客户端界面改规则）走同一个入口，两边不会一个拦一个放
-        RuleSwitches.Canonical result = RuleChangeService.change(rule, state);
+        RuleSwitches.Canonical result = RuleChangeService.change(rule, state, context.getSource());
         if (result instanceof RuleSwitches.Canonical.BadState(String raw)) {
             sendOrBroadcast(player, Component.translatable(RULE_ERROR_INVALID_STATE, raw));
             return 0;

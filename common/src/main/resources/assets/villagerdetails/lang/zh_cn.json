@@ -279,5 +279,12 @@
   "villagerdetails.ui.subcategory.toggles.villager": "村民",
   "villagerdetails.ui.title": "村民详情配置",
   "villagerdetails.ui.trigger.run": "触发",
-  "villagerdetails.ui.yes": "是"
+  "villagerdetails.ui.yes": "是",
+  "setting.happy_ghast_speed": "乐魂飞行速度",
+  "setting.happy_ghast_speed.desc": "玩家骑乘乐魂时的飞行速度（原版默认为0.05）。无人骑乘时自动恢复原版速度。",
+  "setting.global_speed_bypass": "全局移动提速防回弹",
+  "setting.global_speed_bypass.desc": "开启后，玩家自身移动或骑乘任何载具（包括模组载具）移动过快时，将绕过服务端因位移过大触发的回弹和警告日志。",
+  "rule.block.end_portal_gravity": "末地门重力方块",
+  "rule.block.end_portal_gravity.desc": "通过指令配置的方块，如果在末地传送门水平相邻且下方为空气，将获得类似沙子的重力掉落特性。",
+  "rule.category.fix":"修复"
 }

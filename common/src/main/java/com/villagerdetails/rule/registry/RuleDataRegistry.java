@@ -1,12 +1,9 @@
 package com.villagerdetails.rule.registry;
 
+import com.villagerdetails.config.ReloadableConfig;
 import com.villagerdetails.config.impl.section.base.IdSetConfig;
-import com.villagerdetails.config.impl.section.item.BlockCollectableConfig;
-import com.villagerdetails.config.impl.section.item.BlockExplosionResistanceConfig;
-import com.villagerdetails.config.impl.section.item.BlockMiningResistanceConfig;
-import com.villagerdetails.config.impl.section.item.BlockStrongPowerConfig;
-import com.villagerdetails.config.impl.section.item.MobNoSpawnConfig;
-import com.villagerdetails.config.impl.section.item.NoSqueezeConfig;
+import com.villagerdetails.config.impl.section.item.*;
+import com.villagerdetails.config.impl.server.NumberConfigServer;
 import com.villagerdetails.rule.type.RuleConfigKind;
 import com.villagerdetails.rule.type.RuleDataKind;
 import com.villagerdetails.rule.type.RuleType;
@@ -14,6 +11,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.Block;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -51,13 +49,6 @@ public final class RuleDataRegistry {
 
     /**
      * 纯名单（{@code Set<Identifier>} 形态）的写入：<b>值是真的要看的</b>。
-     *
-     * <p>以前是 {@code (id, _) -> cfg.add(id)} —— 把值丢掉、一律当 {@code true}。
-     * 界面上的「是 / 否」开关拨到「否」时发的就是 {@code false}，忽略值会让它反而把 id
-     * 加进名单，所以这里必须把 {@code false} 落成「从名单移除」。
-     *
-     * <p>集合里存不下显式的 {@code false}，所以「不在名单里」就是「值是 false」，
-     * 反过来「值是 false」也就是「不在名单里」—— 两边是同一件事。
      */
     private static Setter setFlag(IdSetConfig config) {
         return (id, value) -> {
@@ -91,70 +82,51 @@ public final class RuleDataRegistry {
         }
     }
 
-    private static final List<Entry> ENTRIES = List.of(
-            new Entry(RuleType.VILLAGER_NO_SQUEEZE, RuleDataKind.ENTITY_LIST,
-                    new DataStore(NoSqueezeConfig.INSTANCE::toSyncString,
-                            NoSqueezeConfig.INSTANCE::applyFromSyncString,
-                            setFlag(NoSqueezeConfig.INSTANCE),
-                            NoSqueezeConfig.INSTANCE::remove,
-                            NoSqueezeConfig.INSTANCE::reset),
-                    Block::defaultDestroyTime),
+    /**
+     * 动态从 RuleType 枚举中提取所有绑定的 ReloadableConfig，自动构建同步列表。
+     */
+    private static final List<Entry> ENTRIES = initEntries();
 
-            // 禁止生成：和「无挤压」完全同一种形态（实体类型 id 纯名单），只是语义反过来（名单里的不生成）
-            new Entry(RuleType.MOB_NO_SPAWN, RuleDataKind.ENTITY_LIST,
-                    new DataStore(MobNoSpawnConfig.INSTANCE::toSyncString,
-                            MobNoSpawnConfig.INSTANCE::applyFromSyncString,
-                            setFlag(MobNoSpawnConfig.INSTANCE),
-                            MobNoSpawnConfig.INSTANCE::remove,
-                            MobNoSpawnConfig.INSTANCE::reset),
-                    Block::defaultDestroyTime),
+    private static List<Entry> initEntries() {
+        List<Entry> entries = new ArrayList<>();
 
-            new Entry(RuleType.BLOCK_COLLECTABLE, RuleDataKind.BLOCK_LIST,
-                    new DataStore(BlockCollectableConfig.INSTANCE::toSyncString,
-                            BlockCollectableConfig.INSTANCE::applyFromSyncString,
-                            setFlag(BlockCollectableConfig.INSTANCE),
-                            BlockCollectableConfig.INSTANCE::remove,
-                            BlockCollectableConfig.INSTANCE::reset),
-                    Block::defaultDestroyTime),
+        for (RuleType rule : RuleType.values()) {
+            if (!rule.getConfigKind().needsSync()) continue;
+            ReloadableConfig config = rule.getReloadableConfig();
+            switch (config) {
+                case IdSetConfig setConfig -> {
+                    RuleDataKind kind = setConfig.configName().toLowerCase().contains("block")
+                            ? RuleDataKind.BLOCK_LIST : RuleDataKind.ENTITY_LIST;
+                    entries.add(new Entry(rule, kind,
+                            new DataStore(setConfig::toSyncString, setConfig::applyFromSyncString,
+                                    setFlag(setConfig), setConfig::remove, setConfig::reset),
+                            Block::defaultDestroyTime));
+                }
+                //数字类型
+                case NumberConfigServer numberConfigServer -> addFloatEntry(entries, rule, numberConfigServer, Block::defaultDestroyTime);
+                case null, default -> {
+                }
+            }
+        }
+        return entries;
+    }
 
-            // 方块强充能：和「可采集」完全同一种形态（方块 id 纯名单），所以也是同一套模板 / 同一套界面
-            new Entry(RuleType.BLOCK_STRONG_POWER, RuleDataKind.BLOCK_LIST,
-                    new DataStore(BlockStrongPowerConfig.INSTANCE::toSyncString,
-                            BlockStrongPowerConfig.INSTANCE::applyFromSyncString,
-                            setFlag(BlockStrongPowerConfig.INSTANCE),
-                            BlockStrongPowerConfig.INSTANCE::remove,
-                            BlockStrongPowerConfig.INSTANCE::reset),
-                    Block::defaultDestroyTime),
-
-            new Entry(RuleType.BLOCK_MINING_RESISTANCE, RuleDataKind.BLOCK_NUMBER,
-                    new DataStore(BlockMiningResistanceConfig.INSTANCE::toSyncString,
-                            BlockMiningResistanceConfig.INSTANCE::applyFromSyncString,
-                            (id, value) -> BlockMiningResistanceConfig.INSTANCE.put(id, Float.parseFloat(value)),
-                            BlockMiningResistanceConfig.INSTANCE::remove,
-                            BlockMiningResistanceConfig.INSTANCE::reset),
-                    Block::defaultDestroyTime),
-
-            new Entry(RuleType.BLOCK_EXPLOSION_RESISTANCE, RuleDataKind.BLOCK_NUMBER,
-                    new DataStore(BlockExplosionResistanceConfig.INSTANCE::toSyncString,
-                            BlockExplosionResistanceConfig.INSTANCE::applyFromSyncString,
-                            (id, value) -> BlockExplosionResistanceConfig.INSTANCE.put(id, Float.parseFloat(value)),
-                            BlockExplosionResistanceConfig.INSTANCE::remove,
-                            BlockExplosionResistanceConfig.INSTANCE::reset),
-                    Block::getExplosionResistance)
-    );
+    /**
+     * 统一处理数字（Float）类型配置的 Entry 构建
+     */
+    private static void addFloatEntry(List<Entry> entries, RuleType rule, NumberConfigServer config, ToDoubleFunction<Block> vanillaNumber) {
+        entries.add(new Entry(rule, RuleDataKind.BLOCK_NUMBER,
+                new DataStore(config::toSyncString, config::applyFromSyncString,
+                        (id, value) -> config.put(id, Float.parseFloat(value)),
+                        config::remove, config::reset),
+                vanillaNumber));
+    }
 
     private RuleDataRegistry() {
     }
 
     /**
      * 启动自检：{@link RuleConfigKind#needsSync()} 和 {@link #ENTRIES} 必须一一对应。
-     *
-     * <p>「哪条规则是逐条配置类」现在声明在两处（规则自己标 {@code RuleConfigKind.List}，
-     * 这里登记 {@code Entry}）。两边一旦不一致，症状是「客户端列表页空白」「规则开关不触发同步」
-     * 这种上线之后才发现的静默故障，所以这里直接把它变成启动即崩。
-     *
-     * <p>由主类 {@code onInitialize} 调一次（不放在 static 块里：类初始化是懒的，
-     * 会等到第一个玩家进服才跑，那就失去「启动即崩」的意义了）。
      */
     public static void verifyConsistency() {
         for (Entry entry : ENTRIES) {

@@ -13,6 +13,7 @@ public enum RuleCategoryType {
     MONSTER("monster", "rule.category.monster"),
     ANIMAL("animal", "rule.category.animal"),
     COMMAND("command", "rule.category.command"),
+    FIX("fix", "rule.category.fix")
     ;
 
 

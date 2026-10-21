@@ -3,6 +3,8 @@
   "package": "com.villagerdetails.mixin",
   "compatibilityLevel": "JAVA_25",
   "mixins": [
+    "fix.move.GlobalSpeedBypassMixin",
+    "entity.happyghast.HappyGhastSpeedMixin",
     "animal.SheepMixin",
     "block.collectable.CollectableMixin",
     "block.collectable.PlayerDestroyMixin",

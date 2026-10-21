@@ -8,6 +8,7 @@ import com.villagerdetails.network.sync.payload.serverbound.ServerRuleSetPayload
 import com.villagerdetails.rule.RuleChangeService;
 import com.villagerdetails.rule.RuleSwitches;
 import com.villagerdetails.rule.type.RuleType;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
@@ -57,10 +58,14 @@ public final class ServerRuleSetReceiver implements ServerReceiver<ServerRuleSet
             return;
         }
 
+        // ★ 核心修改：用发请求的玩家构造一个命令源，传给 RuleChangeService
+        CommandSourceStack source = player.createCommandSourceStack();
+
         // 和 /ec 命令同一套校验与写入（走 RuleChangeService，命令那边也是它）
         RuleSwitches.Canonical result = payload.reset()
-                ? RuleChangeService.reset(type)
-                : RuleChangeService.change(type, payload.state());
+                ? RuleChangeService.reset(type, source)
+                : RuleChangeService.change(type, payload.state(), source);
+
         if (result instanceof RuleSwitches.Canonical.BadState(String raw)) {
             player.sendSystemMessage(Component.translatable(RULE_ERROR_INVALID_STATE, raw));
             LOGGER.warn("玩家 {} 给规则 {} 传了非法状态：{}",

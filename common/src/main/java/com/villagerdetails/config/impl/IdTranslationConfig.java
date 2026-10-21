@@ -212,7 +212,7 @@ public final class IdTranslationConfig implements ReloadableConfig {
         }
 
         nameToId = reverse(cleaned.index());
-        log.info("已加载交易索引：{} 个 id / {} 个叫法", cleaned.index().size(), nameToId.size());
+        log.info("已加载交易索引：{} 个交易条目", nameToId.size());
     }
 
     /**

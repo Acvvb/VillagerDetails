@@ -3,15 +3,14 @@ package com.villagerdetails.config.impl;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.villagerdetails.config.ReloadableConfig;
-import com.villagerdetails.config.impl.section.item.*;
 import com.villagerdetails.config.impl.util.ConfigPaths;
 import com.villagerdetails.config.impl.util.JsonIO;
+import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Path;
-import java.util.List;
 
 public final class UnifiedConfigFile implements ReloadableConfig {
 
@@ -26,23 +25,6 @@ public final class UnifiedConfigFile implements ReloadableConfig {
     private static volatile MinecraftServer server;
     private static volatile boolean loaded;
     private static JsonObject root = new JsonObject();
-
-    /**
-     * 由统一文件驱动的所有子配置。
-     *
-     * <p>新增一个子配置，只需在这里加一行；不用改 {@code ConfigRegistry}。
-     * 它们的 {@code reload(server)} 会按顺序被调用，读的都是同一个内存 root。
-     */
-    private static final List<ReloadableConfig> CHILDREN = List.of(
-            ServerLangConfig.INSTANCE,
-            NoSqueezeConfig.INSTANCE,
-            MobNoSpawnConfig.INSTANCE,
-            BlockMiningResistanceConfig.INSTANCE,
-            BlockExplosionResistanceConfig.INSTANCE,
-            BlockCollectableConfig.INSTANCE,
-            BlockStrongPowerConfig.INSTANCE,
-            PortalBindingConfig.INSTANCE
-    );
 
     @Override
     public String configName() {
@@ -60,7 +42,7 @@ public final class UnifiedConfigFile implements ReloadableConfig {
     @Override
     public void reload(MinecraftServer server) {
         ensureLoaded(server);
-        for (ReloadableConfig child : CHILDREN) {
+        for (ReloadableConfig child : RuleType.getReloadableConfigs()) {
             try {
                 child.reload(server);
             } catch (Exception e) {

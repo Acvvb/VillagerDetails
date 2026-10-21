@@ -279,5 +279,12 @@
   "villagerdetails.ui.subcategory.toggles.villager": "Villager",
   "villagerdetails.ui.title": "VillagerDetails Config",
   "villagerdetails.ui.trigger.run": "Trigger",
-  "villagerdetails.ui.yes": "Yes"
+  "villagerdetails.ui.yes": "Yes",
+  "setting.happy_ghast_speed": "Happy Ghast Flight Speed",
+  "setting.happy_ghast_speed.desc": "The flying speed of a Happy Ghast when ridden by a player (vanilla default is 0.05). Reverts to vanilla speed when not ridden. Custom values are supported.",
+  "setting.global_speed_bypass": "Global Speed Bypass",
+  "setting.global_speed_bypass.desc": "When enabled, bypasses the server-side 'moved too quickly' rubber-banding and warning logs for both player movement and any vehicle movement.",
+  "rule.block.end_portal_gravity": "End Portal Gravity Block",
+  "rule.block.end_portal_gravity.desc": "Configured blocks will fall like sand if placed horizontally adjacent to an End Portal and there is air below.",
+  "rule.category.fix":"fix"
 }
