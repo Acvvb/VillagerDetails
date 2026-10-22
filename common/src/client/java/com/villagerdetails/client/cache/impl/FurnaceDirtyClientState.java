@@ -34,15 +34,24 @@ public final class FurnaceDirtyClientState implements ClientSessionState {
      */
     public record Snapshot(String dimension, Set<BlockPos> positions) {
 
+        /**
+         * 空快照（没有脏熔炉）。
+         *
+         * <p><b>必须放在这里，不能提到外层类去</b>：上面的 {@link #INSTANCE} 在类初始化时就会
+         * 构造实例、执行 {@code state = new ClientState<>(Snapshot.EMPTY)}；如果 EMPTY 是外层的
+         * 静态字段且声明在 INSTANCE 之后，那一刻它还只是 null（静态字段按声明顺序初始化），
+         * 于是缓存里装进一个 null，渲染器读出来直接 NPE。
+         * 放在 record 里，它的初始化走 Snapshot 自己的 {@code <clinit>}，与外层字段顺序无关。
+         */
+        public static final Snapshot EMPTY = new Snapshot("", Set.of());
+
         public boolean isEmpty() {
             return positions.isEmpty();
         }
     }
 
-    private static final Snapshot EMPTY = new Snapshot("", Set.of());
-
     // 泛型容器接管了 volatile 和线程安全的读写
-    private final ClientState<Snapshot> state = new ClientState<>(EMPTY);
+    private final ClientState<Snapshot> state = new ClientState<>(Snapshot.EMPTY);
 
     private FurnaceDirtyClientState() {
     }
@@ -73,7 +82,7 @@ public final class FurnaceDirtyClientState implements ClientSessionState {
      * 将来会话结束时若还要顺手做别的收尾，改那边不会连带影响这里的业务清除。
      */
     public void clear() {
-        state.clear(EMPTY);
+        state.clear(Snapshot.EMPTY);
     }
 
     /**

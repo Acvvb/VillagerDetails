@@ -5,8 +5,10 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.villagerdetails.VillagerDetails;
 import com.villagerdetails.config.impl.section.item.ServerLangConfig;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.contents.KeybindContents;
 import net.minecraft.network.chat.contents.PlainTextContents;
 import net.minecraft.network.chat.contents.TranslatableContents;
@@ -316,15 +318,15 @@ public final class ServerTranslations {
                         }
 
                         if (!seg.isEmpty()) {
-                            out.append(Component.literal(seg));
+                            // 每段都自带颜色码：§ 的颜色只在它所在的那段字面量里生效
+                            //（组件边界会断），所以不能指望「上一段结尾的 §x」把这一整段也染上
+                            out.append(Component.literal(pendingColor + seg));
                         }
 
                         Object a = args[argIdx++];
                         if (a instanceof Component c) {
-                            if (!pendingColor.isEmpty()) {
-                                out.append(Component.literal(pendingColor));
-                            }
-                            out.append(translateComponent(c, table));
+                            // 参数是组件时，颜色得直接贴到组件自己身上（见 colorize 的注释）
+                            out.append(colorize(translateComponent(c, table), pendingColor));
                         } else {
                             out.append(Component.literal(pendingColor + a));
                         }
@@ -334,7 +336,7 @@ public final class ServerTranslations {
                     if (from < tLen) {
                         String tail = template.substring(from);
                         if (tail.contains("%%")) tail = tail.replace("%%", "%");
-                        out.append(Component.literal(tail));
+                        out.append(Component.literal(pendingColor + tail));
                     }
                 }
             }
@@ -350,6 +352,27 @@ public final class ServerTranslations {
         }
 
         return out;
+    }
+
+    /**
+     * 把模板里的「旧式颜色码」（{@code §c}）贴成组件真正的 {@link Style} 颜色。
+     *
+     * <p>为什么不能像字符串参数那样「插一个 {@code §c} 字面量了事」：颜色码只对<b>同一段</b>
+     * 字面量生效，跨组件边界就断了 —— 而参数是 {@code block.minecraft.xxx} 这种
+     * 「服务端不翻译、交给客户端翻译」的 translatable 时，插进去的 {@code §c} 根本罩不住它，
+     * 客户端渲染出来就是白的。所以这里把颜色真正设到组件上，让它在客户端翻译后依然有色。
+     */
+    private static MutableComponent colorize(MutableComponent component, String legacyColor) {
+        if (legacyColor == null || legacyColor.length() < 2) {
+            return component;
+        }
+        ChatFormatting format = ChatFormatting.getByCode(legacyColor.charAt(1));
+        if (format == null) {
+            return component;
+        }
+        // 颜色码 → 真正的 Style 颜色；§l / §o 这类修饰码在这里会退化成「不设颜色」，
+        // 等于保持原样，不会出错（模板里目前只用颜色码）
+        return component.withStyle(Style.EMPTY.withColor(format));
     }
 
     // ==============================================================

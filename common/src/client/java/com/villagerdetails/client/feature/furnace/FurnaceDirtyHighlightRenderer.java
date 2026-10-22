@@ -2,7 +2,7 @@ package com.villagerdetails.client.feature.furnace;
 
 import com.villagerdetails.client.cache.impl.FurnaceDirtyClientState;
 import com.villagerdetails.client.feature.ClientFeature;
-import com.villagerdetails.client.feature.selection.HighlightBoxes;
+import com.villagerdetails.client.rander.HighlightBoxes;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.util.ColorUtil;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;

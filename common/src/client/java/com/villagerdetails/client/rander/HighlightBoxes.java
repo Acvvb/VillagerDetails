@@ -1,4 +1,4 @@
-package com.villagerdetails.client.feature.selection;
+package com.villagerdetails.client.rander;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.gizmos.Gizmos;
@@ -6,11 +6,14 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 高亮线框盒的公共画法（EB 高亮 / BB 高亮 / 传送门高亮共用）。
+ * 高亮线框盒的公共画法（EB 高亮 / BB 高亮 / 传送门高亮 / 床与工作站点的标记框共用）。
  *
  * <p>这里只管<b>几何和线</b>：颜色、线宽、区域外扩一律由调用方当参数传进来，
  * 各自从 {@link com.villagerdetails.client.setting.type.ConfigEntryType} 取自己的配置项，
  * 所以两边的样式仍然是各调各的，抽出来的只是重复的画法。
+ *
+ * <p>{@link #drawBlock} 就是 BB 选区里「选中单个方块」时那个小方框，
+ * 床 / 工作站点的标记框也用它，只是颜色和线宽走各自的配置项。
  *
  * <p>走原版 gizmo 系统绘制并 {@code setAlwaysOnTop()}，隔着方块也可见。
  */

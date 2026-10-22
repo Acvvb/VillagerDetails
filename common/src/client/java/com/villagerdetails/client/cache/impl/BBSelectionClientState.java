@@ -19,12 +19,7 @@ public final class BBSelectionClientState implements ClientSessionState {
      */
     public static final BBSelectionClientState INSTANCE = new BBSelectionClientState();
 
-    /**
-     * 空快照（两个角点都是 null）
-     */
-    public static final Snapshot EMPTY = new Snapshot(null, null);
-
-    private final ClientState<Snapshot> state = new ClientState<>(EMPTY);
+    private final ClientState<Snapshot> state = new ClientState<>(Snapshot.EMPTY);
 
     private BBSelectionClientState() {
     }
@@ -33,6 +28,17 @@ public final class BBSelectionClientState implements ClientSessionState {
      * 一次选区
      */
     public record Snapshot(BlockPos pos1, BlockPos pos2) {
+
+        /**
+         * 空快照（两个角点都是 null）。
+         *
+         * <p><b>必须放在这里，不能提到外层类去</b>：上面的 {@link #INSTANCE} 在类初始化时就会
+         * 构造实例、执行 {@code state = new ClientState<>(Snapshot.EMPTY)}；如果 EMPTY 是外层的
+         * 静态字段且声明在 INSTANCE 之后，那一刻它还只是 null（静态字段按声明顺序初始化），
+         * 于是缓存里装进一个 null，渲染器读出来直接 NPE。
+         * 放在 record 里，它的初始化走 Snapshot 自己的 {@code <clinit>}，与外层字段顺序无关。
+         */
+        public static final Snapshot EMPTY = new Snapshot(null, null);
 
         public boolean isEmpty() {
             return pos1 == null && pos2 == null;
@@ -52,6 +58,6 @@ public final class BBSelectionClientState implements ClientSessionState {
      */
     @Override
     public void clearSession() {
-        state.clear(EMPTY);
+        state.clear(Snapshot.EMPTY);
     }
 }

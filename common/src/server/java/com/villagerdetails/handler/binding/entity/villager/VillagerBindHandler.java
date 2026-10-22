@@ -181,7 +181,10 @@ public class VillagerBindHandler extends VillagerBindServer {
             if (sendMsg) {
                 SendMessengerUtils.sendOverlayOrBroadcast(operator,
                         Component.translatable("msg.villager.not_allow_block",
-                                state.getBlock().getName().getString(),
+                                // 方块名传 Component（原版的 block.minecraft.xxx 键），别提前 getString()：
+                                // getString() 会用**服务端**语言当场翻译成死字符串（服务端一般是英文），
+                                // 客户端再也翻不动；传 translatable 则保留结构，由客户端按自己的界面语言翻译。
+                                state.getBlock().getName(),
                                 Component.translatable(BindingType.BED.getI18nPrefix())
                         )
                 );
@@ -259,7 +262,9 @@ public class VillagerBindHandler extends VillagerBindServer {
         BlockState state = level.getBlockState(pos);
         Optional<Holder<PoiType>> poiHolder = PoiTypes.forState(state);
         if (poiHolder.isEmpty() || !isWorkPoiType(poiHolder.get())) {
-            String blockName = state.getBlock().getName().getString();
+            // 方块名保留成 Component（原版的 block.minecraft.xxx 键），由客户端自己翻译；
+            // 提前 getString() 会按服务端语言定死（服务端一般是英文），客户端就翻不动了
+            Component blockName = state.getBlock().getName();
             if (sendMsg) {
                 SendMessengerUtils.sendOverlayOrBroadcast(operator,
                         Component.translatable("msg.villager.not_allow_block", blockName,
@@ -267,7 +272,8 @@ public class VillagerBindHandler extends VillagerBindServer {
                         )
                 );
             }
-            log.debug("玩家点击的方块不是工作方块，方块名称: {}，位置: {}", blockName, pos);
+            // 日志只在服务端看，这里取一次字符串无所谓
+            log.debug("玩家点击的方块不是工作方块，方块名称: {}，位置: {}", blockName.getString(), pos);
             return Optional.empty();
         }
         return poiHolder;

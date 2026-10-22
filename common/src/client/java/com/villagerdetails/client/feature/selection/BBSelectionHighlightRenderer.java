@@ -2,6 +2,7 @@ package com.villagerdetails.client.feature.selection;
 
 import com.villagerdetails.client.cache.impl.BBSelectionClientState;
 import com.villagerdetails.client.feature.ClientFeature;
+import com.villagerdetails.client.rander.HighlightBoxes;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.util.ColorUtil;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;

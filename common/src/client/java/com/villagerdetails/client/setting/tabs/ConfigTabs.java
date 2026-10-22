@@ -8,12 +8,10 @@ import com.villagerdetails.client.setting.rule.ServerRuleHandler;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.type.FirstCategoryType;
 import com.villagerdetails.client.setting.type.SecondCategoryType;
-import com.villagerdetails.client.setting.type.style.StyleType;
 import com.villagerdetails.rule.descriptor.RuleDescriptor;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -95,20 +93,16 @@ public final class ConfigTabs {
     /**
      * 本机一级分类下的二级页签：遍历 {@code main.subCategories()}，每个二级分类产出一个页签。
      *
-     * <p>行列表优先取「动态页签」过滤结果（{@link #dynamicSubEntries}，如「全部 / 已启用 / 已禁用 / 触发」），
-     * 动态结果为 {@code null} 时才回退到静态归属 {@link SecondCategoryType#options()}。
-     * 两种来源最终都转成 {@link ConfigRow}，让配置界面只认一种行类型。
+     * <p>哪些配置项进哪一栏，全部交给 {@link SecondCategoryType#entriesOf}：
+     * 判断类型的页签（全部 / 开关 / 触发器 / 开启 / 关闭）按谓词现算，
+     * 其余按配置项自己声明的静态归属。这里不再写 {@code switch}、也不再判断「是不是动态页签」。
      *
      * @param main 一级分类（OPTIONS 或 TOGGLES）
      */
     private static List<UiTabsSource> clientTabs(FirstCategoryType main) {
         List<UiTabsSource> tabs = new ArrayList<>();
         for (SecondCategoryType sub : main.subCategories()) {
-            List<ConfigEntryType> entries = dynamicSubEntries(main, sub);
-            if (entries == null) {
-                // 不是动态页签，走枚举上声明的静态归属
-                entries = sub.options();
-            }
+            List<ConfigEntryType> entries = sub.entriesOf(main);
             if (entries.isEmpty()) {
                 continue;   // 这个二级分类下没东西，不出空页签
             }
@@ -119,46 +113,6 @@ public final class ConfigTabs {
             tabs.add(new UiTabsSource(sub.name(), sub.getDisplayName(), () -> rows));
         }
         return tabs;
-    }
-
-    /**
-     * 「功能开关」下的四个动态页签：归属不写死在配置项上，按一级分类 + 样式 / 当前状态过滤。
-     *
-     * <p>返回 {@code null} 表示这不是动态页签，走 {@link SecondCategoryType#options()} 的静态归属。
-     *
-     * <p>四个动态页签：
-     * <ul>
-     *     <li>{@code TOGGLE_ALL} —— 当前一级分类下的所有配置项，不筛样式；</li>
-     *     <li>{@code TOGGLE_ENABLED} —— 只看 {@link StyleType#TOGGLE} 样式且当前为开；</li>
-     *     <li>{@code TOGGLE_DISABLED} —— 只看 {@link StyleType#TOGGLE} 样式且当前为关；</li>
-     *     <li>{@code TOGGLE_TRIGGER} —— 只看 {@link StyleType#TRIGGER} 样式（一次性触发按钮）。</li>
-     * </ul>
-     *
-     * @param main 一级分类
-     * @param sub  二级分类
-     * @return 过滤后的配置项列表；非动态页签返回 {@code null}
-     */
-    private static List<ConfigEntryType> dynamicSubEntries(FirstCategoryType main, SecondCategoryType sub) {
-        return switch (sub) {
-            case TOGGLE_ALL -> Arrays.stream(ConfigEntryType.values())
-                    .filter(entry -> entry.getMainCategories().contains(main))
-                    .toList();
-            case TOGGLE_ENABLED -> Arrays.stream(ConfigEntryType.values())
-                    .filter(entry -> entry.getMainCategories().contains(main))
-                    .filter(entry -> entry.getStyle() == StyleType.TOGGLE)
-                    .filter(ConfigEntryType::getToggle)
-                    .toList();
-            case TOGGLE_DISABLED -> Arrays.stream(ConfigEntryType.values())
-                    .filter(entry -> entry.getMainCategories().contains(main))
-                    .filter(entry -> entry.getStyle() == StyleType.TOGGLE)
-                    .filter(entry -> !entry.getToggle())
-                    .toList();
-            case TOGGLE_TRIGGER -> Arrays.stream(ConfigEntryType.values())
-                    .filter(entry -> entry.getMainCategories().contains(main))
-                    .filter(entry -> entry.getStyle() == StyleType.TRIGGER)
-                    .toList();
-            default -> null;
-        };
     }
 
     /**

@@ -124,6 +124,27 @@ public enum ConfigEntryType implements ConfigRow {
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#FF4D4D", "",
             BindingServer.color()),
 
+    /**
+     * 「村民 → 工作站点」连线的颜色
+     */
+    WORKSTATION_LINE_COLOR("WorkstationLineColor",
+            "villagerdetails.ui.option.workstation_line_color",
+            "villagerdetails.ui.option.workstation_line_color.desc",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#FFAA00", "",
+            BindingServer.color()),
+
+    /**
+     * 被绑定方块（床 / 工作站点）上那个单方块高亮框的颜色。
+     *
+     * <p>刻意独立于连线颜色：连线表达「谁连着谁」，这个框只是把方块本身标出来，
+     * 和 BB 选区里选中单个方块时的那个小方框是同一种画法。
+     */
+    BOUND_BLOCK_BOX_COLOR("BoundBlockBoxColor",
+            "villagerdetails.ui.option.bound_block_box_color",
+            "villagerdetails.ui.option.bound_block_box_color.desc",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#FFFFFF", "",
+            BindingServer.color()),
+
     // ---------------- 配置项 / 滑块 ----------------
 
     /**
@@ -187,6 +208,18 @@ public enum ConfigEntryType implements ConfigRow {
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "2.0", "",
             BindingServer.slider(1.0D, 10.0D, 0.5D)),
 
+    /**
+     * 被绑定方块（床 / 工作站点）高亮框的线宽。
+     *
+     * <p>和 {@link #LINE_WIDTH}（连线粗细）分开：框是「标出方块」，通常要比线细一点，
+     * 不然一眼看过去全是框。
+     */
+    BOUND_BLOCK_BOX_LINE_WIDTH("BoundBlockBoxLineWidth",
+            "villagerdetails.ui.option.bound_block_box_line_width",
+            "villagerdetails.ui.option.bound_block_box_line_width.desc",
+            List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "1.5", "",
+            BindingServer.slider(1.0D, 10.0D, 0.5D)),
+
     // ---------------- 配置项 / 列表 ----------------
 
     /**
@@ -204,7 +237,16 @@ public enum ConfigEntryType implements ConfigRow {
      */
     RENDER_BED_LINE("RenderBedLine",
             "villagerdetails.ui.option.render_bed_line", "villagerdetails.ui.option.render_bed_line.desc",
-            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER), "false", "",
+            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER,SecondCategoryType.TOGGLE_SWITCH), "false", "",
+            BindingServer.toggle()),
+
+    /**
+     * 是否渲染「村民 → 工作站点」的连线
+     */
+    RENDER_WORKSTATION_LINE("RenderWorkstationLine",
+            "villagerdetails.ui.option.render_workstation_line",
+            "villagerdetails.ui.option.render_workstation_line.desc",
+            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER,SecondCategoryType.TOGGLE_SWITCH), "false", "",
             BindingServer.toggle()),
 
     /**
@@ -213,7 +255,7 @@ public enum ConfigEntryType implements ConfigRow {
     RENDER_SELECTION_HIGHLIGHT("RenderSelectionHighlight",
             "villagerdetails.ui.option.render_selection_highlight",
             "villagerdetails.ui.option.render_selection_highlight.desc",
-            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER), "true", "",
+            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER,SecondCategoryType.TOGGLE_SWITCH), "false", "",
             BindingServer.toggle()),
 
     /**
@@ -222,7 +264,7 @@ public enum ConfigEntryType implements ConfigRow {
     RENDER_BB_HIGHLIGHT("RenderBBHighlight",
             "villagerdetails.ui.option.render_bb_highlight",
             "villagerdetails.ui.option.render_bb_highlight.desc",
-            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER), "true", "",
+            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER,SecondCategoryType.TOGGLE_SWITCH), "false", "",
             BindingServer.toggle()),
 
     /**
@@ -234,7 +276,7 @@ public enum ConfigEntryType implements ConfigRow {
     RENDER_FURNACE_DIRTY("RenderFurnaceDirty",
             "villagerdetails.ui.option.render_furnace_dirty",
             "villagerdetails.ui.option.render_furnace_dirty.desc",
-            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_ALL), "true", "",
+            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_ALL,SecondCategoryType.TOGGLE_SWITCH), "false", "",
             BindingServer.toggle()),
 
     // ---------------- 功能触发 / 选区 ----------------
