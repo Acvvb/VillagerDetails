@@ -1,14 +1,14 @@
 package com.villagerdetails.client.setting.screen;
 
-import com.villagerdetails.client.network.sync.ClientRequests;
+import com.villagerdetails.client.network.requests.ClientRequests;
 import com.villagerdetails.client.setting.component.*;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
 import com.villagerdetails.client.setting.config.ui.ComponentLayout;
 import com.villagerdetails.client.setting.dto.EntryListSource;
 import com.villagerdetails.client.setting.dto.UiTabsSource;
-import com.villagerdetails.client.setting.network.ServerRuleClientState;
 import com.villagerdetails.client.setting.row.ConfigRow;
 import com.villagerdetails.client.setting.row.ServerRuleDataRow;
+import com.villagerdetails.client.setting.rule.ServerRuleHandler;
 import com.villagerdetails.client.setting.tabs.ConfigTabs;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.type.FirstCategoryType;
@@ -52,12 +52,26 @@ import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
  */
 public class BaseConfigScreen extends Screen {
 
+    /**
+     * 按「完成」后返回的那一页
+     */
     private final Screen parent;
 
+    /**
+     * 当前选中的一级分类（配置项 / 功能开关 / 服务器 / 服务端配置）
+     */
     private FirstCategoryType selectedMain = FirstCategoryType.OPTIONS;
+
+    /**
+     * 当前选中的二级分类 id；{@code null} 表示「取列表第一个」
+     */
     private String selectedTabId;
 
+    /**
+     * 当前一级分类下的二级分类列表（每次重建时由 {@link ConfigTabs#build} 重新算）
+     */
     private List<UiTabsSource> tabs = List.of();
+
     /**
      * 本次重建实际显示的行（已按搜索词过滤）
      */
@@ -73,11 +87,29 @@ public class BaseConfigScreen extends Screen {
      */
     private final List<KeyBindButton> keyBindButtons = new ArrayList<>();
 
+    /**
+     * 全局搜索框实例（重建时复用，保证输入内容与光标不丢）
+     */
     private EditBox searchBox;
+
+    /**
+     * 当前搜索词（{@link EditBox#setResponder} 里更新，{@link #filterRows} 里用）
+     */
     private String searchQuery = "";
+
+    /**
+     * 搜索词变化后等下一帧重建界面（避免每敲一个字就重建一次）
+     */
     private boolean pendingRebuild;
+
+    /**
+     * 重建后要不要把焦点还给搜索框（玩家正在打字时重建，光标不能丢）
+     */
     private boolean restoreSearchFocus;
 
+    /**
+     * 上次见到的服务端规则版本号；变了就重建一次界面
+     */
     private int syncVersion;
 
     /**
@@ -112,23 +144,32 @@ public class BaseConfigScreen extends Screen {
      */
     private List<FirstCategoryType> visibleMains = List.of();
 
+    /**
+     * 重建后要接管的焦点（搜索框 / 数值输入框 / 直接点开新增行时用）
+     */
     private AbstractWidget focusAfterInit;
 
+    /**
+     * @param parent 按「完成」后返回的那一页
+     */
     public BaseConfigScreen(Screen parent) {
         super(Component.translatable("villagerdetails.ui.title"));
         this.parent = parent;
-        this.syncVersion = ServerRuleClientState.getVersion();
+        this.syncVersion = ServerRuleHandler.INSTANCE.getVersion();
         restoreSelection();
 
         // 打开界面时跟服务器打个招呼：要一份最新的全量描述符
         // （顺带把当前界面语言报上去，服务端据此翻译描述符里的文字；服务器没装本 mod 时内部会直接忽略）
-        ClientRequests.sendHello();
+        ClientRequests.INSTANCE.sendHello();
     }
 
     // ==============================================================
     // 上次停留的位置
     // ==============================================================
 
+    /**
+     * 从本机配置里恢复上次选中的一级 / 二级分类（一级分类不可见时退回第一个可见项）
+     */
     private void restoreSelection() {
         ClientRenderConfig config = ClientRenderConfig.get();
 
@@ -139,6 +180,9 @@ public class BaseConfigScreen extends Screen {
         this.selectedTabId = config.getLastSubCategory();
     }
 
+    /**
+     * 把当前选中的一级 / 二级分类写进本机配置并落盘（关界面 / 切分类时调）
+     */
     private void rememberSelection() {
         ClientRenderConfig config = ClientRenderConfig.get();
         config.setLastCategory(selectedMain.name());
@@ -164,6 +208,9 @@ public class BaseConfigScreen extends Screen {
     // 分类 / 行
     // ==============================================================
 
+    /**
+     * 当前选中的二级分类；{@link #selectedTabId} 对不上时退回列表第一个（列表空则返回 null）
+     */
     private UiTabsSource currentTab() {
         if (tabs.isEmpty()) {
             return null;
@@ -200,14 +247,23 @@ public class BaseConfigScreen extends Screen {
     // 布局计算
     // ==============================================================
 
+    /**
+     * 内容区左边界（侧栏右侧 + 间隔）
+     */
     private int contentX() {
         return SIDEBAR_X + SIDEBAR_WIDTH + CONTENT_GAP;
     }
 
+    /**
+     * 内容区右边界（窗口右边缘留 MARGIN）
+     */
     private int contentRight() {
         return this.width - MARGIN;
     }
 
+    /**
+     * 一行内容的原始宽度
+     */
     private int rowWidth() {
         return Math.max(0, contentRight() - contentX());
     }
@@ -233,11 +289,16 @@ public class BaseConfigScreen extends Screen {
         return coloredValueX() - WIDGET_GAP - GEAR_SIZE;
     }
 
-
+    /**
+     * 「重置」按钮的 x
+     */
     private int resetX() {
         return rowsRight() - RESET_WIDTH;
     }
 
+    /**
+     * 快捷键绑定框的 x
+     */
     private int keyBindX() {
         return resetX() - WIDGET_GAP - KEYBIND_WIDTH;
     }
@@ -249,13 +310,16 @@ public class BaseConfigScreen extends Screen {
         return resetX() - WIDGET_GAP - SWITCH_WIDTH;
     }
 
+    /**
+     * 搜索框的 y：贴在侧栏顶部
+     */
     private int searchY() {
         // 搜索框放在左侧一级分类栏的最上面（在「配置项」上面），尺寸和一级分类按钮一致
         return SIDEBAR_TOP;
     }
 
     /**
-     * 一级分类按钮从搜索框下面开始排
+     * 第 index 个一级分类按钮的 y（从搜索框下面一格开始排）
      */
     private int sidebarEntryY(int index) {
         return SIDEBAR_TOP + SIDEBAR_ENTRY_HEIGHT + index * SIDEBAR_ENTRY_HEIGHT;
@@ -279,6 +343,9 @@ public class BaseConfigScreen extends Screen {
         return Math.max(SUBTAB_MIN_WIDTH, usable / SUBTAB_MAX_VISIBLE);
     }
 
+    /**
+     * 第 visibleIndex 个可见的二级分类按钮的 x（不随 {@link #subTabScroll} 变，只是窗口内的位置）
+     */
     private int subTabX(int visibleIndex) {
         return contentX() + visibleIndex * (subTabWidth() + SUBTAB_GAP);
     }
@@ -362,6 +429,12 @@ public class BaseConfigScreen extends Screen {
     // 控件
     // ==============================================================
 
+    /**
+     * 界面初始化 / 重建：先摆几何，再造左侧分类 / 二级分类 / 搜索框 / 内容行 / 页脚控件。
+     *
+     * <p>注意行控件用 {@code addWidget} 而不是 {@code addRenderableWidget}：
+     * 它们只进 children，由 {@link RowListPage#drawRows} 统一画在画布里（有裁剪）。
+     */
     @Override
     protected void init() {
         keyBindButtons.clear();
@@ -559,19 +632,7 @@ public class BaseConfigScreen extends Screen {
         for (AbstractWidget widget : switches) {
             out.add(RowListPage.at(addWidget(widget)));
         }
-
-        if (row instanceof ConfigEntryType entry && row.hasKeyBind()) {
-            // 绑完（或按 ESC 清空）立刻落盘，别等到关界面才存
-            KeyBindButton bindButton = KeyBindButton.create(keyBindX(), y, KEYBIND_WIDTH, WIDGET_HEIGHT,
-                    entry, keys -> {
-                        row.setKeyBind(keys);
-                        row.save();
-                    });
-            keyBindButtons.add(bindButton);
-            out.add(RowListPage.at(addWidget(bindButton)));
-        }
-
-        out.add(RowListPage.at(addWidget(createResetButton(row, y))));
+        addKeyBindAndReset(row, y, out);
     }
 
     /**
@@ -589,8 +650,18 @@ public class BaseConfigScreen extends Screen {
                         _ -> row.getAction().run())
                 .bounds(triggerX, y, SWITCH_WIDTH, WIDGET_HEIGHT)
                 .build())));
+        addKeyBindAndReset(row, y, out);
+    }
 
+    /**
+     * toggle / trigger 两种行共用的尾部：快捷键绑定框（仅 {@code ConfigEntryType} 且有 keybind 时）
+     * + 重置按钮。
+     *
+     * <p>快捷键绑完 / 按 ESC 清空后立刻落盘，别等关界面才存。
+     */
+    private void addKeyBindAndReset(ConfigRow row, int y, List<RowListPage.Widget> out) {
         if (row instanceof ConfigEntryType entry && row.hasKeyBind()) {
+            // 绑完（或按 ESC 清空）立刻落盘，别等到关界面才存
             KeyBindButton bindButton = KeyBindButton.create(keyBindX(), y, KEYBIND_WIDTH, WIDGET_HEIGHT,
                     entry, keys -> {
                         row.setKeyBind(keys);
@@ -599,7 +670,6 @@ public class BaseConfigScreen extends Screen {
             keyBindButtons.add(bindButton);
             out.add(RowListPage.at(addWidget(bindButton)));
         }
-
         out.add(RowListPage.at(addWidget(createResetButton(row, y))));
     }
 
@@ -738,6 +808,9 @@ public class BaseConfigScreen extends Screen {
     // 输入 / 生命周期
     // ==============================================================
 
+    /**
+     * 初始焦点：优先交给 {@link #focusAfterInit}（数值输入框 / 搜索框），没有就走原版逻辑
+     */
     @Override
     protected void setInitialFocus() {
         if (focusAfterInit != null) {
@@ -749,11 +822,14 @@ public class BaseConfigScreen extends Screen {
         super.setInitialFocus();
     }
 
+    /**
+     * 每 tick：搜索词变了或服务端规则版本号变了就重建一次界面（焦点丢了的搜索框重建后接回来）
+     */
     @Override
     public void tick() {
         // 滚动动画在 extractRenderState 里按帧推进（tick 只有 20Hz，放这儿会卡）
         // 搜索词变化 / 服务端规则状态更新 → 重建一次界面
-        int version = ServerRuleClientState.getVersion();
+        int version = ServerRuleHandler.INSTANCE.getVersion();
         if (pendingRebuild || version != syncVersion) {
             pendingRebuild = false;
             syncVersion = version;
@@ -764,6 +840,9 @@ public class BaseConfigScreen extends Screen {
         }
     }
 
+    /**
+     * 按键：正在监听快捷键时先交给它（含 ESC：取消监听且不关闭界面），否则交给原版
+     */
     @Override
     public boolean keyPressed(@NonNull KeyEvent event) {
         // 正在监听快捷键时，先把按键交给它（含 ESC：取消监听且不关闭界面）
@@ -775,6 +854,9 @@ public class BaseConfigScreen extends Screen {
         return super.keyPressed(event);
     }
 
+    /**
+     * 松键：组合键要等所有键都松开才算绑定完成
+     */
     @Override
     public boolean keyReleased(@NonNull KeyEvent event) {
         // 组合键要等所有键都松开才算绑定完成
@@ -786,6 +868,9 @@ public class BaseConfigScreen extends Screen {
         return super.keyReleased(event);
     }
 
+    /**
+     * 点击：快捷键监听中左键点空白处 = 退出监听（和 ESC 一致），否则交给原版
+     */
     @Override
     public boolean mouseClicked(@NonNull MouseButtonEvent event, boolean doubleClick) {
         // 监听中左键点空白处 = 和 ESC 一样退出监听
@@ -798,6 +883,9 @@ public class BaseConfigScreen extends Screen {
         return super.mouseClicked(event, doubleClick);
     }
 
+    /**
+     * 滚轮：鼠标在二级分类那一行上时翻分类；在内容区时平滑滚动配置项；否则交给原版
+     */
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         // 鼠标在二级分类那一行上时，滚轮翻分类
@@ -815,6 +903,9 @@ public class BaseConfigScreen extends Screen {
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
+    /**
+     * 关闭界面：先把当前分类记进配置，再回上一页
+     */
     @Override
     public void onClose() {
         rememberSelection();
@@ -825,12 +916,18 @@ public class BaseConfigScreen extends Screen {
     // 绘制
     // ==============================================================
 
+    /**
+     * 背景之上再补一条顶 / 底分隔线
+     */
     @Override
     public void extractBackground(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         super.extractBackground(graphics, mouseX, mouseY, partialTick);
         ScreenDecorations.drawSeparators(graphics, this.width, this.height);
     }
 
+    /**
+     * 渲染一帧：先按这一帧的进度摆行（平滑滚动），再画左右面板 / 标题 / 分割线 / 行 / 其它控件
+     */
     @Override
     public void extractRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float frameTicks) {
         // 先按这一帧的进度把行摆好，再画面板和控件（这样滚动是逐帧平滑的）
@@ -865,7 +962,6 @@ public class BaseConfigScreen extends Screen {
     }
 
     /**
-     * 要不要在面板下面再补一条收尾的分割线。
      *
      * <p>一页放满了（项数 ≥ 一页行数，例如 ≥ 8 条）列表就一直延伸到面板底边，
      * 需要像上面那条一样在末尾收个口；项少的时候面板本来就贴着最后一行结束，不用再加。

@@ -23,16 +23,49 @@ import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
  */
 public class OptionDetailScreen extends Screen {
 
+    /**
+     * 关闭后返回的那一页
+     */
     private final Screen parent;
+
+    /**
+     * 正在编辑的颜色配置项
+     */
     private final ConfigEntryType entry;
 
+    /**
+     * 内容区左边界（init 时算好，后续所有控件都按它摆）
+     */
     private int contentX;
+
+    /**
+     * 内容区宽度（窗口窄了会缩）
+     */
     private int contentWidth;
 
+    /**
+     * 可输入的色值框（{@code #RRGGBB}），和三条滑条双向联动
+     */
     private EditBox hexBox;
+
+    /**
+     * 本页的「重置」按钮
+     */
     private ResetButton resetButton;
+
+    /**
+     * 红通道滑条（0-255）
+     */
     private ValueSlider redSlider;
+
+    /**
+     * 绿通道滑条（0-255）
+     */
     private ValueSlider greenSlider;
+
+    /**
+     * 蓝通道滑条（0-255）
+     */
     private ValueSlider blueSlider;
 
     /**
@@ -40,12 +73,19 @@ public class OptionDetailScreen extends Screen {
      */
     private boolean syncing;
 
+    /**
+     * @param parent 关闭后返回的那一页
+     * @param entry  正在编辑的颜色配置项
+     */
     public OptionDetailScreen(Screen parent, ConfigEntryType entry) {
         super(Component.literal("[ ").append(entry.getDisplayName()).append(" ]"));
         this.parent = parent;
         this.entry = entry;
     }
 
+    /**
+     * 初始化：三条通道滑条、预览色块、色值框、重置按钮、完成按钮
+     */
     @Override
     protected void init() {
         this.contentWidth = Math.min(DETAIL_CONTENT_MAX_WIDTH, this.width - DETAIL_CONTENT_SIDE_MARGIN * 2);
@@ -80,6 +120,13 @@ public class OptionDetailScreen extends Screen {
                 .build());
     }
 
+    /**
+     * 造一条通道滑条（0-255，步进 1，格式化成「红：N」这种）
+     *
+     * @param y       纵坐标
+     * @param channel 通道名（"red" / "green" / "blue"）
+     * @param shift   通道在 ARGB 里的位移（红 = 16，绿 = 8，蓝 = 0）
+     */
     private ValueSlider channelSlider(int y, String channel, int shift) {
         int current = (entry.getColor() >> shift) & 0xFF;
         DoubleFunction<Component> formatter = value -> Component.translatable(
@@ -146,6 +193,9 @@ public class OptionDetailScreen extends Screen {
         }
     }
 
+    /**
+     * 刷新重置按钮的灰 / 亮状态
+     */
     private void refreshResetButton() {
         if (resetButton != null) {
             resetButton.refreshState();
@@ -160,18 +210,27 @@ public class OptionDetailScreen extends Screen {
         entry.setColor(cleared | ((channelValue & 0xFF) << shift));
     }
 
+    /**
+     * 关闭：颜色改动已经每次即时落盘，这里只负责回上一页
+     */
     @Override
     public void onClose() {
         ClientRenderConfig.get().save();
         this.minecraft.gui.setScreen(this.parent);
     }
 
+    /**
+     * 背景之上再补一条顶 / 底分隔线
+     */
     @Override
     public void extractBackground(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         super.extractBackground(graphics, mouseX, mouseY, partialTick);
         ScreenDecorations.drawSeparators(graphics, this.width, this.height);
     }
 
+    /**
+     * 渲染一帧：标题 + 说明 + 交给组件的滑条 / 色块 / 色值框 / 按钮
+     */
     @Override
     public void extractRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         ScreenDecorations.drawTitle(graphics, this, this.title);

@@ -1,6 +1,6 @@
-package com.villagerdetails.client.network.sync;
+package com.villagerdetails.client.network.sync.event;
 
-import com.villagerdetails.client.feature.villagerbed.VillagerBedHelper;
+import com.villagerdetails.client.cache.impl.VillagerBedClientState;
 import com.villagerdetails.client.network.channel.ClientReceiver;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.sync.payload.clientbound.VillagerBedPayload;
@@ -27,7 +27,7 @@ public final class VillagerBedClientChannel implements ClientReceiver<VillagerBe
 
     @Override
     public void handleClient(Minecraft client, VillagerBedPayload payload) {
-        VillagerBedHelper.updateBedPosition(
+        VillagerBedClientState.INSTANCE.updateBedPosition(
                 payload.data().villagerId(),
                 payload.data().bedPos().orElse(null));
     }
@@ -39,7 +39,7 @@ public final class VillagerBedClientChannel implements ClientReceiver<VillagerBe
         // （断线整体清空在 ClientSessionStates 里统一接线，这里不再各注册一份）
         ClientEntityEvents.ENTITY_UNLOAD.register((entity, _) -> {
             if (entity instanceof Villager villager) {
-                VillagerBedHelper.removeBedPosition(villager.getId());
+                VillagerBedClientState.INSTANCE.removeBedPosition(villager.getId());
             }
         });
     }

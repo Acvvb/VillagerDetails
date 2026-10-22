@@ -1,6 +1,6 @@
 package com.villagerdetails.client.network.sync;
 
-import com.villagerdetails.client.cache.BBSelectionClientState;
+import com.villagerdetails.client.cache.impl.BBSelectionClientState;
 import com.villagerdetails.client.network.channel.ClientReceiver;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.sync.payload.clientbound.BBSyncPayload;
@@ -26,6 +26,6 @@ public final class BBSyncClientChannel implements ClientReceiver<BBSyncPayload> 
 
     @Override
     public void handleClient(Minecraft client, BBSyncPayload payload) {
-        BBSelectionClientState.set(payload.pos1(), payload.pos2());
+        BBSelectionClientState.INSTANCE.set(payload.pos1(), payload.pos2());
     }
 }

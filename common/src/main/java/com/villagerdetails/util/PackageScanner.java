@@ -21,8 +21,11 @@ import java.util.stream.Stream;
 /**
  * 极简「扫包」工具：把一个 Java 包下面的类全找出来。
  *
- * <p>只找<b>这个包本身</b>的类，子包里的不算；内部类 / 匿名类 / {@code package-info} /
- * {@code module-info} 一律跳过（它们不是注册单元）。
+ * <p><b>会连子包一起扫</b>（{@code Files.walk} 递归）：扫 {@code a.b} 就能拿到 {@code a.b.c} 里的类 ——
+ * 客户端那几个注册中心都靠这一点省一次配置（{@code sync.event}、{@code feature.*}、{@code cache.impl}）。
+ * 反过来，往被扫的包里随手丢一个「碰巧实现了同一个接口」的类，它也会被注册，改包结构前先看这里。
+ *
+ * <p>内部类 / 匿名类 / {@code package-info} / {@code module-info} 一律跳过（它们不是注册单元）。
  *
  * <p>三路兜底，开发和打包后都能扫到，结果按类名去重：
  * <ol>
@@ -33,7 +36,8 @@ import java.util.stream.Stream;
  * </ol>
  *
  * <p>扫不到的类只记日志跳过、不抛异常；但注意<b>一个类都扫不到就等于什么都没注册</b>，
- * 所以调用方要自己盯着返回结果，别默默空转。
+ * 所以调用方要自己盯着返回结果（{@code ChannelScanner.checkNotEmpty} 就是干这个的），
+ * 别默默空转。
  */
 public final class PackageScanner {
 

@@ -1,5 +1,7 @@
 package com.villagerdetails.client.feature.villagerbed;
 
+import com.villagerdetails.client.cache.impl.VillagerBedClientState;
+import com.villagerdetails.client.feature.ClientFeature;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
@@ -25,7 +27,7 @@ import static com.villagerdetails.client.setting.util.ColorUtil.toArgb;
  *
  * <p>是否渲染、线宽、颜色、告警距离都由 {@link ConfigEntryType}（游戏内 UI 可改）决定。
  */
-public final class VillagerBedLineRenderer {
+public final class VillagerBedLineRenderer implements ClientFeature {
 
     private static final Logger log = LogManager.getLogger(VillagerBedLineRenderer.class);
 
@@ -42,7 +44,7 @@ public final class VillagerBedLineRenderer {
     private VillagerBedLineRenderer() {
     }
 
-    public static void register() {
+    public void register() {
         // BEFORE_GIZMOS 在原版 LevelRenderer.finalizeGizmoCollection() 之前触发，
         // 此时 Gizmos 的线程本地收集器正处于本次渲染的作用域内：
         // 这里塞进去的线会被立刻收集，并随原版调试线一起提交渲染。
@@ -78,7 +80,7 @@ public final class VillagerBedLineRenderer {
                 }
 
                 // 服务端同步过来的床坐标；联机时来自缓存，缓存没有时回退到客户端大脑记忆
-                Optional<BlockPos> bedPosOpt = VillagerBedHelper.getBedPosition(villager);
+                Optional<BlockPos> bedPosOpt = VillagerBedClientState.INSTANCE.getBedPosition(villager);
                 if (bedPosOpt.isEmpty()) {
                     continue;
                 }

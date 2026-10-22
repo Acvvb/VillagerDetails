@@ -176,7 +176,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         if (skipped > 0) {
             LOGGER.warn("[{}] 有 {} 条记录读不懂，已跳过；落盘后文件里只剩能用的", SECTION, skipped);
         }
-        LOGGER.info("[{}] 已加载 {} 条传送门绑定", SECTION, bindings.size());
+        LOGGER.info("[{}] 已加载 {} 项", SECTION, bindings.size());
     }
 
     private void save() {

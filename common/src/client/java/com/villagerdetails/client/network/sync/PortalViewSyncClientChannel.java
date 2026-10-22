@@ -1,6 +1,6 @@
 package com.villagerdetails.client.network.sync;
 
-import com.villagerdetails.client.cache.PortalViewClientState;
+import com.villagerdetails.client.cache.impl.PortalViewClientState;
 import com.villagerdetails.client.network.channel.ClientReceiver;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.sync.payload.clientbound.PortalViewSyncPayload;
@@ -28,9 +28,9 @@ public final class PortalViewSyncClientChannel implements ClientReceiver<PortalV
     public void handleClient(Minecraft client, PortalViewSyncPayload payload) {
         if (payload.dimension() == null) {
             // 空包 = 服务端要清空高亮：两个维度一起清，不能只清玩家当前所在的那个
-            PortalViewClientState.clearAll();
+            PortalViewClientState.INSTANCE.clear();
         } else {
-            PortalViewClientState.set(payload.dimension(), payload.min(), payload.max());
+            PortalViewClientState.INSTANCE.set(payload.dimension(), payload.min(), payload.max());
         }
     }
 }

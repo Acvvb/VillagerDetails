@@ -1,6 +1,6 @@
 package com.villagerdetails.client.setting.type;
 
-import com.villagerdetails.client.network.sync.ClientRequests;
+import com.villagerdetails.client.network.requests.ClientRequests;
 import com.villagerdetails.client.setting.config.ClientRenderConfig;
 import com.villagerdetails.client.setting.row.ConfigRow;
 import com.villagerdetails.client.setting.row.ListPreview;
@@ -40,38 +40,59 @@ public enum ConfigEntryType implements ConfigRow {
 
     // ---------------- 配置项 / 颜色 ----------------
 
+    /**
+     * 村民「近处」状态的颜色（距离玩家近时用的那档）
+     */
     NEAR_COLOR("NearColor",
             "villagerdetails.ui.option.near_color", "villagerdetails.ui.option.near_color.desc",
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#54E36B", "",
             BindingServer.color()),
 
+    /**
+     * 村民「远处」状态的颜色（超出近处距离后用的那档）
+     */
     FAR_COLOR("FarColor",
             "villagerdetails.ui.option.far_color", "villagerdetails.ui.option.far_color.desc",
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#FF4D4D", "",
             BindingServer.color()),
 
+    /**
+     * 当前选中实体的描边颜色
+     */
     SELECTED_ENTITY_COLOR("SelectedEntityColor",
             "villagerdetails.ui.option.selected_entity_color",
             "villagerdetails.ui.option.selected_entity_color.desc",
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#FFD54F", "",
             BindingServer.color()),
 
+    /**
+     * 当前选中方块的描边颜色
+     */
     SELECTED_BLOCK_COLOR("SelectedBlockColor",
             "villagerdetails.ui.option.selected_block_color",
             "villagerdetails.ui.option.selected_block_color.desc",
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#4FC3F7", "",
             BindingServer.color()),
 
+    /**
+     * BB（两点选区）第一个角点的颜色
+     */
     BB_POS1_COLOR("BBPos1Color",
             "villagerdetails.ui.option.bb_pos1_color", "villagerdetails.ui.option.bb_pos1_color.desc",
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#4FC3F7", "",
             BindingServer.color()),
 
+    /**
+     * BB（两点选区）第二个角点的颜色
+     */
     BB_POS2_COLOR("BBPos2Color",
             "villagerdetails.ui.option.bb_pos2_color", "villagerdetails.ui.option.bb_pos2_color.desc",
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#FFD54F", "",
             BindingServer.color()),
 
+    /**
+     * BB 盒子（由两个角点围成的区域）的描边颜色
+     */
     BB_BOX_COLOR("BBBoxColor",
             "villagerdetails.ui.option.bb_box_color", "villagerdetails.ui.option.bb_box_color.desc",
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_COLOR), "#9C27B0", "",
@@ -105,34 +126,52 @@ public enum ConfigEntryType implements ConfigRow {
 
     // ---------------- 配置项 / 滑块 ----------------
 
+    /**
+     * 普通连线（村民到床等）的线宽
+     */
     LINE_WIDTH("LineWidth",
             "villagerdetails.ui.option.line_width", "villagerdetails.ui.option.line_width.desc",
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "4.0", "",
             BindingServer.slider(1.0D, 10.0D, 0.5D)),
 
+    /**
+     * 村民距离超过多少格算「远处」（切换成远处颜色）
+     */
     FAR_DISTANCE("FarDistance",
             "villagerdetails.ui.option.far_distance", "villagerdetails.ui.option.far_distance.desc",
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "5.0", "",
             BindingServer.slider(0.0D, 64.0D, 0.5D)),
 
+    /**
+     * BB 选区高亮的线宽
+     */
     BB_HIGHLIGHT_LINE_WIDTH("BBHighlightLineWidth",
             "villagerdetails.ui.option.bb_highlight_line_width",
             "villagerdetails.ui.option.bb_highlight_line_width.desc",
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "2.0", "",
             BindingServer.slider(1.0D, 10.0D, 0.5D)),
 
+    /**
+     * EB（实体边界）高亮的线宽
+     */
     EB_HIGHLIGHT_LINE_WIDTH("EBHighlightLineWidth",
             "villagerdetails.ui.option.eb_highlight_line_width",
             "villagerdetails.ui.option.eb_highlight_line_width.desc",
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "2.0", "",
             BindingServer.slider(1.0D, 10.0D, 0.5D)),
 
+    /**
+     * 传送门绑定高亮的线宽
+     */
     PORTAL_HIGHLIGHT_LINE_WIDTH("PortalHighlightLineWidth",
             "villagerdetails.ui.option.portal_highlight_line_width",
             "villagerdetails.ui.option.portal_highlight_line_width.desc",
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_SLIDER), "2.0", "",
             BindingServer.slider(1.0D, 10.0D, 0.5D)),
 
+    /**
+     * 高亮区域相对方块边界向外扩出的距离（格），避免描边和方块面重合
+     */
     HIGHLIGHT_REGION_OUTSET("HighlightRegionOutset",
             "villagerdetails.ui.option.highlight_region_outset",
             "villagerdetails.ui.option.highlight_region_outset.desc",
@@ -150,6 +189,9 @@ public enum ConfigEntryType implements ConfigRow {
 
     // ---------------- 配置项 / 列表 ----------------
 
+    /**
+     * 床列表：记录哪些坐标放过床，用于画床连线
+     */
     BED_LIST("BedList",
             "villagerdetails.ui.option.bed_list", "villagerdetails.ui.option.bed_list.desc",
             List.of(FirstCategoryType.OPTIONS), List.of(SecondCategoryType.OPTION_LIST), "", "",
@@ -157,17 +199,26 @@ public enum ConfigEntryType implements ConfigRow {
 
     // ---------------- 功能开关 / 村民 ----------------
 
+    /**
+     * 是否渲染「村民 → 床」的连线
+     */
     RENDER_BED_LINE("RenderBedLine",
             "villagerdetails.ui.option.render_bed_line", "villagerdetails.ui.option.render_bed_line.desc",
             List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER), "false", "",
             BindingServer.toggle()),
 
+    /**
+     * 是否渲染选中实体 / 方块的描边高亮
+     */
     RENDER_SELECTION_HIGHLIGHT("RenderSelectionHighlight",
             "villagerdetails.ui.option.render_selection_highlight",
             "villagerdetails.ui.option.render_selection_highlight.desc",
             List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER), "true", "",
             BindingServer.toggle()),
 
+    /**
+     * 是否渲染 BB 选区（两点 + 盒子）的高亮
+     */
     RENDER_BB_HIGHLIGHT("RenderBBHighlight",
             "villagerdetails.ui.option.render_bb_highlight",
             "villagerdetails.ui.option.render_bb_highlight.desc",
@@ -186,40 +237,105 @@ public enum ConfigEntryType implements ConfigRow {
             List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_ALL), "true", "",
             BindingServer.toggle()),
 
-    // ---------------- 功能开关 / 村民 ----------------
+    // ---------------- 功能触发 / 选区 ----------------
 
+    /**
+     * 清除 BB 选区（按钮 / 快捷键触发，向服务端发清除请求）
+     */
     CLEAR_BB_SELECTION("ClearBBSelection",
             "villagerdetails.ui.option.clear_bb_selection",
             "villagerdetails.ui.option.clear_bb_selection.desc",
             List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER, SecondCategoryType.TOGGLE_SELECTION), "", "",
-            BindingServer.trigger(ClientRequests::sendBBClear)),
+            BindingServer.trigger(ClientRequests.INSTANCE::sendBBClear)),
 
+    /**
+     * 清除 EB（实体边界）选区
+     */
     CLEAR_EB_SELECTION("ClearEBSelection",
             "villagerdetails.ui.option.clear_eb_selection",
             "villagerdetails.ui.option.clear_eb_selection.desc",
             List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_VILLAGER, SecondCategoryType.TOGGLE_SELECTION), "", "",
-            BindingServer.trigger(ClientRequests::sendEBClear)),
+            BindingServer.trigger(ClientRequests.INSTANCE::sendEBClear)),
 
+    /**
+     * 清除传送门视图（取消当前高亮的传送门绑定）
+     */
     CLEAR_PORTAL_VIEW("ClearPortalView",
             "villagerdetails.ui.option.clear_portal_view",
             "villagerdetails.ui.option.clear_portal_view.desc",
             List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_SELECTION), "", "",
-            // 和 BB / EB 的清除同一条链路：请求服务端 → 服务端回空包 → 客户端照空包清。
-            // 清的是所有维度（主世界 + 地狱一起），否则另一侧的框会留到玩家传过去的时候才冒出来；
-            // 对面没装本 mod 时 ClientRequests 会退回本地清空。
-            BindingServer.trigger(ClientRequests::sendPortalViewClear)),
+            BindingServer.trigger(ClientRequests.INSTANCE::sendPortalViewClear)),
 
     ;
 
+    /** 注册名：配置里存值、快捷键映射、NBT/JSON 键都用它，改名等于换配置项 */
     private final String registerName;
+
+    /** 显示名称的翻译键（如 {@code villagerdetails.ui.option.near_color}） */
     private final String displayName;
+
+    /** 显示描述的翻译键（悬停提示 / 详情页用） */
     private final String displayInfo;
+
+    /**
+     * 所属一级分类（可属于多个）。
+     *
+     * <p>只决定「显示在哪一栏」，不影响行样式；行样式由 {@link #bindingServer} 决定。
+     */
     private final List<FirstCategoryType> firstCategoryTypes;
+
+    /**
+     * 所属二级分类（可属于多个）。
+     *
+     * <p>同上，只决定「显示在哪一栏」；一个配置项可以同时挂在多个二级分类下
+     * （例如 {@code CLEAR_BB_SELECTION} 同时属于村民和选区两组）。
+     */
     private final List<SecondCategoryType> secondCategoryTypes;
+
+    /**
+     * 默认值原文（字符串形式，和 {@code RuleType} 的 state 同义）。
+     *
+     * <ul>
+     *     <li>开关：{@code "true"} / {@code "false"}</li>
+     *     <li>滑块：数值原文，如 {@code "4.0"}</li>
+     *     <li>颜色：{@code "#RRGGBB"}</li>
+     *     <li>列表：空串</li>
+     *     <li>触发按钮：空串</li>
+     * </ul>
+     *
+     * <p>注意这是<b>默认值</b>，不是运行时值；运行时值一律按 {@link #registerName}
+     * 存在 {@code ClientRenderConfig} 的通用 map 里。
+     */
     private final String state;
+
+    /**
+     * 默认快捷键原文：GLFW keycode 用 {@code +} 连接，如 {@code "88+67"}；空串 = 未绑定。
+     *
+     * <p>解析由 {@code ClientRenderConfig.parseKeys} 负责；只有
+     * {@link StyleType#TOGGLE} / {@link StyleType#TRIGGER} 两类行才会用到。
+     */
     private final String defaultKeyBind;
+
+    /**
+     * 行样式 + 数值范围 + 触发动作的载体。
+     *
+     * <p>由 {@link BindingServer} 的工厂方法（{@code color()} / {@code slider(min,max,step)} /
+     * {@code toggle()} / {@code trigger(action)} / {@code list()}）构造，
+     * {@link #getStyle()}、{@link #minNumber()}、{@link #maxNumber()}、{@link #stepNumber()}、
+     * {@link #getAction()} 全部转发给它。
+     */
     private final BindingServer bindingServer;
 
+    /**
+     * @param registerName       注册名，见 {@link #registerName}
+     * @param displayName        显示名称翻译键，见 {@link #displayName}
+     * @param displayInfo        显示描述翻译键，见 {@link #displayInfo}
+     * @param firstCategoryTypes 一级分类列表，见 {@link #firstCategoryTypes}
+     * @param secondCategoryTypes 二级分类列表，见 {@link #secondCategoryTypes}
+     * @param state              默认值原文，见 {@link #state}
+     * @param defaultKeyBind     默认快捷键原文，见 {@link #defaultKeyBind}
+     * @param bindingServer      行样式与数值范围，见 {@link #bindingServer}
+     */
     ConfigEntryType(String registerName, String displayName, String displayInfo,
                     List<FirstCategoryType> firstCategoryTypes, List<SecondCategoryType> secondCategoryTypes,
                     String state, String defaultKeyBind, BindingServer bindingServer) {

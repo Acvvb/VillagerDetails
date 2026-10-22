@@ -1,6 +1,7 @@
 package com.villagerdetails.client.feature.selection;
 
-import com.villagerdetails.client.cache.BBSelectionClientState;
+import com.villagerdetails.client.cache.impl.BBSelectionClientState;
+import com.villagerdetails.client.feature.ClientFeature;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.util.ColorUtil;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
@@ -19,7 +20,7 @@ import net.minecraft.core.BlockPos;
  * <p>开关和三种颜色都由 {@link ConfigEntryType} 决定；盒子和线的画法在 {@link HighlightBoxes}
  * （和 EB 高亮共用一份），这里只管「画哪个、用什么颜色」。
  */
-public final class BBSelectionHighlightRenderer {
+public final class BBSelectionHighlightRenderer implements ClientFeature {
 
     private BBSelectionHighlightRenderer() {
     }
@@ -27,7 +28,8 @@ public final class BBSelectionHighlightRenderer {
     /**
      * 由客户端初始化入口调用一次
      */
-    public static void register() {
+    @Override
+    public void register() {
         LevelRenderEvents.BEFORE_GIZMOS.register(_ -> render());
     }
 
@@ -41,7 +43,7 @@ public final class BBSelectionHighlightRenderer {
         }
 
         // 一次读全：pos1 / pos2 取自同一份快照，不会画出「新 pos1 配旧 pos2」的错框
-        BBSelectionClientState.Snapshot selection = BBSelectionClientState.get();
+        BBSelectionClientState.Snapshot selection = BBSelectionClientState.INSTANCE.get();
         if (selection.isEmpty()) {
             return;
         }

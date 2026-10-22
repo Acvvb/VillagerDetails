@@ -1,6 +1,6 @@
 package com.villagerdetails.client.setting.row;
 
-import com.villagerdetails.client.network.sync.ClientRequests;
+import com.villagerdetails.client.network.requests.ClientRequests;
 import com.villagerdetails.client.setting.type.style.StyleType;
 import com.villagerdetails.rule.RuleSwitches;
 import com.villagerdetails.rule.descriptor.RuleDescriptor;
@@ -47,7 +47,7 @@ public record ServerRuleRow(RuleDescriptor rule) implements ConfigRow {
 
     @Override
     public void setToggle(boolean value) {
-        ClientRequests.sendRuleState(rule.registerName(), Boolean.toString(value));
+        ClientRequests.INSTANCE.sendRuleState(rule.registerName(), Boolean.toString(value));
     }
 
     /**
@@ -69,7 +69,7 @@ public record ServerRuleRow(RuleDescriptor rule) implements ConfigRow {
                     Component.literal(option.text()),
                     RuleSwitches.colorOf(option.value(), rule.state()),
                     tooltip,
-                    () -> ClientRequests.sendRuleState(rule.registerName(), option.value())));
+                    () -> ClientRequests.INSTANCE.sendRuleState(rule.registerName(), option.value())));
         }
         return result;
     }
@@ -81,7 +81,7 @@ public record ServerRuleRow(RuleDescriptor rule) implements ConfigRow {
 
     @Override
     public void reset() {
-        ClientRequests.sendRuleReset(rule.registerName());
+        ClientRequests.INSTANCE.sendRuleReset(rule.registerName());
     }
 
     /**

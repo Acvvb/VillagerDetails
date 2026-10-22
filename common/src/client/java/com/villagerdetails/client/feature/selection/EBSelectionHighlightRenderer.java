@@ -1,6 +1,7 @@
 package com.villagerdetails.client.feature.selection;
 
-import com.villagerdetails.client.cache.EBSelectionClientState;
+import com.villagerdetails.client.cache.impl.EBSelectionClientState;
+import com.villagerdetails.client.feature.ClientFeature;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.util.ColorUtil;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
@@ -18,12 +19,12 @@ import java.util.UUID;
  * <p>开关和颜色都由 {@link ConfigEntryType} 决定；盒子和线的画法在 {@link HighlightBoxes}
  * （和 BB 高亮共用一份），这里只管「画哪个、用什么颜色」。
  */
-public final class EBSelectionHighlightRenderer {
+public final class EBSelectionHighlightRenderer implements ClientFeature {
 
     private EBSelectionHighlightRenderer() {
     }
 
-    public static void register() {
+    public void register() {
         LevelRenderEvents.BEFORE_GIZMOS.register(_ -> render());
     }
 
@@ -38,7 +39,7 @@ public final class EBSelectionHighlightRenderer {
         }
 
         // 一次读全：实体和方块取自同一份快照，两个框永远属于同一次选中
-        EBSelectionClientState.Snapshot selection = EBSelectionClientState.get();
+        EBSelectionClientState.Snapshot selection = EBSelectionClientState.INSTANCE.get();
         if (selection.isEmpty()) {
             return;
         }

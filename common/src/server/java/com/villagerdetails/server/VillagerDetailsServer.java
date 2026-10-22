@@ -7,7 +7,7 @@ import com.villagerdetails.event.EBSectionManager;
 import com.villagerdetails.event.ServerSessionCaches;
 import com.villagerdetails.event.ServerStoppingListener;
 import com.villagerdetails.handler.monster.noBrainOnPortal.NoBrainOnPortalHandler;
-import com.villagerdetails.network.channel.ServerChannels;
+import com.villagerdetails.network.ServerChannels;
 import com.villagerdetails.rule.registry.RuleDataRegistry;
 import com.villagerdetails.rule.registry.RuleModuleRegistry;
 import net.fabricmc.api.DedicatedServerModInitializer;

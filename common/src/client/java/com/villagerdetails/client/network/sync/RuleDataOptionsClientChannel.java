@@ -1,7 +1,7 @@
 package com.villagerdetails.client.network.sync;
 
+import com.villagerdetails.client.cache.impl.RuleAuxCache;
 import com.villagerdetails.client.network.channel.ClientReceiver;
-import com.villagerdetails.client.setting.network.RuleAuxCache;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.sync.payload.clientbound.RuleDataOptionsPayload;
 import net.minecraft.client.Minecraft;
@@ -26,6 +26,7 @@ public final class RuleDataOptionsClientChannel implements ClientReceiver<RuleDa
 
     @Override
     public void handleClient(Minecraft client, RuleDataOptionsPayload payload) {
-        RuleAuxCache.put(payload.registerName(), RuleAuxCache.of(payload.tooMany(), payload.options()));
+        RuleAuxCache cache = RuleAuxCache.INSTANCE;
+        cache.put(payload.registerName(), cache.of(payload.tooMany(), payload.options()));
     }
 }

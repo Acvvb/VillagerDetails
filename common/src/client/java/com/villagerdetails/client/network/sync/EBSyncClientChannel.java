@@ -1,6 +1,6 @@
 package com.villagerdetails.client.network.sync;
 
-import com.villagerdetails.client.cache.EBSelectionClientState;
+import com.villagerdetails.client.cache.impl.EBSelectionClientState;
 import com.villagerdetails.client.network.channel.ClientReceiver;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.sync.payload.clientbound.EBSyncPayload;
@@ -28,6 +28,6 @@ public final class EBSyncClientChannel implements ClientReceiver<EBSyncPayload> 
      */
     @Override
     public void handleClient(Minecraft client, EBSyncPayload payload) {
-        EBSelectionClientState.set(payload.entity(), payload.block());
+        EBSelectionClientState.INSTANCE.set(payload.entity(), payload.block());
     }
 }

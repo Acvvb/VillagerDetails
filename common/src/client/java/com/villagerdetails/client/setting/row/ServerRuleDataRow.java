@@ -1,6 +1,6 @@
 package com.villagerdetails.client.setting.row;
 
-import com.villagerdetails.client.network.sync.ClientRequests;
+import com.villagerdetails.client.network.requests.ClientRequests;
 import com.villagerdetails.client.setting.type.style.StyleType;
 import com.villagerdetails.rule.descriptor.RuleDescriptor;
 import net.minecraft.network.chat.Component;
@@ -86,7 +86,7 @@ public record ServerRuleDataRow(RuleDescriptor rule) implements ConfigRow {
 
     @Override
     public void reset() {
-        ClientRequests.sendRuleDataReset(rule.registerName());
+        ClientRequests.INSTANCE.sendRuleDataReset(rule.registerName());
     }
 
     /**

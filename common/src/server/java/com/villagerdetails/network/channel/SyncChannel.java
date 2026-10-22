@@ -1,7 +1,7 @@
 package com.villagerdetails.network.channel;
 
 import com.villagerdetails.cache.RuleCache;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import com.villagerdetails.network.ServerChannels;import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 

@@ -1,6 +1,7 @@
 package com.villagerdetails.client.feature.selection;
 
-import com.villagerdetails.client.cache.PortalViewClientState;
+import com.villagerdetails.client.cache.impl.PortalViewClientState;
+import com.villagerdetails.client.feature.ClientFeature;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.util.ColorUtil;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
@@ -24,12 +25,12 @@ import net.minecraft.world.level.Level;
  * 所以人在主世界只看到主世界的框，坐传送门过去后地狱那侧的框自然就出现了，
  * 不需要再点一次命令。
  */
-public final class PortalViewHighlightRenderer {
+public final class PortalViewHighlightRenderer implements ClientFeature {
 
     private PortalViewHighlightRenderer() {
     }
 
-    public static void register() {
+    public void register() {
         LevelRenderEvents.BEFORE_GIZMOS.register(_ -> render());
     }
 
@@ -38,7 +39,7 @@ public final class PortalViewHighlightRenderer {
         if (level == null) {
             return;
         }
-        PortalViewClientState.Region region = PortalViewClientState.regionOf(level.dimension());
+        PortalViewClientState.Region region = PortalViewClientState.INSTANCE.regionOf(level.dimension());
         if (region == null) {
             return;
         }

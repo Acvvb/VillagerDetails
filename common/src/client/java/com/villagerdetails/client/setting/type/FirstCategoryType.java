@@ -1,6 +1,6 @@
 package com.villagerdetails.client.setting.type;
 
-import com.villagerdetails.client.setting.network.ServerRuleClientState;
+import com.villagerdetails.client.setting.rule.ServerRuleHandler;
 import net.minecraft.network.chat.Component;
 
 import java.util.Arrays;
@@ -70,8 +70,8 @@ public enum FirstCategoryType {
      * 并且是开着的。
      */
     public static List<FirstCategoryType> visibleValues() {
-        boolean serverVisible = ServerRuleClientState.isServerCategoryVisible();
-        boolean configVisible = ServerRuleClientState.hasConfigurableRules();
+        boolean serverVisible = ServerRuleHandler.INSTANCE.isServerCategoryVisible();
+        boolean configVisible = ServerRuleHandler.INSTANCE.hasConfigurableRules();
         return Arrays.stream(values())
                 .filter(main -> switch (main) {
                     case SERVER -> serverVisible;

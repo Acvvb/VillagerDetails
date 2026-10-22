@@ -30,6 +30,9 @@ import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
  */
 public abstract class AbstractDetailScreen extends Screen {
 
+    /**
+     * 按「完成」/「取消」后返回的那一页（通常是配置主界面）
+     */
     private final Screen parent;
 
     /**
@@ -46,6 +49,10 @@ public abstract class AbstractDetailScreen extends Screen {
      */
     private AbstractWidget focusAfterInit;
 
+    /**
+     * @param title  界面标题（会显示在顶部）
+     * @param parent 关闭后返回的那一页
+     */
     protected AbstractDetailScreen(Component title, Screen parent) {
         super(title);
         this.parent = parent;
@@ -99,14 +106,23 @@ public abstract class AbstractDetailScreen extends Screen {
     // 几何
     // ==============================================================
 
+    /**
+     * 内容区宽度：取「子类声明的最大宽度」和「窗口宽度减左右边距」的较小值
+     */
     protected int contentWidth() {
         return Math.min(contentMaxWidth(), this.width - DETAIL_CONTENT_SIDE_MARGIN * 2);
     }
 
+    /**
+     * 内容区左边界（居中）
+     */
     protected int contentX() {
         return (this.width - contentWidth()) / 2;
     }
 
+    /**
+     * 内容区右边界
+     */
     protected int contentRight() {
         return contentX() + contentWidth();
     }
@@ -122,6 +138,12 @@ public abstract class AbstractDetailScreen extends Screen {
     // 生命周期
     // ==============================================================
 
+    /**
+     * 界面初始化 / 重建：先摆几何，再造行控件，最后补页脚按钮。
+     *
+     * <p>顺序不能乱：{@code buildRows()} 里要用 {@link #rowsRight()}，
+     * 而它取决于「需不需要滚动条」，所以几何必须先于行控件交给列表组件。
+     */
     @Override
     protected void init() {
         // 先把几何交给列表组件，再造行控件（造行时要用到 rowsRight()，它取决于「需不需要滚动条」）
@@ -170,9 +192,11 @@ public abstract class AbstractDetailScreen extends Screen {
         this.minecraft.gui.setScreen(parent);
     }
 
+    /**
+     * ESC / 其它关闭路径一律当作「取消」：只有按「完成」才会写回
+     */
     @Override
     public void onClose() {
-        // ESC / 其它关闭路径 = 取消：只有按「完成」才会写回
         cancel();
     }
 
@@ -187,6 +211,9 @@ public abstract class AbstractDetailScreen extends Screen {
         this.focusAfterInit = widget;
     }
 
+    /**
+     * 初始焦点：优先交给 {@link #requestFocus} 登记的控件，没有就走原版逻辑
+     */
     @Override
     protected void setInitialFocus() {
         if (focusAfterInit != null) {
@@ -241,12 +268,18 @@ public abstract class AbstractDetailScreen extends Screen {
     // 绘制
     // ==============================================================
 
+    /**
+     * 背景之上再补一条顶 / 底分隔线（和主配置界面观感一致）
+     */
     @Override
     public void extractBackground(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float frameTicks) {
         super.extractBackground(graphics, mouseX, mouseY, frameTicks);
         ScreenDecorations.drawSeparators(graphics, this.width, this.height);
     }
 
+    /**
+     * 渲染一帧：先按这一帧的进度把行摆好（逐帧平滑），再画面板 / 标题 / 说明 / 行 / 其它控件。
+     */
     @Override
     public void extractRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float frameTicks) {
         // 先按这一帧的进度把行摆好（逐帧平滑），再画面板和控件

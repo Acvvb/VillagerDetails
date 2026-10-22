@@ -1,5 +1,7 @@
-package com.villagerdetails.client.cache;
+package com.villagerdetails.client.cache.impl;
 
+import com.villagerdetails.client.cache.base.ClientSessionState;
+import com.villagerdetails.client.cache.base.ClientState;
 import net.minecraft.core.BlockPos;
 
 import java.util.UUID;
@@ -12,14 +14,19 @@ import java.util.UUID;
  * <p>状态用<b>一个不可变快照</b>承载：读侧拿一次 {@link #get()} 就拿到同一时刻的实体和方块，
  * 不会出现「读实体时是新的、读方块时还是上一份」的错配（渲染器每帧要同时用这两个字段）。
  */
-public final class EBSelectionClientState {
+public final class EBSelectionClientState implements ClientSessionState {
+
+    /**
+     * 单例：扫包框架靠它拿实例，调用方统一写 {@code EBSelectionClientState.INSTANCE.xxx()}
+     */
+    public static final EBSelectionClientState INSTANCE = new EBSelectionClientState();
 
     /**
      * 空快照（两个字段都是 null）
      */
     public static final Snapshot EMPTY = new Snapshot(null, null);
 
-    private static volatile Snapshot current = EMPTY;
+    private final ClientState<Snapshot> state = new ClientState<>(EMPTY);
 
     private EBSelectionClientState() {
     }
@@ -34,18 +41,19 @@ public final class EBSelectionClientState {
         }
     }
 
-    public static Snapshot get() {
-        return current;
+    public Snapshot get() {
+        return state.get();
     }
 
-    public static void set(UUID entity, BlockPos block) {
-        current = new Snapshot(entity, block);
+    public void set(UUID entity, BlockPos block) {
+        state.set(new Snapshot(entity, block));
     }
 
     /**
-     * 断线 / 切世界时清空
+     * 断线 / 切世界时清空（由 {@link com.villagerdetails.client.cache.ClientSessionStates} 统一调用）
      */
-    public static void clear() {
-        current = EMPTY;
+    @Override
+    public void clearSession() {
+        state.clear(EMPTY);
     }
 }

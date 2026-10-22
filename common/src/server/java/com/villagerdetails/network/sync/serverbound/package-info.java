@@ -6,7 +6,7 @@
  *     <li>包定义 → {@code network.sync.payload.serverbound}（负责注册包类型）</li>
  *     <li>收到包干什么 → {@code network.sync.receiver}</li>
  * </ul>
- * 客户端那边怎么发在 {@code com.villagerdetails.client.network.sync.ClientRequests}。
+ * 客户端那边怎么发在 {@code com.villagerdetails.client.network.requests.ClientRequests}。
  *
  * <p>所以这里现在是空的：服务端既不发 C→S 包，也没有别的活要干。
  * 哪天真需要在服务端侧给某个 C→S 包加一层封装（比如收发一体的门面类），

@@ -1,5 +1,7 @@
-package com.villagerdetails.client.cache;
+package com.villagerdetails.client.cache.impl;
 
+import com.villagerdetails.client.cache.base.ClientSessionState;
+import com.villagerdetails.client.cache.base.ClientState;
 import net.minecraft.core.BlockPos;
 
 import java.util.HashSet;
@@ -17,7 +19,12 @@ import java.util.Set;
  *
  * <p>空表 = 附近没有脏熔炉（或规则已经关了）→ 渲染器直接不画。
  */
-public final class FurnaceDirtyClientState {
+public final class FurnaceDirtyClientState implements ClientSessionState {
+
+    /**
+     * 单例：扫包框架靠它拿实例，调用方统一写 {@code FurnaceDirtyClientState.INSTANCE.xxx()}
+     */
+    public static final FurnaceDirtyClientState INSTANCE = new FurnaceDirtyClientState();
 
     /**
      * 一份完整快照：维度 + 坐标集合
@@ -34,7 +41,8 @@ public final class FurnaceDirtyClientState {
 
     private static final Snapshot EMPTY = new Snapshot("", Set.of());
 
-    private static volatile Snapshot current = EMPTY;
+    // 泛型容器接管了 volatile 和线程安全的读写
+    private final ClientState<Snapshot> state = new ClientState<>(EMPTY);
 
     private FurnaceDirtyClientState() {
     }
@@ -42,25 +50,37 @@ public final class FurnaceDirtyClientState {
     /**
      * 渲染器每帧取一次快照；拿到的是一份不可变数据，可以放心遍历
      */
-    public static Snapshot snapshot() {
-        return current;
+    public Snapshot snapshot() {
+        return state.get();
     }
 
     /**
      * 用服务端这一轮的全量结果整份替换；空列表就是清空
      */
-    public static void replace(String dimension, List<BlockPos> positions) {
+    public void replace(String dimension, List<BlockPos> positions) {
+        String dim = dimension == null ? "" : dimension;
         if (positions == null || positions.isEmpty()) {
-            current = new Snapshot(dimension == null ? "" : dimension, Set.of());
+            state.set(new Snapshot(dim, Set.of()));
             return;
         }
-        current = new Snapshot(dimension == null ? "" : dimension, Set.copyOf(new HashSet<>(positions)));
+        state.set(new Snapshot(dim, Set.copyOf(new HashSet<>(positions))));
     }
 
     /**
-     * 清空（断线时由 {@link ClientSessionStates} 统一调）
+     * 清空高亮（<b>本机视图操作</b>：用户本地关了开关、或服务端回了一个空包）。
+     *
+     * <p>刻意和 {@link #clearSession()} 分开：那个是「断线清会话」，语义上是两件事，
+     * 将来会话结束时若还要顺手做别的收尾，改那边不会连带影响这里的业务清除。
      */
-    public static void clear() {
-        current = EMPTY;
+    public void clear() {
+        state.clear(EMPTY);
+    }
+
+    /**
+     * 断线 / 切世界时清空（由 {@link com.villagerdetails.client.cache.ClientSessionStates} 统一调用）
+     */
+    @Override
+    public void clearSession() {
+        clear();
     }
 }

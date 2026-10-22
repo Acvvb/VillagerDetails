@@ -1,9 +1,9 @@
 package com.villagerdetails.client.setting.screen;
 
-import com.villagerdetails.client.network.sync.ClientRequests;
+import com.villagerdetails.client.cache.impl.RuleAuxCache;
+import com.villagerdetails.client.network.requests.ClientRequests;
 import com.villagerdetails.client.setting.component.*;
 import com.villagerdetails.client.setting.config.ui.ComponentLayout;
-import com.villagerdetails.client.setting.network.RuleAuxCache;
 import com.villagerdetails.client.setting.row.ServerRuleDataRow;
 import com.villagerdetails.rule.RuleSwitches;
 import com.villagerdetails.rule.descriptor.RuleDescriptor;
@@ -101,7 +101,15 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
      * 正在新增（最后一行变成输入框）
      */
     private boolean adding;
+
+    /**
+     * 新增行的 id 输入框（{@link #adding} 为 true 时有值）
+     */
     private EditBox addIdBox;
+
+    /**
+     * 新增行的值输入框（仅值模式有；开关模式为 null）
+     */
     private EditBox addValueBox;
 
     /**
@@ -114,6 +122,10 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
      */
     private boolean addToggleOn;
 
+    /**
+     * @param parent 关闭后返回的那一页
+     * @param row    这一页在编辑哪条规则的哪条数据
+     */
     public RuleDataDetailScreen(Screen parent, ServerRuleDataRow row) {
         super(Component.literal("[ ").append(row.getDisplayName()).append(" ]"), parent);
         this.rule = row.rule();
@@ -122,7 +134,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         this.values.putAll(row.data());
         this.original.putAll(this.values);
         // id 候选和原版值预填都要问服务端要：这一页打开时请求一次
-        RuleAuxCache.requestOnce(rule.registerName());
+        RuleAuxCache.INSTANCE.requestOnce(rule.registerName());
     }
 
     // ==============================================================
@@ -151,11 +163,16 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         return Component.literal(rule.info());
     }
 
+    /**
+     * 「完成」：先把新增行收进副本（不合法就拦住），再把差异发给服务端。
+     *
+     * @return true 表示成功（已发请求、关屏）；false 表示校验没过（界面保持打开）
+     */
     @Override
     protected boolean onFinish() {
         // 「完成」要先校验当前正在填的这一行；不合法就拦住，让玩家改
         if (adding) {
-            String id = RuleAuxCache.canonicalId(addIdBox == null ? "" : addIdBox.getValue());
+            String id = RuleAuxCache.INSTANCE.canonicalId(addIdBox == null ? "" : addIdBox.getValue());
             if (id.isEmpty()) {
                 // id 都没填 = 作废这次添加，正常保存退出
                 this.adding = false;
@@ -224,6 +241,9 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         }
     }
 
+    /**
+     * 去掉首尾空白（复制原值 / 新增时的统一规整入口）
+     */
     private String normalizeValue(String value) {
         return value == null ? "" : value.trim();
     }
@@ -257,6 +277,9 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     // 控件
     // ==============================================================
 
+    /**
+     * 造所有行：每个条目一行 + 最后一行「添加」。
+     */
     @Override
     protected void buildRows() {
         List<Map.Entry<String, String>> entries = new ArrayList<>(values.entrySet());
@@ -301,11 +324,11 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         SwitchButton[] self = new SwitchButton[1];
         boolean on = isOn(value);
         SwitchButton toggle = ToggleSwitchButton.create(valueX(), y, RULE_DATA_VALUE_WIDTH, WIDGET_HEIGHT,
-                on, () -> {
-                    boolean next = !isOn(values.get(id));
-                    values.put(id, next ? TRUE_VALUE : FALSE_VALUE);
-                    applyToggleVisual(self[0], next);
-                })
+                        on, () -> {
+                            boolean next = !isOn(values.get(id));
+                            values.put(id, next ? TRUE_VALUE : FALSE_VALUE);
+                            applyToggleVisual(self[0], next);
+                        })
                 .withTooltip(Component.translatable("villagerdetails.ui.rule_data.toggle"));
         self[0] = toggle;
         return RowListPage.at(addWidget(toggle));
@@ -351,7 +374,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
 
         if (!adding) {
             clearAddWidgets();
-            widgets.add(RowListPage.at(addWidget(Button.builder(Component.literal("+"), button -> startAdd())
+            widgets.add(RowListPage.at(addWidget(Button.builder(Component.literal("+"), _ -> startAdd())
                     .bounds(contentX(), y, rowsRight() - contentX(), WIDGET_HEIGHT)
                     .build())));
             return widgets;
@@ -363,7 +386,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         idBox.setMaxLength(MAX_ADD_ID_LENGTH);
         idBox.setResponder(text -> {
             popup.update(text, maxSuggestions(),
-                    (query, limit) -> RuleAuxCache.suggestions(rule.registerName(), query, limit));
+                    (query, limit) -> RuleAuxCache.INSTANCE.suggestions(rule.registerName(), query, limit));
             idBox.setTextColor(EditBox.DEFAULT_TEXT_COLOR);
             prefillValue(text.trim());
             syncAddToggle(text);
@@ -394,10 +417,10 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         this.addToggleOn = false;
 
         SwitchButton toggle = ToggleSwitchButton.create(valueX(), y, RULE_DATA_VALUE_WIDTH, WIDGET_HEIGHT,
-                false, () -> {
-                    this.addToggleOn = !this.addToggleOn;
-                    applyToggleVisual(addToggle, addToggleOn);
-                })
+                        false, () -> {
+                            this.addToggleOn = !this.addToggleOn;
+                            applyToggleVisual(addToggle, addToggleOn);
+                        })
                 .withTooltip(Component.translatable("villagerdetails.ui.rule_data.toggle"));
 
         this.addToggle = toggle;
@@ -408,7 +431,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
      * 新增行里当前填的 id（规范化后）；没填就是空串
      */
     private String addIdValue() {
-        return RuleAuxCache.canonicalId(addIdBox == null ? "" : addIdBox.getValue());
+        return RuleAuxCache.INSTANCE.canonicalId(addIdBox == null ? "" : addIdBox.getValue());
     }
 
     /**
@@ -418,7 +441,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         if (addToggle == null) {
             return;
         }
-        String id = RuleAuxCache.canonicalId(rawId);
+        String id = RuleAuxCache.INSTANCE.canonicalId(rawId);
         this.addToggleOn = !id.isEmpty() && isOn(values.get(id));
         applyToggleVisual(addToggle, addToggleOn);
     }
@@ -444,10 +467,10 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         if (addValueBox == null || !addValueBox.getValue().isEmpty()) {
             return;
         }
-        if (!RuleAuxCache.knowsId(rule.registerName(), id)) {
+        if (!RuleAuxCache.INSTANCE.knowsId(rule.registerName(), id)) {
             return;
         }
-        String defaultValue = RuleAuxCache.defaultValue(rule.registerName(), id);
+        String defaultValue = RuleAuxCache.INSTANCE.defaultValue(rule.registerName(), id);
         if (defaultValue != null) {
             addValueBox.setValue(defaultValue);
         }
@@ -475,12 +498,18 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     // 增删改（都只动工作副本）
     // ==============================================================
 
+    /**
+     * 进入「添加」状态：最后一行变成输入框
+     */
     private void startAdd() {
         this.adding = true;
         popup.reset();
         rebuildWidgets();
     }
 
+    /**
+     * 删除某个 id 的条目（只动工作副本）
+     */
     private void deleteValue(String id) {
         values.remove(id);
         rebuildWidgets();
@@ -501,7 +530,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
             this.adding = false;
             return false;
         }
-        if (!RuleAuxCache.knowsId(rule.registerName(), id)) {
+        if (!RuleAuxCache.INSTANCE.knowsId(rule.registerName(), id)) {
             markInvalid(addIdBox, "villagerdetails.ui.rule_data.invalid_id");
             return false;
         }
@@ -516,7 +545,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
                 // 兼容：值没填就退回这个 id 的原版值（和服务端的预填是同一套算法）。
                 // 清单还没到 / 刚打开页面就回车时，输入框可能还是空的 —— 不能因此把人卡死在
                 // 「值不合法」上，那不是玩家填错了。
-                String fallback = RuleAuxCache.defaultValue(rule.registerName(), id);
+                String fallback = RuleAuxCache.INSTANCE.defaultValue(rule.registerName(), id);
                 if (fallback != null) {
                     value = fallback.trim();
                     if (addValueBox != null) {
@@ -581,12 +610,12 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         for (Map.Entry<String, String> entry : values.entrySet()) {
             String id = entry.getKey();
             if (!entry.getValue().equals(original.get(id))) {
-                ClientRequests.sendRuleData(rule.registerName(), id, entry.getValue());
+                ClientRequests.INSTANCE.sendRuleData(rule.registerName(), id, entry.getValue());
             }
         }
         for (String id : original.keySet()) {
             if (!values.containsKey(id)) {
-                ClientRequests.sendRuleDataRemove(rule.registerName(), id);
+                ClientRequests.INSTANCE.sendRuleDataRemove(rule.registerName(), id);
             }
         }
     }
@@ -595,6 +624,9 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     // 绘制 / 输入
     // ==============================================================
 
+    /**
+     * 在行控件之上画补全弹窗（跟行一起被裁剪）
+     */
     @Override
     protected void drawOverlay(GuiGraphicsExtractor graphics) {
         if (adding) {
@@ -609,6 +641,9 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         return widget != null && widget.isMouseOver(x, y);
     }
 
+    /**
+     * 点击：命中补全候选就填进 id 输入框；否则点列表区空白处（不含输入框/开关自身）= 提交新增；其余交给原版
+     */
     @Override
     public boolean mouseClicked(@NonNull MouseButtonEvent event, boolean doubleClick) {
         if (adding) {
@@ -630,10 +665,13 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         return super.mouseClicked(event, doubleClick);
     }
 
+    /**
+     * 按键：新增状态下走「回车 / Tab / 上下 / ESC」补全逻辑，否则交给原版
+     */
     @Override
     public boolean keyPressed(@NonNull KeyEvent event) {
         if (adding) {
-            boolean idValid = addIdBox != null && RuleAuxCache.knowsId(rule.registerName(), addIdBox.getValue().trim());
+            boolean idValid = addIdBox != null && RuleAuxCache.INSTANCE.knowsId(rule.registerName(), addIdBox.getValue().trim());
             if (handleEditingKey(event, popup, addIdBox, idValid, this::commitAdd, this::cancelAdd)) {
                 return true;
             }

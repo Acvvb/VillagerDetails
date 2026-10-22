@@ -32,7 +32,10 @@ public interface ClientReceiver<P extends SyncPayload<P>> {
     }
 
     /**
-     * 客户端自己的事件注册（实体卸载清理、断线清状态）。
+     * 客户端自己的事件注册（实体卸载清理、tick 检查、JOIN 打招呼……）。
+     *
+     * <p><b>断线清理不在这里</b>：那是 {@code ClientSessionStates} 统一接管的
+     * （{@code VillagerDetailsClient} 里唯一的一处 DISCONNECT 回调），通道自己别各注册一份。
      *
      * <p>刻意和「服务端事件」分开：服务端那边的事件接线在
      * {@code network.sync.event}（{@code SyncEvents}），收包在 {@code network.sync.receiver}

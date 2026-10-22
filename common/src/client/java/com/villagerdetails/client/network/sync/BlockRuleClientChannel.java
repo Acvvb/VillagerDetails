@@ -3,7 +3,6 @@ package com.villagerdetails.client.network.sync;
 import com.villagerdetails.client.network.channel.ClientReceiver;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.sync.payload.clientbound.BlockRuleSyncPayload;
-import net.minecraft.client.Minecraft;
 
 /**
  * 逐条配置内容的客户端侧。
@@ -27,8 +26,4 @@ public final class BlockRuleClientChannel implements ClientReceiver<BlockRuleSyn
         return BlockRuleSyncPayload.ID;
     }
 
-    @Override
-    public void handleClient(Minecraft client, BlockRuleSyncPayload payload) {
-        // 客户端没有规则判定逻辑，不需要镜像；配置界面用的数据来自 rule_descriptor_sync。
-    }
 }

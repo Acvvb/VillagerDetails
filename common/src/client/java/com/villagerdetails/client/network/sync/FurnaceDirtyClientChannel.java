@@ -1,7 +1,8 @@
 package com.villagerdetails.client.network.sync;
 
-import com.villagerdetails.client.cache.FurnaceDirtyClientState;
+import com.villagerdetails.client.cache.impl.FurnaceDirtyClientState;
 import com.villagerdetails.client.network.channel.ClientReceiver;
+import com.villagerdetails.client.network.tool.SyncSubscriptionClient;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.sync.payload.clientbound.FurnaceDirtySyncPayload;
@@ -42,8 +43,8 @@ public final class FurnaceDirtyClientChannel implements ClientReceiver<FurnaceDi
             if (!enabled()) {
                 // 本地关了：立刻把缓存清掉。
                 // 静音之后服务端不会再发包，只靠「收到包时清」永远等不到下一包，旧的框会一直画着。
-                if (!FurnaceDirtyClientState.snapshot().isEmpty()) {
-                    FurnaceDirtyClientState.clear();
+                if (!FurnaceDirtyClientState.INSTANCE.snapshot().isEmpty()) {
+                    FurnaceDirtyClientState.INSTANCE.clear();
                 }
             }
             syncSubscription();
@@ -54,18 +55,18 @@ public final class FurnaceDirtyClientChannel implements ClientReceiver<FurnaceDi
     public void handleClient(Minecraft client, FurnaceDirtySyncPayload payload) {
         if (!enabled()) {
             // 本地显示是关的，但服务端还在发：清掉本地表，并回一个「这条通道别发了」
-            FurnaceDirtyClientState.clear();
+            FurnaceDirtyClientState.INSTANCE.clear();
             syncSubscription();
             return;
         }
-        FurnaceDirtyClientState.replace(payload.dimension(), payload.positions());
+        FurnaceDirtyClientState.INSTANCE.replace(payload.dimension(), payload.positions());
     }
 
     /**
      * 把本地显示开关的目标状态同步给服务端（重复状态是空操作，见 {@link SyncSubscriptionClient}）
      */
     private static void syncSubscription() {
-        SyncSubscriptionClient.sync(FurnaceDirtySyncPayload.ID, enabled());
+        SyncSubscriptionClient.INSTANCE.sync(FurnaceDirtySyncPayload.ID, enabled());
     }
 
     /**

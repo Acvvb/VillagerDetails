@@ -70,8 +70,16 @@ public class ListDetailScreen extends AbstractDetailScreen {
      * 正在输入要添加的值
      */
     private boolean adding;
+
+    /**
+     * 添加行的输入框（{@link #adding} 为 true 时才有值）
+     */
     private EditBox addBox;
 
+    /**
+     * @param parent 关闭后返回的那一页
+     * @param source 值列表的来源（本机配置项 / 服务器规则名单）
+     */
     public ListDetailScreen(Screen parent, ListSourceServer source) {
         super(Component.literal("[ ").append(source.title()).append(" ]"), parent);
         this.source = source;
@@ -106,6 +114,12 @@ public class ListDetailScreen extends AbstractDetailScreen {
         return source.description();
     }
 
+    /**
+     * 「完成」：如果还在输入状态，先按当前输入分流（空 = 作废；非法 = 标红拦住；合法 = 收进副本），
+     * 然后整份写回，关屏。
+     *
+     * @return true 表示校验通过、已写回；false 表示校验没过，界面保持打开
+     */
     @Override
     protected boolean onFinish() {
         // 「完成」要校验通过才能保存退出：还在输入状态就按当前输入分流
@@ -143,7 +157,7 @@ public class ListDetailScreen extends AbstractDetailScreen {
     }
 
     /**
-     * 值文字能占的宽度
+     * 值文字能占的宽度（删掉右边删除按钮 + 间隔后剩下的）
      */
     private int labelWidth() {
         return Math.max(0, deleteX() - WIDGET_GAP - contentX());
@@ -153,6 +167,9 @@ public class ListDetailScreen extends AbstractDetailScreen {
     // 控件
     // ==============================================================
 
+    /**
+     * 造所有行：每个值一行（标签 + 删除），最后加一行「添加」。
+     */
     @Override
     protected void buildRows() {
         for (int i = 0; i < values.size(); i++) {
@@ -229,6 +246,9 @@ public class ListDetailScreen extends AbstractDetailScreen {
     // 增删
     // ==============================================================
 
+    /**
+     * 进入「添加」状态：最后一行变成输入框
+     */
     private void startAdd() {
         this.adding = true;
         popup.reset();
@@ -294,6 +314,9 @@ public class ListDetailScreen extends AbstractDetailScreen {
         rebuildWidgets();
     }
 
+    /**
+     * 删除第 index 个值（只改工作副本）
+     */
     private void deleteValue(int index) {
         if (index < 0 || index >= values.size()) {
             return;
@@ -307,6 +330,9 @@ public class ListDetailScreen extends AbstractDetailScreen {
     // 绘制 / 输入
     // ==============================================================
 
+    /**
+     * 在行控件之上画补全弹窗（跟行一起被裁剪）
+     */
     @Override
     protected void drawOverlay(GuiGraphicsExtractor graphics) {
         if (adding) {
@@ -314,6 +340,9 @@ public class ListDetailScreen extends AbstractDetailScreen {
         }
     }
 
+    /**
+     * 点击：命中补全候选就填进输入框；否则点列表区空白处 = 提交本次输入；其余交给原版
+     */
     @Override
     public boolean mouseClicked(@NonNull MouseButtonEvent event, boolean doubleClick) {
         if (adding) {
@@ -335,6 +364,9 @@ public class ListDetailScreen extends AbstractDetailScreen {
         return super.mouseClicked(event, doubleClick);
     }
 
+    /**
+     * 按键：输入状态下走「回车 / Tab / 上下 / ESC」补全逻辑，否则交给原版
+     */
     @Override
     public boolean keyPressed(@NonNull KeyEvent event) {
         if (adding) {

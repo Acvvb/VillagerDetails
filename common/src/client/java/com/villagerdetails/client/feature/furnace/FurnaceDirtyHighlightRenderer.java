@@ -1,6 +1,7 @@
 package com.villagerdetails.client.feature.furnace;
 
-import com.villagerdetails.client.cache.FurnaceDirtyClientState;
+import com.villagerdetails.client.cache.impl.FurnaceDirtyClientState;
+import com.villagerdetails.client.feature.ClientFeature;
 import com.villagerdetails.client.feature.selection.HighlightBoxes;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.util.ColorUtil;
@@ -26,7 +27,7 @@ import net.minecraft.core.BlockPos;
  * <p>渲染前按 {@link #RENDER_DISTANCE} 剔除：高亮是给「自己家这一片」看的，
  * 没必要把远处看不见的熔炉也画出来。
  */
-public final class FurnaceDirtyHighlightRenderer {
+public final class FurnaceDirtyHighlightRenderer implements ClientFeature {
 
     /**
      * 渲染距离（格）：超过这个距离的脏熔炉不画
@@ -39,7 +40,7 @@ public final class FurnaceDirtyHighlightRenderer {
     /**
      * 由客户端初始化入口调用一次
      */
-    public static void register() {
+    public void register() {
         LevelRenderEvents.BEFORE_GIZMOS.register(_ -> render());
     }
 
@@ -48,7 +49,7 @@ public final class FurnaceDirtyHighlightRenderer {
         if (!ConfigEntryType.RENDER_FURNACE_DIRTY.getToggle()) {
             return;
         }
-        FurnaceDirtyClientState.Snapshot snapshot = FurnaceDirtyClientState.snapshot();
+        FurnaceDirtyClientState.Snapshot snapshot = FurnaceDirtyClientState.INSTANCE.snapshot();
         if (snapshot.isEmpty()) {
             return;
         }
