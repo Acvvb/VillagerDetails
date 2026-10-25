@@ -2,7 +2,7 @@ package com.villagerdetails.command.c.impl.tool;
 
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
-import com.villagerdetails.cache.BBSectionStateCache;
+import com.villagerdetails.cache.impl.BBSectionStateCache;
 import com.villagerdetails.command.c.server.RegisterServer;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;

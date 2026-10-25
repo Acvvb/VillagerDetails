@@ -1,7 +1,7 @@
 package com.villagerdetails.client.network.tool;
 
+import com.villagerdetails.cache.base.SessionState;
 import com.villagerdetails.client.cache.ClientSessionStates;
-import com.villagerdetails.client.cache.base.ClientSessionState;
 import com.villagerdetails.client.network.channel.ClientReceiver;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.sync.payload.serverbound.SyncSubscriptionPayload;
@@ -25,9 +25,9 @@ import java.util.Map;
  *
  * <p>它<b>不是缓存</b>（没有业务数据，只有「通知过没有」这份记忆），所以类不在
  * {@code cache.impl} 包里，由 {@code ClientSessionStates} 手工登记一行；
- * 但仍然实现 {@link ClientSessionState}，清理入口和其它状态长得一样。
+ * 但仍然实现 {@link SessionState}，清理入口和其它状态长得一样。
  */
-public final class SyncSubscriptionClient implements ClientSessionState {
+public final class SyncSubscriptionClient implements SessionState {
 
     /**
      * 单例：调用方统一写 {@code SyncSubscriptionClient.INSTANCE.xxx()}

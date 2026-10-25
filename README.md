@@ -70,6 +70,15 @@ VillagerDetails is a Fabric mod that provides a large collection of behavior fix
 |---------------|----------------------------------------------------------------|
 | InfiniteShear | Infinite shearing — sheep regrow wool instantly after shearing |
 
+#### Players
+
+| Rule               | Description                                                                                                                                      |
+|--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| PlayerHeadSitting  | Player head sitting — empty-hand right-click another player to sit on their head; the rider stands on top of the target's bounding box (the two boxes touch, never overlap); sneak to dismount; only works on targets who enabled "Allow others to sit on my head" in their own client config; riders are dismounted when the target sneaks, sleeps, changes dimension or mounts another vehicle; stacking depth is configurable |
+| PlayerBlockSitting | Sit on stairs and slabs — empty-hand right-click a **bottom slab / bottom stairs** block to sit on it (top slabs, double slabs and upside-down stairs are refused), Shift to stand up; the seat is the top of the block's flat part, so stairs and slabs sit at the same height, and stairs get nudged 2 pixels towards the low side so your back does not touch the upper step; per-player switch "Allow sitting on stairs and slabs" in the client config, which defaults to **on** and also applies to players without this mod; seats disappear when the block is broken, the rule is off or you disconnect |
+
+Commands: `/ec PlayerHeadSitting true` · `/ec PlayerBlockSitting true` · `/ec list players` (head-sitting tuning lives in the `PlayerHeadSitting` section of `villagerdetails/config.json`; both per-player switches live in the client config GUI)
+
 ### Commands
 
 Everything is done through the `/ec` command:
@@ -213,6 +222,15 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 | 规则名        | 说明                          |
 |---------------|-------------------------------|
 | InfiniteShear | 无限剪羊毛 — 羊剪毛后立即恢复 |
+
+#### 玩家
+
+| 规则名             | 说明                                                                                                            |
+|--------------------|-----------------------------------------------------------------------------------------------------------------|
+| PlayerHeadSitting  | 玩家头顶乘坐 — 空手右键其他玩家坐到其头顶；乘客站在对方碰撞箱顶上（两个碰撞箱相切、不重叠）；潜行下坐；只在对方于自己客户端里开启「允许别人坐到我头上」时有效（没装 mod 的玩家默认不允许）；目标潜行 / 睡觉 / 换维度 / 骑上别的载具会自动下坐；叠加上限可配 |
+| PlayerBlockSitting | 坐在楼梯 / 半砖上 — 空手右键**下半砖 / 下半楼梯**即可坐上去（上半砖、双半砖、上下颠倒的楼梯都不行），按 Shift 起身；坐面是方块平的那一面的顶面，楼梯和半砖一样高，楼梯再往矮的那一侧偏 2 个像素，免得背贴着上面那一级；每人可以在客户端配置里关掉自己的「允许坐在楼梯 / 半砖上」，该项默认开启，**没装本 mod 的玩家也按开启处理**；方块被挖掉 / 换成上半砖 / 规则关闭 / 掉线时座位自动收掉 |
+
+命令：`/ec PlayerHeadSitting true` · `/ec PlayerBlockSitting true` · `/ec list players`（头顶乘坐的细项在 `villagerdetails/config.json` 的 `PlayerHeadSitting` 节；两个每人的开关都在客户端配置界面里）
 
 ### 命令
 

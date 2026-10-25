@@ -1,6 +1,6 @@
 package com.villagerdetails.client.cache;
 
-import com.villagerdetails.client.cache.base.ClientSessionState;
+import com.villagerdetails.cache.base.SessionState;
 import com.villagerdetails.client.network.tool.SyncSubscriptionClient;
 import com.villagerdetails.network.channel.ChannelScanner;
 import org.apache.logging.log4j.LogManager;
@@ -12,7 +12,7 @@ import java.util.List;
 /**
  * 客户端状态的<b>统一生命周期管理器</b>。
  *
- * <p>扫 {@link #STATE_PACKAGE} 包，把所有 {@link ClientSessionState} 的实现收进一张
+ * <p>扫 {@link #STATE_PACKAGE} 包，把所有 {@link SessionState} 的实现收进一张
  * 「断线要清哪些东西」的清单；{@link #clearAll()} 就是那张清单的唯一执行入口
  * （断线回调在 {@code VillagerDetailsClient} 里，全客户端只有那一处）。
  *
@@ -55,7 +55,7 @@ public final class ClientSessionStates {
         List<ChannelScanner.Failure> failures = new ArrayList<>();
         List<String> names = new ArrayList<>();
 
-        int states = ChannelScanner.forEach(STATE_PACKAGE, ClientSessionStates.class, ClientSessionState.class,
+        int states = ChannelScanner.forEach(STATE_PACKAGE, ClientSessionStates.class, SessionState.class,
                 state -> {
                     String name = state.getClass().getSimpleName();
                     names.add(name);

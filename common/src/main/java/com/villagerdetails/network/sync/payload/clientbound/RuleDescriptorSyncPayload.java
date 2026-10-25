@@ -1,5 +1,6 @@
 package com.villagerdetails.network.sync.payload.clientbound;
 
+import com.villagerdetails.network.channel.ClientboundPayload;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.SyncPayload;
 import com.villagerdetails.network.codec.DescriptorCodecs;
@@ -21,7 +22,7 @@ import java.util.List;
  *
  * <p>包 id：{@code villagerdetails:rule_descriptor_sync}
  */
-public final class RuleDescriptorSyncPayload extends SyncPayload<RuleDescriptorSyncPayload> {
+public final class RuleDescriptorSyncPayload extends SyncPayload<RuleDescriptorSyncPayload> implements ClientboundPayload {
 
     public static final PayloadId<RuleDescriptorSyncPayload> ID = PayloadId.of("rule_descriptor_sync");
 

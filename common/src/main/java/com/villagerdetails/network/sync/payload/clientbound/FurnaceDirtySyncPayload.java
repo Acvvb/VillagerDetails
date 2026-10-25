@@ -1,5 +1,6 @@
 package com.villagerdetails.network.sync.payload.clientbound;
 
+import com.villagerdetails.network.channel.ClientboundPayload;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.SyncPayload;
 import com.villagerdetails.network.codec.ModCodecs;
@@ -17,7 +18,7 @@ import java.util.List;
  *
  * <p>包 id：{@code villagerdetails:furnace_dirty_sync}
  */
-public final class FurnaceDirtySyncPayload extends SyncPayload<FurnaceDirtySyncPayload> {
+public final class FurnaceDirtySyncPayload extends SyncPayload<FurnaceDirtySyncPayload> implements ClientboundPayload {
 
     public static final PayloadId<FurnaceDirtySyncPayload> ID = PayloadId.of("furnace_dirty_sync");
 

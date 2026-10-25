@@ -1,8 +1,8 @@
 package com.villagerdetails.network.sync.clientbound;
 
 import com.villagerdetails.network.channel.SyncChannel;
-import com.villagerdetails.network.sync.payload.clientbound.WorkstationPacket;
 import com.villagerdetails.network.sync.payload.clientbound.WorkstationPayload;
+import com.villagerdetails.pojo.dto.WorkstationPacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerPlayer;

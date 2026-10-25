@@ -1,6 +1,6 @@
 package com.villagerdetails.handler.binding;
 
-import com.villagerdetails.cache.EBSelectionStateCache;
+import com.villagerdetails.cache.impl.EBSelectionStateCache;
 import com.villagerdetails.handler.binding.entity.villager.VillagerBindHandler;
 import com.villagerdetails.handler.binding.type.BindingType;
 import com.villagerdetails.util.SendMessengerUtils;

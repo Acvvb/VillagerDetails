@@ -1,6 +1,7 @@
 package com.villagerdetails.network.sync.payload.serverbound;
 
 import com.villagerdetails.network.channel.PayloadId;
+import com.villagerdetails.network.channel.ServerboundPayload;
 import com.villagerdetails.network.channel.SyncPayload;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -11,7 +12,7 @@ import net.minecraft.network.codec.StreamCodec;
  * <p>没有字段，所以编解码用 {@code StreamCodec.unit}。
  * 包 id：{@code villagerdetails:bb_clear}
  */
-public final class BBClearPayload extends SyncPayload<BBClearPayload> {
+public final class BBClearPayload extends SyncPayload<BBClearPayload> implements ServerboundPayload {
 
     public static final PayloadId<BBClearPayload> ID = PayloadId.of("bb_clear");
 

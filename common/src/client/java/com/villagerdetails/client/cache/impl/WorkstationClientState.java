@@ -1,7 +1,7 @@
 package com.villagerdetails.client.cache.impl;
 
+import com.villagerdetails.cache.base.SessionState;
 import com.villagerdetails.client.cache.base.ClientMapState;
-import com.villagerdetails.client.cache.base.ClientSessionState;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -13,7 +13,7 @@ import net.minecraft.core.BlockPos;
  * <p>村民实体 ID 在换世界 / 重进服之后会被复用，所以断线必须整体清空
  * （{@link #clearSession()} 由扫包框架自动调用，和 ED/BB 那几份一样）。
  */
-public final class WorkstationClientState implements ClientSessionState {
+public final class WorkstationClientState implements SessionState {
 
     /**
      * 单例：扫包框架靠它拿实例，调用方统一写 {@code WorkstationClientState.INSTANCE.xxx()}

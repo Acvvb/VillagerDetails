@@ -18,10 +18,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -113,7 +110,6 @@ public final class ServerTranslations {
     public static void switchTo(String lang) {
         if (lang == null || lang.isEmpty()) return;
 
-        // ★ 优化：目标语言和当前一致时无需再做任何事
         if (lang.equals(currentLang) && current != Map.<String, String>of()) {
             return;
         }
@@ -262,98 +258,172 @@ public final class ServerTranslations {
      */
     public static MutableComponent translateComponent(Component src) {
         if (src == null) return Component.empty();
-        // ★ 优化：volatile 读一次，往下传
         return translateComponent(src, current);
     }
 
-    private static MutableComponent translateComponent(Component src, Map<String, String> table) {
-        MutableComponent out;
-        var contents = src.getContents();
+    /**
+     * 将组件树翻译为目标组件树，等价于原递归实现的语义。
+     * 采用显式栈做后序遍历：每个组件对应一个 {@link Task}，父组件展开时
+     * 为每个子组件（含 translatable 参数中的 Component）创建独立 Task，
+     * 因此同一 Component 实例在不同父下仍会被独立翻译。
+     */
+    private static MutableComponent translateComponent(Component root, Map<String, String> table) {
+        Task rootTask = new Task(root);
+        Deque<Task> stack = new ArrayDeque<>();
+        stack.push(rootTask);
 
-        switch (contents) {
-            case TranslatableContents trans -> {
-                String key = trans.getKey();
-                Object[] args = trans.getArgs();
-                String template = table.get(key);
+        while (!stack.isEmpty()) {
+            Task t = stack.peek();
+            if (!t.expanded) {
+                t.expanded = true;
+                expandAndPush(t, stack);
+            } else {
+                stack.pop();
+                t.result = build(t, table);
+            }
+        }
+        return rootTask.result;
+    }
 
-                if (template == null) {
-                    // ── 服务端表里没有这个 key → 保留 translatable，交给客户端 ──
-                    int n = args.length;
-                    Object[] copied = new Object[n];
-                    for (int i = 0; i < n; i++) {
-                        Object a = args[i];
-                        copied[i] = (a instanceof Component c) ? translateComponent(c, table) : a;
-                    }
-                    out = Component.translatable(key, copied);
-
-                } else if (args.length == 0) {
-                    // ★ 优化：无参数直接 literal
-                    out = Component.literal(template);
-
+    /**
+     * 首次访问某个 Task 时，为它的参数（仅 Component 类型）和兄弟节点
+     * 创建子 Task 并压栈，同时把 Task 引用记录到 argRefs / siblingTasks。
+     */
+    private static void expandAndPush(Task t, Deque<Task> stack) {
+        if (t.src.getContents() instanceof TranslatableContents trans) {
+            Object[] args = trans.getArgs();
+            Object[] refs = new Object[args.length];
+            for (int i = 0; i < args.length; i++) {
+                if (args[i] instanceof Component c) {
+                    Task child = new Task(c);
+                    refs[i] = child;
+                    stack.push(child);
                 } else {
-                    // ── 服务端表里有 key → 手工按 %s 拆分 ──
-                    out = Component.empty();
-
-                    int argIdx = 0;
-                    int from = 0;
-                    int tLen = template.length();
-                    String pendingColor = "";
-
-                    while (argIdx < args.length) {
-                        int pos = template.indexOf("%s", from);
-                        if (pos < 0) break;
-
-                        String seg = template.substring(from, pos);
-                        from = pos + 2;
-
-                        int lastIdx = -1;
-                        for (int j = seg.length() - 2; j >= 0; j--) {
-                            if (seg.charAt(j) == '§') {
-                                lastIdx = j;
-                                break;
-                            }
-                        }
-                        if (lastIdx >= 0) {
-                            pendingColor = seg.substring(lastIdx, lastIdx + 2);
-                        }
-
-                        if (!seg.isEmpty()) {
-                            // 每段都自带颜色码：§ 的颜色只在它所在的那段字面量里生效
-                            //（组件边界会断），所以不能指望「上一段结尾的 §x」把这一整段也染上
-                            out.append(Component.literal(pendingColor + seg));
-                        }
-
-                        Object a = args[argIdx++];
-                        if (a instanceof Component c) {
-                            // 参数是组件时，颜色得直接贴到组件自己身上（见 colorize 的注释）
-                            out.append(colorize(translateComponent(c, table), pendingColor));
-                        } else {
-                            out.append(Component.literal(pendingColor + a));
-                        }
-                    }
-
-                    // 追加剩余模板（含尾部 %% 或普通文本）
-                    if (from < tLen) {
-                        String tail = template.substring(from);
-                        if (tail.contains("%%")) tail = tail.replace("%%", "%");
-                        out.append(Component.literal(pendingColor + tail));
-                    }
+                    refs[i] = args[i];
                 }
             }
-            case PlainTextContents plain -> out = Component.literal(plain.text());
-            case KeybindContents keybind -> out = Component.keybind(keybind.getName());
-            default -> out = Component.literal(src.getString());
+            t.argRefs = refs;
         }
-
-        out.setStyle(src.getStyle());
-        List<Component> siblings = src.getSiblings();
-        for (Component sibling : siblings) {
-            out.append(translateComponent(sibling, table));
+        for (Component sib : t.src.getSiblings()) {
+            Task child = new Task(sib);
+            t.siblingTasks.add(child);
+            stack.push(child);
         }
+    }
 
+    /**
+     * 子 Task 全部完成后构建当前组件：按 contents 类型分派，
+     * 复制样式，再按顺序拼接各兄弟 Task 的结果。
+     */
+    private static MutableComponent build(Task t, Map<String, String> table) {
+        MutableComponent out = switch (t.src.getContents()) {
+            case TranslatableContents trans -> buildTranslatable(trans, t, table);
+            case PlainTextContents plain -> Component.literal(plain.text());
+            case KeybindContents keybind -> Component.keybind(keybind.getName());
+            default -> {
+                MutableComponent copy = t.src.copy();
+                copy.getSiblings().clear();
+                yield copy;
+            }
+        };
+
+        out.setStyle(t.src.getStyle());
+        for (Task sib : t.siblingTasks) {
+            out.append(sib.result);
+        }
         return out;
     }
 
+    /**
+     * 构建 translatable 组件：表内没有对应键时保留原 key，
+     * 仅把 Component 类型参数替换为子 Task 的翻译结果；
+     * 有对应模板时按模板渲染（%% 转义、%s 占位、颜色继承）。
+     */
+    private static MutableComponent buildTranslatable(TranslatableContents trans, Task t,
+                                                      Map<String, String> table) {
+        String key = trans.getKey();
+        Object[] args = trans.getArgs();
+        String template = table.get(key);
+
+        if (template == null) {
+            Object[] copied = args;
+            for (int i = 0; i < args.length; i++) {
+                if (args[i] instanceof Component) {
+                    if (copied == args) copied = args.clone();
+                    copied[i] = ((Task) t.argRefs[i]).result;
+                }
+            }
+            return Component.translatable(key, copied);
+        }
+
+        if (args.length == 0) {
+            return Component.literal(unescapePercent(template));
+        }
+
+        return renderTemplate(template, t.argRefs);
+    }
+
+    /**
+     * 按模板渲染参数：逐段切割 %s，处理 %% 转义，并把最近出现的 §x 颜色码
+     * 传递给参数和后续文本。argRefs 中的 Component 参数已由子 Task 构建好。
+     */
+    private static MutableComponent renderTemplate(String template, Object[] argRefs) {
+        MutableComponent out = Component.empty();
+
+        int argIdx = 0;
+        int from = 0;
+        int len = template.length();
+        String pendingColor = "";
+
+        while (argIdx < argRefs.length) {
+            int pos = template.indexOf("%s", from);
+            if (pos < 0) break;
+
+            String seg = template.substring(from, pos);
+            from = pos + 2;
+            if (!seg.isEmpty()) {
+                out.append(Component.literal(pendingColor + unescapePercent(seg)));
+            }
+
+            int lastIdx = seg.lastIndexOf('§');
+            if (lastIdx >= 0 && lastIdx + 1 < seg.length()) {
+                pendingColor = seg.substring(lastIdx, lastIdx + 2);
+            }
+
+            Object ref = argRefs[argIdx++];
+            if (ref instanceof Task task) {
+                out.append(colorize(task.result, pendingColor));
+            } else {
+                out.append(Component.literal(pendingColor + ref));
+            }
+        }
+
+        if (from < len) {
+            out.append(Component.literal(pendingColor + unescapePercent(template.substring(from))));
+        }
+        return out;
+    }
+
+    /** 将字符串中的 %% 还原为 %；不含 %% 时直接返回原引用。 */
+    private static String unescapePercent(String s) {
+        return s.contains("%%") ? s.replace("%%", "%") : s;
+    }
+
+    /**
+     * 迭代翻译用的任务节点：src 为源组件，result 为翻译结果。
+     * 仅 Translatable 会用到 argRefs；siblingTasks 与 src 的兄弟节点一一对应。
+     */
+    private static final class Task {
+        final Component src;
+        final List<Task> siblingTasks = new ArrayList<>();
+        Object[] argRefs;
+        MutableComponent result;
+        boolean expanded;
+
+        Task(Component src) {
+            this.src = src;
+        }
+    }
     /**
      * 把模板里的「旧式颜色码」（{@code §c}）贴成组件真正的 {@link Style} 颜色。
      *

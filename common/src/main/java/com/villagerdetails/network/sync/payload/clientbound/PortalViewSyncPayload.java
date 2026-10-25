@@ -1,5 +1,6 @@
 package com.villagerdetails.network.sync.payload.clientbound;
 
+import com.villagerdetails.network.channel.ClientboundPayload;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.SyncPayload;
 import net.minecraft.core.BlockPos;
@@ -21,7 +22,7 @@ import net.minecraft.world.level.Level;
  *
  * <p>包 id：{@code villagerdetails:portal_view_sync}
  */
-public final class PortalViewSyncPayload extends SyncPayload<PortalViewSyncPayload> {
+public final class PortalViewSyncPayload extends SyncPayload<PortalViewSyncPayload> implements ClientboundPayload {
 
     public static final PayloadId<PortalViewSyncPayload> ID = PayloadId.of("portal_view_sync");
 

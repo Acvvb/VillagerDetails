@@ -1,5 +1,6 @@
 package com.villagerdetails;
 
+import com.villagerdetails.entity.ModEntities;
 import com.villagerdetails.network.channel.PayloadTypes;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.resources.Identifier;
@@ -31,6 +32,9 @@ public final class VillagerDetails implements ModInitializer {
     public void onInitialize() {
         // 包类型必须两端都登记：这是客户端能收到/发出自定义包的前提
         PayloadTypes.registerAll();
+        // 自定义实体类型也必须两端登记（客户端要按同一份类型解码生成包），
+        // 目前只有「方块座位」一个，见 ModEntities
+        ModEntities.register();
     }
 
     public static Identifier id(String path) {

@@ -1,6 +1,6 @@
 package com.villagerdetails.client.cache.impl;
 
-import com.villagerdetails.client.cache.base.ClientSessionState;
+import com.villagerdetails.cache.base.SessionState;
 import com.villagerdetails.client.cache.base.ClientState;
 import net.minecraft.core.BlockPos;
 
@@ -14,7 +14,7 @@ import java.util.UUID;
  * <p>状态用<b>一个不可变快照</b>承载：读侧拿一次 {@link #get()} 就拿到同一时刻的实体和方块，
  * 不会出现「读实体时是新的、读方块时还是上一份」的错配（渲染器每帧要同时用这两个字段）。
  */
-public final class EBSelectionClientState implements ClientSessionState {
+public final class EBSelectionClientState implements SessionState {
 
     /**
      * 单例：扫包框架靠它拿实例，调用方统一写 {@code EBSelectionClientState.INSTANCE.xxx()}

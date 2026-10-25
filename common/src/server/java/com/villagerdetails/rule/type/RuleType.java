@@ -121,6 +121,30 @@ public enum RuleType implements RegisterTypeServer {
 
 
     // ==========================================
+    // 玩家 (PLAYER)
+    // ==========================================
+
+    /**
+     * 玩家头顶乘坐。主手空手右键其他玩家，坐到他头顶上；乘客潜行下坐。
+     *
+     * <p>涉及玩家之间的交互，默认关闭。细项（潜行同意、叠加上限、各种自动下坐）不在
+     * 规则状态里，而是落在 {@code villagerdetails/config.json} 的 {@code PlayerHeadSitting} 节，
+     * 见 {@link PlayerHeadSittingConfig}。
+     */
+    PLAYER_HEAD_SITTING("PlayerHeadSitting", "setting.player_head_sitting", "setting.player_head_sitting.desc", List.of(PLAYER), new ArrayList<>(), null, () -> PlayerHeadSittingConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+
+    /**
+     * 坐在楼梯 / 半砖上。主手空手右键楼梯或半砖即可坐上去，按 Shift 起身。
+     *
+     * <p>座位 = 方块碰撞箱最高那块的顶面中心（见 {@code BlockSittingSeat}），
+     * 没有任何偏移配置。能不能坐由<b>玩家自己</b>的客户端开关决定
+     * （{@code PlayerBlockSitting}，默认开；<b>没装本 mod 的玩家也算开</b>），
+     * 所以这条规则只有一开一关，没有细项配置节。
+     */
+    PLAYER_BLOCK_SITTING("PlayerBlockSitting", "setting.player_block_sitting", "setting.player_block_sitting.desc", List.of(PLAYER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+
+
+    // ==========================================
     // 村民 (VILLAGER)
     // ==========================================
 

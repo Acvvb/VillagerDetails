@@ -2,7 +2,7 @@ package com.villagerdetails.mixin.block.portalBinding;
 
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.handler.binding.block.portalbinding.PortalBindingService;
-import com.villagerdetails.pojo.PortalDestination;
+import com.villagerdetails.pojo.dto.PortalDestination;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;

@@ -1,6 +1,6 @@
 package com.villagerdetails.handler.binding.bbselection;
 
-import com.villagerdetails.cache.BBSectionStateCache;
+import com.villagerdetails.cache.impl.BBSectionStateCache;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;

@@ -1,5 +1,6 @@
 package com.villagerdetails.network.sync.payload.clientbound;
 
+import com.villagerdetails.network.channel.ClientboundPayload;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.SyncPayload;
 import com.villagerdetails.network.codec.DescriptorCodecs;
@@ -24,7 +25,7 @@ import java.util.List;
  *
  * <p>包 id：{@code villagerdetails:rule_data_options}
  */
-public final class RuleDataOptionsPayload extends SyncPayload<RuleDataOptionsPayload> {
+public final class RuleDataOptionsPayload extends SyncPayload<RuleDataOptionsPayload> implements ClientboundPayload {
 
     public static final PayloadId<RuleDataOptionsPayload> ID = PayloadId.of("rule_data_options");
 

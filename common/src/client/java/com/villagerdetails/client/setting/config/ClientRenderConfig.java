@@ -126,6 +126,16 @@ public final class ClientRenderConfig {
     }
 
     /**
+     * 这一项在配置里到底有没有写过值（空串也算「没有」）。
+     *
+     * <p>给 {@code ConfigEntryType#applyDefaultIfAbsent} 判断「是不是新增配置项」用。
+     */
+    public boolean hasValue(String registerName) {
+        String raw = values.get(registerName);
+        return raw != null && !raw.isEmpty();
+    }
+
+    /**
      * 写原始值；空串等于删除（回到默认）
      */
     public void setRaw(String registerName, String value) {
@@ -144,6 +154,24 @@ public final class ClientRenderConfig {
         for (ConfigEntryType entry : ConfigEntryType.values()) {
             entry.applyDefaultTo(this);
         }
+    }
+
+    /**
+     * 给「文件里缺的那些项」补上默认值（不落盘）。
+     *
+     * <p>只补缺的，不碰已有的值 —— 所以升级后新增的配置项会立刻拿到自己声明的默认值
+     * （例如「允许别人坐到我头上」的 {@code true}），而不是开关默认的 {@code false}。
+     *
+     * @return 有没有补过东西（补过就该落盘，让文件里也补上这几行）
+     */
+    public boolean applyMissingDefaults() {
+        boolean filled = false;
+        for (ConfigEntryType entry : ConfigEntryType.values()) {
+            if (entry.applyDefaultIfAbsent(this)) {
+                filled = true;
+            }
+        }
+        return filled;
     }
 
     /**
@@ -182,7 +210,14 @@ public final class ClientRenderConfig {
             }
             instance.ensureMaps();
             instance.migrateLegacy(root);
+            // 老文件里没有的新配置项：补成枚举里声明的默认值并立刻落盘，
+            // 免得「默认开的开关」在别人机器上被读成关闭
+            boolean filled = instance.applyMissingDefaults();
             instance.clamp();
+            if (filled) {
+                instance.save();
+                LOGGER.info("已把新增配置项的默认值补写进客户端配置：{}", file);
+            }
             LOGGER.info("已加载客户端渲染配置：{}", file);
         } catch (Exception e) {
             LOGGER.error("加载客户端渲染配置失败，回退到默认值：{}", file, e);

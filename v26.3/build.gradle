@@ -68,6 +68,16 @@ loom {
             // 默认值是 main，那样 server 源集里的类在 dev 里根本不会被加载
             sourceSet.set('server')
         }
+
+        // 第二个开发客户端：测「玩家之间」的功能（比如 PlayerHeadSitting 头顶乘坐）必须两个真玩家。
+        //   ./gradlew :v26.3:runClient    （第一个，用户名默认取系统用户名）
+        //   ./gradlew :v26.3:runClient2   （第二个，用户名 Tester2，独立 run 目录，别和第一个抢日志/配置）
+        // 需要服务端开着 online-mode=false，否则 dev 客户端是离线账号，会被服务端验证拒绝。
+        client2 {
+            client()
+            runDir "run-client2"
+            programArgs "--username", "Tester2"
+        }
     }
 }
 

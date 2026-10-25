@@ -1,7 +1,7 @@
 package com.villagerdetails.client.cache.impl;
 
+import com.villagerdetails.cache.base.SessionState;
 import com.villagerdetails.client.cache.base.ClientMapState;
-import com.villagerdetails.client.cache.base.ClientSessionState;
 import com.villagerdetails.client.network.requests.ClientRequests;
 import com.villagerdetails.client.setting.util.McIds;
 import com.villagerdetails.rule.descriptor.RuleDescriptor;
@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>清单没到 / 服务端说太大了（{@link Options#tooMany()}）时，校验一律放行、由服务端最终判定，
  * 预填则留空 —— 宁可让服务端拒一次，也不在客户端猜规则语义。
  */
-public final class RuleAuxCache implements ClientSessionState {
+public final class RuleAuxCache implements SessionState {
 
     /**
      * 单例：扫包框架靠它拿实例，调用方统一写 {@code RuleAuxCache.INSTANCE.xxx()}

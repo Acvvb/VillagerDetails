@@ -1,6 +1,6 @@
 package com.villagerdetails.client.cache.impl;
 
-import com.villagerdetails.client.cache.base.ClientSessionState;
+import com.villagerdetails.cache.base.SessionState;
 import com.villagerdetails.client.cache.base.ClientState;
 import net.minecraft.core.BlockPos;
 
@@ -19,7 +19,7 @@ import java.util.Set;
  *
  * <p>空表 = 附近没有脏熔炉（或规则已经关了）→ 渲染器直接不画。
  */
-public final class FurnaceDirtyClientState implements ClientSessionState {
+public final class FurnaceDirtyClientState implements SessionState {
 
     /**
      * 单例：扫包框架靠它拿实例，调用方统一写 {@code FurnaceDirtyClientState.INSTANCE.xxx()}

@@ -1,6 +1,6 @@
 package com.villagerdetails.client.cache.impl;
 
-import com.villagerdetails.client.cache.base.ClientSessionState;
+import com.villagerdetails.cache.base.SessionState;
 import com.villagerdetails.client.cache.base.ClientState;
 import net.minecraft.core.BlockPos;
 
@@ -12,7 +12,7 @@ import net.minecraft.core.BlockPos;
  * <p>两个角点装在<b>一个不可变快照</b>里整体替换：渲染器拿一次 {@link #get()} 就是同一时刻的
  * pos1 + pos2，不会画出「新 pos1 配旧 pos2」的错框。
  */
-public final class BBSelectionClientState implements ClientSessionState {
+public final class BBSelectionClientState implements SessionState {
 
     /**
      * 单例：扫包框架靠它拿实例，调用方统一写 {@code BBSelectionClientState.INSTANCE.xxx()}

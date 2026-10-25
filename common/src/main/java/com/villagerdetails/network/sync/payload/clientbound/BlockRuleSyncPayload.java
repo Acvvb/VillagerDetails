@@ -1,5 +1,6 @@
 package com.villagerdetails.network.sync.payload.clientbound;
 
+import com.villagerdetails.network.channel.ClientboundPayload;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.SyncPayload;
 import com.villagerdetails.network.codec.ModCodecs;
@@ -21,7 +22,7 @@ import java.util.List;
  *
  * <p>包 id：{@code villagerdetails:block_rule_sync}
  */
-public final class BlockRuleSyncPayload extends SyncPayload<BlockRuleSyncPayload> {
+public final class BlockRuleSyncPayload extends SyncPayload<BlockRuleSyncPayload> implements ClientboundPayload {
 
     /**
      * 一条规则的数据。

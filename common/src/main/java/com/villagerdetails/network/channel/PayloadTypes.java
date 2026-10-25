@@ -1,21 +1,18 @@
 package com.villagerdetails.network.channel;
 
-import com.villagerdetails.network.sync.payload.clientbound.VillagerPacket;
 import com.villagerdetails.util.PackageScanner;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.Identifier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
- * 自定义包<b>类型</b>的注册（两端共用）。
+ * 自定义包<b>类型</b>的登记（两端共用）。
  *
  * <p>Fabric 的规则：{@code PayloadTypeRegistry} 里的类型必须<b>在物理两端都登记一遍</b>
  * —— 客户端要按同一份 codec 解码服务端发来的包，否则会直接 disconnect。
@@ -25,17 +22,25 @@ import java.util.Set;
  * <p>服务端专属的「收包 / 事件 / 兜底」注册在 {@code ServerChannels}（server 源集），
  * 它会先调用本类把类型登记好，再注册接收器。
  *
- * <p>扫包规则和 {@link com.villagerdetails.util.PackageScanner} 一致：
- * 只认顶层、非抽象、非 interface 的 {@code SyncPayload} 子类，读它自己声明的
- * {@code ID} 与 {@code CODEC}。
+ * <p><b>方向由接口决定</b>：扫 {@value #PAYLOAD_PACKAGE}（含子包），对每个具体的
+ * {@link SyncPayload} 子类看它实现的是 {@link ClientboundPayload} 还是
+ * {@link ServerboundPayload}，然后<b>调那个接口的 {@code register(Class)}</b> 完成登记。
+ * 放错目录最多是看着乱；忘了实现任何一个接口（或两个都实现）会直接报成失败项，
+ * 不会再静默登记到错误的方向上。
  */
 public final class PayloadTypes {
 
     private static final Logger LOGGER = LogManager.getLogger(PayloadTypes.class);
 
+    /**
+     * 同步相关代码的根包
+     */
     private static final String SYNC_PACKAGE = "com.villagerdetails.network.sync";
-    public static final String PAYLOAD_CLIENTBOUND_PACKAGE = SYNC_PACKAGE + ".payload.clientbound";
-    public static final String PAYLOAD_SERVERBOUND_PACKAGE = SYNC_PACKAGE + ".payload.serverbound";
+
+    /**
+     * 包定义所在的包（含子包）；方向看接口，不看子目录
+     */
+    private static final String PAYLOAD_PACKAGE = SYNC_PACKAGE + ".payload";
 
     private static volatile Registered registered;
 
@@ -49,7 +54,7 @@ public final class PayloadTypes {
     }
 
     /**
-     * 扫两个 payload 目录并登记包类型；重复调用只登记一次（两端入口 + 服务端注册都会调）。
+     * 扫包登记两端所有包类型；重复调用只登记一次（两端入口 + 服务端注册都会调）。
      */
     public static Registered registerAll() {
         Registered local = registered;
@@ -58,49 +63,67 @@ public final class PayloadTypes {
         }
         synchronized (PayloadTypes.class) {
             if (registered == null) {
-                Set<Identifier> clientbound = register(PAYLOAD_CLIENTBOUND_PACKAGE, true);
-                Set<Identifier> serverbound = register(PAYLOAD_SERVERBOUND_PACKAGE, false);
-                LOGGER.info("包类型注册完成：S→C {} 个、C→S {} 个", clientbound.size(), serverbound.size());
+                List<ChannelScanner.Failure> failures = new ArrayList<>();
+                Set<Identifier> clientbound = new LinkedHashSet<>();
+                Set<Identifier> serverbound = new LinkedHashSet<>();
+                List<String> clientboundNames = new ArrayList<>();
+                List<String> serverboundNames = new ArrayList<>();
+
+                scan(clientbound, clientboundNames, serverbound, serverboundNames, failures);
+
+                ChannelScanner.checkNotEmpty(clientboundNames.size(), PAYLOAD_PACKAGE, "包类型（S→C）", failures);
+                ChannelScanner.checkNotEmpty(serverboundNames.size(), PAYLOAD_PACKAGE, "包类型（C→S）", failures);
+
+                LOGGER.info("包类型登记完成（S→C）：{} 个 {}", clientbound.size(), clientboundNames);
+                LOGGER.info("包类型登记完成（C→S）：{} 个 {}", serverbound.size(), serverboundNames);
+
+                ChannelScanner.reportFailures(LOGGER, "包类型注册", failures);
                 registered = new Registered(clientbound, serverbound);
             }
             return registered;
         }
     }
 
-    private static Set<Identifier> register(String packageName, boolean clientbound) {
-        Set<Identifier> ids = new LinkedHashSet<>();
-        for (Class<?> candidate : PackageScanner.scan(packageName, VillagerPacket.class,
-                (name, cause) -> LOGGER.error("包类型 {} 类加载失败（扫包时被跳过），这个包不会生效", name, cause))) {
+    /**
+     * 扫一遍包目录：按实现的接口分派到 {@link ClientboundPayload#register(Class)} /
+     * {@link ServerboundPayload#register(Class)}，顺带收好两边的 id 与类名。
+     */
+    private static void scan(Set<Identifier> clientbound, List<String> clientboundNames,
+                             Set<Identifier> serverbound, List<String> serverboundNames,
+                             List<ChannelScanner.Failure> failures) {
+        for (Class<?> candidate : PackageScanner.scan(PAYLOAD_PACKAGE, PayloadTypes.class,
+                (name, cause) -> failures.add(new ChannelScanner.Failure("包类型", name,
+                        "类加载失败（扫包时被跳过），这个包不会生效", cause)))) {
             if (!SyncPayload.class.isAssignableFrom(candidate)
                     || candidate.isInterface()
                     || Modifier.isAbstract(candidate.getModifiers())) {
                 continue;
             }
+            boolean toClient = ClientboundPayload.class.isAssignableFrom(candidate);
+            boolean toServer = ServerboundPayload.class.isAssignableFrom(candidate);
+            if (toClient == toServer) {
+                // 两个都没实现 / 两个都实现：方向不明确，宁可不登记也要报出来
+                failures.add(new ChannelScanner.Failure("包类型", candidate.getName(),
+                        toClient
+                                ? "同时实现了 ClientboundPayload 和 ServerboundPayload，方向不明确"
+                                : "既没实现 ClientboundPayload 也没实现 ServerboundPayload，不会被登记",
+                        null));
+                continue;
+            }
             try {
-                registerType(candidate, clientbound);
-                ids.add(((PayloadId<?>) staticField(candidate, "ID")).id());
+                if (toClient) {
+                    ClientboundPayload.register(candidate);
+                    clientbound.add(PayloadRegistration.idOf(candidate).id());
+                    clientboundNames.add(candidate.getSimpleName());
+                } else {
+                    ServerboundPayload.register(candidate);
+                    serverbound.add(PayloadRegistration.idOf(candidate).id());
+                    serverboundNames.add(candidate.getSimpleName());
+                }
             } catch (Throwable t) {
-                LOGGER.error("包类型 {} 注册失败，这个包不会生效", candidate.getName(), t);
+                failures.add(new ChannelScanner.Failure("包类型", candidate.getName(),
+                        "登记失败，这个包不会生效", t));
             }
         }
-        return ids;
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private static void registerType(Class<?> payloadClass, boolean clientbound) throws ReflectiveOperationException {
-        PayloadId id = (PayloadId) staticField(payloadClass, "ID");
-        StreamCodec<? super RegistryFriendlyByteBuf, ?> codec =
-                (StreamCodec<? super RegistryFriendlyByteBuf, ?>) staticField(payloadClass, "CODEC");
-        if (clientbound) {
-            PayloadTypeRegistry.clientboundPlay().register(id.type(), (StreamCodec) codec);
-        } else {
-            PayloadTypeRegistry.serverboundPlay().register(id.type(), (StreamCodec) codec);
-        }
-    }
-
-    private static Object staticField(Class<?> clazz, String name) throws ReflectiveOperationException {
-        Field field = clazz.getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(null);
     }
 }

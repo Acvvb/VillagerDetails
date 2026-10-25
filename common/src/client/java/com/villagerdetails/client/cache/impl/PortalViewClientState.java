@@ -1,7 +1,7 @@
 package com.villagerdetails.client.cache.impl;
 
+import com.villagerdetails.cache.base.SessionState;
 import com.villagerdetails.client.cache.base.ClientMapState;
-import com.villagerdetails.client.cache.base.ClientSessionState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
@@ -20,7 +20,7 @@ import net.minecraft.world.level.Level;
  * <p>整份区域表用<b>一个不可变 Map</b> 承载、整体替换：渲染器读到的永远是某个完整版本，
  * 不会读到「一半是新的、一半是旧的」。
  */
-public final class PortalViewClientState implements ClientSessionState {
+public final class PortalViewClientState implements SessionState {
 
     /**
      * 单例：扫包框架靠它拿实例，调用方统一写 {@code PortalViewClientState.INSTANCE.xxx()}

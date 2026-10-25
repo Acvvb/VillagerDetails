@@ -1,6 +1,6 @@
 package com.villagerdetails.network.sync.receiver;
 
-import com.villagerdetails.cache.BBSectionStateCache;
+import com.villagerdetails.cache.impl.BBSectionStateCache;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.ServerReceiver;
 import com.villagerdetails.network.sync.clientbound.BBSyncChannel;

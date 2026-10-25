@@ -1,5 +1,6 @@
 package com.villagerdetails.network.sync.payload.clientbound;
 
+import com.villagerdetails.network.channel.ClientboundPayload;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.SyncPayload;
 import net.minecraft.core.BlockPos;
@@ -9,7 +10,7 @@ import net.minecraft.network.codec.StreamCodec;
 /**
  * 服务端 → 客户端：本机玩家 BB 选择器的两个角点（任一可为 null）。
  */
-public final class BBSyncPayload extends SyncPayload<BBSyncPayload> {
+public final class BBSyncPayload extends SyncPayload<BBSyncPayload> implements ClientboundPayload {
 
     public static final PayloadId<BBSyncPayload> ID = PayloadId.of("bb_sync");
 

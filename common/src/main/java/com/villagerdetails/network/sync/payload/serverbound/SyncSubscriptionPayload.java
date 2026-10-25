@@ -1,6 +1,7 @@
 package com.villagerdetails.network.sync.payload.serverbound;
 
 import com.villagerdetails.network.channel.PayloadId;
+import com.villagerdetails.network.channel.ServerboundPayload;
 import com.villagerdetails.network.channel.SyncPayload;
 import com.villagerdetails.network.codec.ModCodecs;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -26,7 +27,7 @@ import net.minecraft.resources.Identifier;
  *
  * <p>包 id：{@code villagerdetails:sync_subscription}
  */
-public final class SyncSubscriptionPayload extends SyncPayload<SyncSubscriptionPayload> {
+public final class SyncSubscriptionPayload extends SyncPayload<SyncSubscriptionPayload> implements ServerboundPayload {
 
     public static final PayloadId<SyncSubscriptionPayload> ID = PayloadId.of("sync_subscription");
 

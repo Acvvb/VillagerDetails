@@ -1,7 +1,7 @@
 package com.villagerdetails.client.cache.impl;
 
+import com.villagerdetails.cache.base.SessionState;
 import com.villagerdetails.client.cache.base.ClientMapState;
-import com.villagerdetails.client.cache.base.ClientSessionState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
@@ -15,7 +15,7 @@ import java.util.Optional;
  * <p>多人联机时客户端拿不到服务端的大脑记忆，床坐标由服务端逐个村民推下来（{@code villager_bed_sync}）；
  * 单人 / 集成服里没有服务端包，直接读本地大脑记忆（{@link #getBedPosition(Villager)} 的第二条分支）。
  */
-public final class VillagerBedClientState implements ClientSessionState {
+public final class VillagerBedClientState implements SessionState {
 
     /**
      * 单例：扫包框架靠它拿实例，调用方统一写 {@code VillagerBedClientState.INSTANCE.xxx()}

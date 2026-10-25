@@ -1,6 +1,7 @@
 package com.villagerdetails.network.sync.payload.serverbound;
 
 import com.villagerdetails.network.channel.PayloadId;
+import com.villagerdetails.network.channel.ServerboundPayload;
 import com.villagerdetails.network.channel.SyncPayload;
 import com.villagerdetails.network.codec.ModCodecs;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -19,7 +20,7 @@ import net.minecraft.network.codec.StreamCodec;
  *
  * <p>包 id：{@code villagerdetails:rule_data}
  */
-public final class RuleDataPayload extends SyncPayload<RuleDataPayload> {
+public final class RuleDataPayload extends SyncPayload<RuleDataPayload> implements ServerboundPayload {
 
     public static final PayloadId<RuleDataPayload> ID = PayloadId.of("rule_data");
 

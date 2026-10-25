@@ -2,8 +2,7 @@
 	"required": true,
 	"package": "com.villagerdetails.client.mixin",
 	"compatibilityLevel": "JAVA_25",
-	"client": [
-	],
+	"client": [],
 	"injectors": {
 		"defaultRequire": 1
 	},

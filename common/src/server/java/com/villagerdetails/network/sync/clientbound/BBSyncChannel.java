@@ -1,6 +1,6 @@
 package com.villagerdetails.network.sync.clientbound;
 
-import com.villagerdetails.cache.BBSectionStateCache;
+import com.villagerdetails.cache.impl.BBSectionStateCache;
 import com.villagerdetails.network.channel.SyncChannel;
 import com.villagerdetails.network.sync.payload.clientbound.BBSyncPayload;
 import net.minecraft.server.level.ServerPlayer;

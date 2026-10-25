@@ -279,6 +279,35 @@ public enum ConfigEntryType implements ConfigRow {
             List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_ALL,SecondCategoryType.TOGGLE_SWITCH), "false", "",
             BindingServer.toggle()),
 
+    /**
+     * 「允许别人坐到我头上」——「玩家头顶乘坐」的<b>同意开关</b>。
+     *
+     * <p>它管的是「别人能不能右键坐到我头上」，所以关掉之后被保护的是<b>自己</b>，
+     * 而不是「我不能坐别人」。默认开（装了本 mod 的玩家之间开箱即用）；
+     * 想安静的时候关掉，正在头上的乘客会被服务端下一个 tick 请下来。
+     *
+     * <p>服务端不认识「谁是好人」，只认这个开关上报的值：<b>没装本 mod 的玩家不发这个包，
+     * 一律算不允许</b>（见 {@code PlayerHeadSittingAllowPayload}）。
+     */
+    ALLOW_PLAYER_HEAD_SITTING("AllowPlayerHeadSitting",
+            "villagerdetails.ui.option.allow_player_head_sitting",
+            "villagerdetails.ui.option.allow_player_head_sitting.desc",
+            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_SWITCH), "true", "",
+            BindingServer.toggle()),
+
+    /**
+     * 「允许坐在楼梯 / 半砖上」——「方块就坐」的<b>个人开关</b>。
+     *
+     * <p>它管的是「我自己能不能空手右键楼梯 / 半砖坐上去」，关掉之后服务端就不让我坐了
+     * （正在坐着也会被请起来）。默认开，而且<b>没装本 mod 的玩家也会被当成开</b> ——
+     * 坐个楼梯不影响别人，没必要默认禁掉（见 {@code PlayerBlockSittingEnabledPayload}）。
+     */
+    PLAYER_BLOCK_SITTING("PlayerBlockSitting",
+            "villagerdetails.ui.option.player_block_sitting",
+            "villagerdetails.ui.option.player_block_sitting.desc",
+            List.of(FirstCategoryType.TOGGLES), List.of(SecondCategoryType.TOGGLE_SWITCH), "true", "",
+            BindingServer.toggle()),
+
     // ---------------- 功能触发 / 选区 ----------------
 
     /**
@@ -494,8 +523,20 @@ public enum ConfigEntryType implements ConfigRow {
         return getToggle(ClientRenderConfig.get());
     }
 
+    /**
+     * 读开关值。
+     *
+     * <p><b>文件里根本没有这一项时按枚举里声明的默认值算</b>，而不是 {@code false}
+     * —— 否则「默认开」的新配置项在别人的老配置文件上会静默变成关闭（
+     * {@code Boolean.parseBoolean("")} 就是 {@code false}）。
+     * 落盘补齐由 {@link #applyDefaultIfAbsent} / {@link ClientRenderConfig#applyMissingDefaults()} 负责。
+     */
     public boolean getToggle(ClientRenderConfig config) {
-        return Boolean.parseBoolean(config.getRaw(registerName));
+        String raw = config.getRaw(registerName);
+        if (raw == null || raw.isEmpty()) {
+            return defaultToggle();
+        }
+        return Boolean.parseBoolean(raw);
     }
 
     @Override
@@ -678,6 +719,43 @@ public enum ConfigEntryType implements ConfigRow {
             default -> {
             }
         }
+    }
+
+    /**
+     * 配置文件里有没有这一项（只对「单值」项有意义：开关 / 颜色 / 滑块）。
+     *
+     * <p>列表项和快捷键没有「缺省」这一说：没写就是空列表 / 未绑定，和默认值等价。
+     */
+    public boolean isPresent(ClientRenderConfig config) {
+        return switch (getStyle()) {
+            case TOGGLE, COLOR, SLIDER -> config.hasValue(registerName);
+            // 列表 / 触发器的默认值是空，缺省即默认，不需要补
+            default -> true;
+        };
+    }
+
+    /**
+     * 配置文件里缺这一项时，把枚举里声明的默认值写进缓存（不落盘）。
+     *
+     * <p>这是给「升级后新增配置项」用的：老文件里没有新键，读出来会是空串，
+     * 开关因此变成 {@code false}、滑块变成 0，看起来就像「默认值不生效」。
+     * 这里统一补成默认值，然后由 {@link ClientRenderConfig#applyMissingDefaults()} 汇总落盘。
+     *
+     * @return 真的补了东西才返回 {@code true}（调用方据此决定要不要写盘）
+     */
+    public boolean applyDefaultIfAbsent(ClientRenderConfig config) {
+        if (isPresent(config)) {
+            return false;
+        }
+        switch (getStyle()) {
+            case TOGGLE -> setToggle(config, defaultToggle());
+            case COLOR -> setColor(config, ColorUtil.parseRgb(state));
+            case SLIDER -> setNumber(config, defaultNumber());
+            default -> {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

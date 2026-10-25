@@ -3,6 +3,7 @@ package com.villagerdetails.config;
 import com.villagerdetails.config.impl.IdTranslationConfig;
 import com.villagerdetails.config.impl.RuleConfig;
 import com.villagerdetails.config.impl.UnifiedConfigFile;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,11 +18,12 @@ public final class ConfigRegistry {
     private ConfigRegistry() {
     }
 
-    // ★ 字段声明放最前
     private static final Logger log = LogManager.getLogger(ConfigRegistry.class);
     private static final Map<String, ReloadableConfig> REGISTRY = new LinkedHashMap<>();
 
-    // 静态注册——此时 REGISTRY 已经初始化
+    /** SERVER_STARTED 回灌钩子是否已登记（防历史坑：以前被单独注册过两次） */
+    private static boolean startedHookRegistered;
+
     static {
         register(IdTranslationConfig.INSTANCE);
         // 顺序有讲究：RuleConfig 必须排在 UnifiedConfigFile 前面 ——
@@ -30,6 +32,30 @@ public final class ConfigRegistry {
         register(RuleConfig.INSTANCE);
         register(UnifiedConfigFile.INSTANCE);
     }
+
+    // ==============================================================
+    // 事件注册：把「开服回灌一次」收进类里
+    // ==============================================================
+
+    /**
+     * 登记 {@code SERVER_STARTED → reloadAll}。
+     *
+     * <p>由集中初始化入口调用一次；重复调用只打 warn、不重复注册。
+     * 以前这条是散在外面 register 的，配合 {@code ServerLifecycleListener}
+     * 曾导致每次开服回灌两遍。
+     */
+    public static synchronized void registerStartedHook() {
+        if (startedHookRegistered) {
+            log.warn("SERVER_STARTED 回灌回调重复注册被忽略");
+            return;
+        }
+        startedHookRegistered = true;
+        ServerLifecycleEvents.SERVER_STARTED.register(ConfigRegistry::reloadAll);
+    }
+
+    // ==============================================================
+    // 配置注册（原有）
+    // ==============================================================
 
     public static synchronized void register(ReloadableConfig config) {
         if (config == null) return;
@@ -65,7 +91,10 @@ public final class ConfigRegistry {
             try {
                 config.reload(server);
                 loaded.add(config.configName());
-                log.info("已重载：{}", config.configName());
+                // 刻意用 debug：每份配置自己都会打一条带名字和关键值的 INFO
+                // （「已加载交易索引」「[NoSqueeze] 已加载 …」「[PlayerHeadSitting] …」），
+                // 这里再来一条 INFO 的话，启动日志里同一份配置会连着出现两行，看着就像加载了两遍。
+                log.debug("已重载：{}", config.configName());
             } catch (Exception e) {
                 log.error("重载 {} 失败", config.configName(), e);
                 failed.add(config.configName() + ": " + e.getMessage());

@@ -1,6 +1,6 @@
 package com.villagerdetails.client.cache.impl;
 
-import com.villagerdetails.client.cache.base.ClientSessionState;
+import com.villagerdetails.cache.base.SessionState;
 import com.villagerdetails.client.cache.base.ClientState;
 import com.villagerdetails.rule.descriptor.RuleDescriptor;
 
@@ -15,7 +15,7 @@ import java.util.function.UnaryOperator;
  * 组装 / 探测 / 查询那些事全在 {@link com.villagerdetails.client.setting.rule.ServerRuleHandler} 里。
  * 被扫包框架自动接管断线清理。
  */
-public final class ServerRuleCache implements ClientSessionState {
+public final class ServerRuleCache implements SessionState {
 
     /**
      * 单例：扫包框架靠它拿实例，调用方统一写 {@code ServerRuleCache.INSTANCE.xxx()}

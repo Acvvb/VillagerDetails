@@ -2,8 +2,8 @@ package com.villagerdetails.client.feature.villagerbed;
 
 import com.villagerdetails.client.cache.impl.VillagerBedClientState;
 import com.villagerdetails.client.feature.ClientFeature;
-import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.rander.EntityBlockLinkRenderer;
+import com.villagerdetails.client.setting.type.ConfigEntryType;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;

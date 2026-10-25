@@ -1,6 +1,6 @@
 package com.villagerdetails.network.sync.receiver;
 
-import com.villagerdetails.cache.EBSelectionStateCache;
+import com.villagerdetails.cache.impl.EBSelectionStateCache;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.ServerReceiver;
 import com.villagerdetails.network.sync.clientbound.EBSyncChannel;

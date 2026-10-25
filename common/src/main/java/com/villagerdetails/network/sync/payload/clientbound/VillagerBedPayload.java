@@ -1,8 +1,9 @@
 package com.villagerdetails.network.sync.payload.clientbound;
 
+import com.villagerdetails.network.channel.ClientboundPayload;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.SyncPayload;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import com.villagerdetails.pojo.dto.VillagerPacket;import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 
 /**
@@ -10,7 +11,7 @@ import net.minecraft.network.codec.StreamCodec;
  *
  * <p>包 id：{@code villagerdetails:villager_sync}（以前命名空间写错了，第 2 步统一成模组 id）。
  */
-public final class VillagerBedPayload extends SyncPayload<VillagerBedPayload> {
+public final class VillagerBedPayload extends SyncPayload<VillagerBedPayload> implements ClientboundPayload {
 
     public static final PayloadId<VillagerBedPayload> ID = PayloadId.of("villager_sync");
 

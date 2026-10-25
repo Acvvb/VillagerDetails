@@ -1,7 +1,7 @@
 package com.villagerdetails.network.channel;
 
 import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.network.ServerChannels;import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -10,10 +10,12 @@ import java.util.function.Consumer;
 /**
  * 一条同步通道的<b>服务端侧发送 API</b>：发包 / 广播 / 判对方装没装。
  *
- * <p>包类型注册<b>不在这里</b> —— 那是包自己的事，见 {@link ServerChannels}：
- * 包定义（{@code XxxPayload}）放进 {@code network.sync.payload.clientbound} /
- * {@code network.sync.payload.serverbound}，它自己声明的 {@code ID} + {@code CODEC}
- * 就是注册要的全部东西，所以这里不用再抄一遍编解码器。
+ * <p>它是 {@link ClientboundChannel}（{@code network.sync.clientbound} 目录的角色接口）的实现基类：
+ * 框架扫那个目录时只认实现该接口的类，并调 {@code register()} 做自检（确认包定义已登记）。
+ *
+ * <p>包类型注册<b>不在这里</b> —— 那是包自己的事（{@code XxxPayload implements ClientboundPayload}）：
+ * 包定义放进 {@code network.sync.payload.clientbound} / {@code .serverbound}，
+ * 它自己声明的 {@code ID} + {@code CODEC} 就是登记要的全部东西。
  *
  * <p>子类（放 {@code network.sync.clientbound}，只负责「这个包怎么发」）只要：
  * 构造里 {@code super(XxxPayload.ID)}，需要的话再写自己的发包方法（例如 {@code sendBed}）。
@@ -28,7 +30,7 @@ import java.util.function.Consumer;
  * 由客户端子类
  * {@code XxxClientChannel extends XxxChannel implements ClientReceiver<XxxPayload>} 混进来。
  */
-public abstract class SyncChannel<P extends SyncPayload<P>> {
+public abstract class SyncChannel<P extends SyncPayload<P>> implements ClientboundChannel<P> {
 
     private final PayloadId<P> id;
 
@@ -36,6 +38,10 @@ public abstract class SyncChannel<P extends SyncPayload<P>> {
         this.id = id;
     }
 
+    /**
+     * 这条通道的包 id（{@link ClientboundChannel#id()} 的实现）
+     */
+    @Override
     public final PayloadId<P> id() {
         return id;
     }

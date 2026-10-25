@@ -1,8 +1,8 @@
 package com.villagerdetails.handler.binding.block.portalbinding;
 
-import com.villagerdetails.cache.PortalBinding;
 import com.villagerdetails.config.impl.section.item.PortalBindingConfig;
-import com.villagerdetails.pojo.PortalDestination;
+import com.villagerdetails.pojo.dto.PortalBinding;
+import com.villagerdetails.pojo.dto.PortalDestination;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;

@@ -1,8 +1,9 @@
 package com.villagerdetails.network.sync.payload.clientbound;
 
+import com.villagerdetails.network.channel.ClientboundPayload;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.SyncPayload;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import com.villagerdetails.pojo.dto.WorkstationPacket;import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 
 /**
@@ -14,7 +15,7 @@ import net.minecraft.network.codec.StreamCodec;
  * 自动登记包类型，不用手动注册（手动再登记一次会因重复注册抛异常）。
  * 服务端侧的发送通道在同名子包 {@code network.sync.clientbound} 里。
  */
-public final class WorkstationPayload extends SyncPayload<WorkstationPayload> {
+public final class WorkstationPayload extends SyncPayload<WorkstationPayload> implements ClientboundPayload {
 
     public static final PayloadId<WorkstationPayload> ID = PayloadId.of("workstation_sync");
 

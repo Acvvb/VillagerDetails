@@ -2,9 +2,9 @@ package com.villagerdetails.client.feature.workstation;
 
 import com.villagerdetails.client.cache.impl.WorkstationClientState;
 import com.villagerdetails.client.feature.ClientFeature;
+import com.villagerdetails.client.rander.EntityBlockLinkRenderer;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.util.ColorUtil;
-import com.villagerdetails.client.rander.EntityBlockLinkRenderer;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;

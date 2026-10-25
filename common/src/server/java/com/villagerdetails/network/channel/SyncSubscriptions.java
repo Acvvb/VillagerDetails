@@ -1,5 +1,6 @@
 package com.villagerdetails.network.channel;
 
+import com.villagerdetails.cache.base.SessionState;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -15,13 +16,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * 发一个 {@code off}，服务端就在这儿记一笔；重新打开时发 {@code on}，再把这一笔删掉。
  * {@link SyncChannel#canSendTo} 会先查这里，所以「被静音的通道」连扫描/组包都会跳过。
  *
- * <p>玩家退出时整条记录丢弃（见 {@code SyncSubscriptionEvents}）：
- * 下次进服默认是「要发」，客户端如果仍然关着显示，收到第一包后会自己再发一次 off。
+ * <p>玩家退出时整条记录丢弃（{@link #clearPlayer(UUID)}）：下次进服默认是「要发」，
+ * 客户端如果仍然关着显示，收到第一包后会自己再发一次 off。
+ * 它不在 {@code cache.impl} 包里（是同步框架的一部分），但同样只活在一次会话里，
+ * 所以在 {@code ServerSessionStates} 里手工登记了一行（和客户端那边的
+ * {@code SyncSubscriptionClient} 一个写法）。
  *
  * <p>键用 UUID 而不是 {@code ServerPlayer} 实例：玩家对象会被重建，
  * 而且用 UUID 不会把已经下线的玩家实例攥在内存里。
  */
-public final class SyncSubscriptions {
+public final class SyncSubscriptions implements SessionState {
+
+    public static final SyncSubscriptions INSTANCE = new SyncSubscriptions();
 
     /**
      * 玩家 UUID → 这个玩家静音的通道 id 集合
@@ -67,16 +73,18 @@ public final class SyncSubscriptions {
     /**
      * 玩家退出：丢掉他的全部静音记录
      */
-    public static void clear(ServerPlayer player) {
-        if (player != null) {
-            MUTED.remove(player.getUUID());
+    @Override
+    public void clearPlayer(UUID playerUuid) {
+        if (playerUuid != null) {
+            MUTED.remove(playerUuid);
         }
     }
 
     /**
      * 服务器停止：整份清空（懒清理，防止内存里留下上一局的记录）
      */
-    public static void clearAll() {
+    @Override
+    public void clearSession() {
         MUTED.clear();
     }
 }

@@ -2,7 +2,7 @@
 package com.villagerdetails.handler.binding.entity.villager;
 
 import com.villagerdetails.handler.binding.type.BindingType;
-import com.villagerdetails.handler.villager.move.VillagerMoveHandler;
+import com.villagerdetails.handler.entity.villager.move.VillagerMoveHandler;
 import com.villagerdetails.util.SendMessengerUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;

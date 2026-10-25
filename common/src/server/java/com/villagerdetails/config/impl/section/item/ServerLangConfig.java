@@ -101,6 +101,6 @@ public final class ServerLangConfig implements ReloadableConfig {
         }
 
         if (dirty) UnifiedConfigFile.save();
-        LOGGER.info("preload={}, default={}", preloadLanguage, defaultLang);
+        LOGGER.info("[ServerLang] preload={}, default={}", preloadLanguage, defaultLang);
     }
 }

@@ -1,6 +1,6 @@
 package com.villagerdetails.network.sync.clientbound;
 
-import com.villagerdetails.cache.EBSelectionStateCache;
+import com.villagerdetails.cache.impl.EBSelectionStateCache;
 import com.villagerdetails.network.channel.SyncChannel;
 import com.villagerdetails.network.sync.payload.clientbound.EBSyncPayload;
 import net.minecraft.server.level.ServerPlayer;

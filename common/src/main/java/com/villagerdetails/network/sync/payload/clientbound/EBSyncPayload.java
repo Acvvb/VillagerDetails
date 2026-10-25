@@ -1,5 +1,6 @@
 package com.villagerdetails.network.sync.payload.clientbound;
 
+import com.villagerdetails.network.channel.ClientboundPayload;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.SyncPayload;
 import net.minecraft.core.BlockPos;
@@ -12,7 +13,7 @@ import java.util.UUID;
  * 服务端 → 客户端：本机玩家当前选中的实体 / 方块（任一可为 null）。
  * 每次选择变化都推一次完整状态，客户端不做增量计算。
  */
-public final class EBSyncPayload extends SyncPayload<EBSyncPayload> {
+public final class EBSyncPayload extends SyncPayload<EBSyncPayload> implements ClientboundPayload {
 
     public static final PayloadId<EBSyncPayload> ID = PayloadId.of("eb_sync");
 
