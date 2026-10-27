@@ -9,7 +9,6 @@ import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.VillagerDetails;
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.command.c.server.StateSuggestionServer;
-import com.villagerdetails.lang.ServerTranslations;
 import com.villagerdetails.rule.RuleChangeService;
 import com.villagerdetails.rule.RuleSwitches;
 import com.villagerdetails.rule.type.RuleCategoryType;
@@ -18,7 +17,7 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
-import net.minecraft.network.chat.*;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionLevel;
 import org.apache.logging.log4j.LogManager;
@@ -49,6 +48,9 @@ import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
  * </pre>
  *
  * <p>所有写操作都走 {@link RuleChangeService#change}，与客户端界面改规则共用同一个入口。
+ *
+ * <p>聊天组件（规则名、按钮、分隔线、整行列表 / 详情）的拼装全部在
+ * {@link RuleMessageComponents}，这里只负责取数据、发消息。
  */
 public class RuleCommand {
 
@@ -80,15 +82,10 @@ public class RuleCommand {
     private static final String K_LIST_HEADER_ALL = "command.entity_binder.list.header.all";
     private static final String K_LIST_HEADER_CATEGORY = "command.entity_binder.list.header.category";
 
-    private static final String K_HELP_CATEGORIES = "command.entity_binder.help.categories";
-
     private static final String K_ERR_UNKNOWN_CATEGORY = "command.entity_binder.error.unknown_category";
     private static final String K_ERR_UNKNOWN_RULE = "command.entity_binder.error.unknown_rule";
 
-    private static final String K_TOGGLE_CATEGORY = "command.entity_binder.toggle.category_label";
-    private static final String K_TOGGLE_VALUE = "command.entity_binder.toggle.value_label";
     private static final String K_TOGGLE_SUCCESS = "command.entity_binder.toggle.success";
-    private static final String K_TOGGLE_HOVER = "command.entity_binder.toggle.hover";
 
     //补全
     private static final SuggestionProvider<CommandSourceStack> RULE_SUGGESTER = (_, builder) ->
@@ -224,10 +221,7 @@ public class RuleCommand {
      */
     private static int helpRules(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = context.getSource().getPlayer();
-        MutableComponent mutableComponent = Component.empty();
-        mutableComponent.append(Component.translatable(K_HELP_CATEGORIES));
-        mutableComponent.append(categoryDisplay(List.of(RuleCategoryType.values())));
-        sendOrBroadcast(player, mutableComponent);
+        sendOrBroadcast(player, RuleMessageComponents.helpCategories());
         return 1;
     }
 
@@ -268,13 +262,7 @@ public class RuleCommand {
      */
     public static void sendRuleList(ServerPlayer player, List<RuleType> ruleTypeList) {
         for (RuleType rule : ruleTypeList) {
-            String currentState = RuleCache.getState(rule);
-            Component line = Component.empty()
-                    .append("\n")
-                    .append(getRuleName(rule))
-                    .append("\n")
-                    .append(quickSwitchComponents(rule, currentState));
-            sendOrBroadcast(player, line);
+            sendOrBroadcast(player, RuleMessageComponents.ruleListLine(rule, RuleCache.getState(rule)));
         }
     }
 
@@ -327,17 +315,7 @@ public class RuleCommand {
 
         // 无 state → 显示当前
         if (state == null) {
-            String currentState = RuleCache.getState(rule);
-            MutableComponent mc = Component.empty();
-            mc.append(divider())
-                    .append(getRuleName(rule))
-                    .append(Component.translatable(K_TOGGLE_CATEGORY))
-                    .append(categoryDisplay(rule.getCategory()))
-                    .append("\n")
-                    .append(Component.translatable(rule.getDisplayInfo()))
-                    .append(Component.translatable(K_TOGGLE_VALUE))
-                    .append(quickSwitchComponents(rule, currentState));
-            sendOrBroadcast(player, mc);
+            sendOrBroadcast(player, RuleMessageComponents.ruleDetail(rule, RuleCache.getState(rule)));
             return 1;
         }
 
@@ -360,102 +338,4 @@ public class RuleCommand {
                 Component.literal(canonical)));
         return 1;
     }
-
-    // ============================================================
-    // 组件构造
-    // ============================================================
-
-    /**
-     * 构造一条规则的可点击名称组件：{@code [显示名 (registerName)]}。
-     *
-     * <p>悬停显示规则描述，点击执行 {@code /vd <registerName>} 直接查看该规则。
-     */
-    private static MutableComponent getRuleName(RuleType ruleType) {
-        MutableComponent nameComp = Component.empty()
-                .append(Component.literal("§f"))
-                .append(Component.translatable(ruleType.getDisplayName()))
-                .append(Component.literal(" §f(" + ruleType.getRegisterName() + ")  "));
-
-        return nameComp.withStyle(style -> style
-                .withClickEvent(new ClickEvent.RunCommand(
-                        String.join(" ", COMMAND_BASE, ruleType.getRegisterName())))
-                .withHoverEvent(new HoverEvent.ShowText(
-                        Component.translatable(ruleType.getDisplayInfo()))));
-    }
-
-    /**
-     * 构造一个可点击按钮组件。
-     *
-     * @param text      按钮文字（含方括号，如 {@code [enable]}）
-     * @param color     文字颜色（RGB）
-     * @param command   点击后执行的命令
-     * @param hoverText 悬停提示；{@code null} 或空串表示不加悬停
-     */
-    private static MutableComponent buildClickableButton(String text, int color,
-                                                         String command, String hoverText) {
-        MutableComponent component = Component.literal(text)
-                .withStyle(style -> style.withColor(TextColor.fromRgb(color)))
-                .withStyle(style -> style.withClickEvent(new ClickEvent.RunCommand(command)));
-
-        if (hoverText != null && !hoverText.isEmpty()) {
-            component.withStyle(style -> style.withHoverEvent(
-                    new HoverEvent.ShowText(Component.literal(hoverText))));
-        }
-        return component;
-    }
-
-    /**
-     * 构造一条规则的整行快捷开关按钮，按钮之间用空格分隔。
-     *
-     * <p>按钮集合来自 {@link RuleType#getQuickSwitches()}，每个按钮的显示名 / 颜色
-     * 都由 {@link RuleSwitches} 统一决定，与客户端界面保持一致。
-     */
-    private static MutableComponent quickSwitchComponents(RuleType rule, String currentState) {
-        MutableComponent result = Component.empty();
-        List<String> switches = rule.getQuickSwitches();
-        for (int i = 0; i < switches.size(); i++) {
-            if (i > 0) result.append(" ");
-            result.append(switchComponent(rule, switches.get(i), currentState));
-        }
-        return result;
-    }
-
-    /**
-     * 构造单个快捷开关按钮。
-     *
-     * <p>点击执行 {@code /vd <rule> <option>}；颜色 / 显示名 / 悬停文字全部来自
-     * {@link RuleSwitches}，客户端界面（{@code ServerRuleRow}）用的是同一套 —— 两边永远一致。
-     */
-    private static MutableComponent switchComponent(RuleType rule, String option, String currentState) {
-        String command = String.join(" ", COMMAND_BASE, rule.getRegisterName(), option);
-        String hoverText = ServerTranslations.resolve(
-                Component.translatable(K_TOGGLE_HOVER, RuleSwitches.currentDisplay(currentState)));
-        return buildClickableButton("[" + RuleSwitches.displayNameOf(option) + "]",
-                RuleSwitches.colorOf(option, currentState), command, hoverText);
-    }
-
-    /**
-     * 构造分类按钮行：每个分类一个按钮，点击执行 {@code /vd list <category>}。
-     *
-     * @param ruleCategoryTypes 要展示的分类列表
-     */
-    private static MutableComponent categoryDisplay(List<RuleCategoryType> ruleCategoryTypes) {
-        MutableComponent result = Component.empty();
-        for (RuleCategoryType type : ruleCategoryTypes) {
-            String command = String.join(" ", COMMAND_BASE, "list", type.getRegisterName());
-            MutableComponent component = buildClickableButton(
-                    "[" + type.getDisplayName() + "]", 0x5dade2, command, null);
-            result.append(component).append(" ");
-        }
-        return result;
-    }
-
-    /**
-     * 构造一条分隔线（在「规则详情」输出里用，把上一次输出和本次输出隔开）。
-     */
-    private static MutableComponent divider() {
-        return Component.literal("§6================================================\n")
-                .withStyle(style -> style.withColor(TextColor.fromRgb(0x555555)));
-    }
-
 }

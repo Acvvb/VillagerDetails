@@ -11,12 +11,15 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.LevelBasedPermissionSet;
 import net.minecraft.server.permissions.PermissionLevel;
+import net.minecraft.server.permissions.PermissionSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Predicate;
 
 import static com.villagerdetails.command.CommandConstants.PERM_BASE;
 
@@ -120,6 +123,60 @@ public class RuleCache {
         PermissionLevel level = SwitchComponentType.permissionLevelOf(getState(ruleType));
         if (level == null) return false;
         return src.checkPermission(permissionNode(ruleType), level);
+    }
+
+    /**
+     * 命令来源自身的权限等级是否达到要求 —— <b>只看等级，不经过权限节点</b>。
+     *
+     * <p>玩家来源的等级来自它的 op 等级（{@link LevelBasedPermissionSet}），控制台是 owner 级。
+     * 规则命令（{@code /ec c <规则> ...}）的准入用它做硬门槛：
+     * 规则设成 {@code owner} 就只有 owner 级能执行，
+     * <b>权限插件没法用一个「节点放行」把这条放宽</b> —— 档位本身就是权限。
+     *
+     * <p>来源不是等级型权限集时（命令方块 / 函数这类没有 op 等级的来源）按 {@link PermissionLevel#ALL} 算，
+     * 和 Fabric 权限 API 自己的兜底一致：这样档位是 {@code true}（谁都能用）时它们照常能用，
+     * 设成 {@code ops} 及以上则不行。
+     */
+    public static boolean hasLevel(CommandSourceStack src, PermissionLevel level) {
+        if (src == null || level == null) {
+            return false;
+        }
+        PermissionSet permissions = src.permissions();
+        PermissionLevel sourceLevel = permissions instanceof LevelBasedPermissionSet based
+                ? based.level()
+                : PermissionLevel.ALL;
+        return sourceLevel.isEqualOrHigherThan(level);
+    }
+
+    /**
+     * 规则命令（{@code /ec c <规则> ...}）的准入条件。
+     *
+     * <p>规则关着 → 一律不可用；开着再按规则类型分两种：
+     * <ul>
+     *     <li><b>逐条配置类规则</b>（{@link RuleConfigKind#LIST}，比如挖掘抗性、禁止生成名单、
+     *         无挤压名单……也就是直接改服务器配置项的那些）<b>写死 owner 级</b>，
+     *         不看它自己的开关档位 —— 开关是 {@code true} 也不代表人人能改服务器配置；</li>
+     *     <li>其余规则要求执行者<b>自身的权限等级</b>达到这条规则的档位
+     *         （{@code true / ops / master / admin / owner}）。</li>
+     * </ul>
+     *
+     * <p>这里刻意只看等级、<b>不看权限节点</b>：档位就是硬门槛，
+     * 权限插件没法用一个「节点放行」把它放宽。
+     * （规则对玩家生效的那一侧仍走节点 + 等级，见 {@link #isEnabled}。）
+     *
+     * @param ruleType 规则；{@code null} 时视为不可用
+     */
+    public static Predicate<CommandSourceStack> requirement(RuleType ruleType) {
+        return src -> {
+            if (ruleType == null || !isEnabled(ruleType)) {
+                return false;
+            }
+            if (ruleType.getConfigKind().needsSync()) {
+                return hasLevel(src, PermissionLevel.OWNERS);
+            }
+            PermissionLevel level = SwitchComponentType.permissionLevelOf(getState(ruleType));
+            return level != null && hasLevel(src, level);
+        };
     }
 
     /**

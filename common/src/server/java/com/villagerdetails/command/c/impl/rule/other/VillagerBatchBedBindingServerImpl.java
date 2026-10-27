@@ -1,4 +1,4 @@
-package com.villagerdetails.command.c.impl.rule;
+package com.villagerdetails.command.c.impl.rule.other;
 
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;

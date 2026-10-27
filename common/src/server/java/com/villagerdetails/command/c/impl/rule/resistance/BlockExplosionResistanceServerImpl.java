@@ -1,7 +1,7 @@
-package com.villagerdetails.command.c.impl.rule;
+package com.villagerdetails.command.c.impl.rule.resistance;
 
 import com.mojang.brigadier.suggestion.SuggestionProvider;
-import com.villagerdetails.command.c.impl.suggestion.BlockSuggestionData;
+import com.villagerdetails.command.c.impl.base.AbstractBlockResistanceServerImpl;import com.villagerdetails.command.c.impl.suggestion.BlockSuggestionData;
 import com.villagerdetails.config.impl.section.item.BlockExplosionResistanceConfig;
 import com.villagerdetails.network.sync.clientbound.BlockRuleSyncChannel;
 import net.minecraft.commands.CommandSourceStack;

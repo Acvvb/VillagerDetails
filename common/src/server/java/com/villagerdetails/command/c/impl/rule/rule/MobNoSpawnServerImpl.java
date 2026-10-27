@@ -1,4 +1,4 @@
-package com.villagerdetails.command.c.impl.rule;
+package com.villagerdetails.command.c.impl.rule.rule;
 
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.command.c.impl.base.AbstractRuleCommand;

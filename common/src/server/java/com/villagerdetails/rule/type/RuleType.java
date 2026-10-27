@@ -1,7 +1,7 @@
 package com.villagerdetails.rule.type;
 
-import com.villagerdetails.command.c.impl.rule.*;
-import com.villagerdetails.command.c.server.RegisterServer;
+import com.villagerdetails.cache.RuleCache;
+import com.villagerdetails.command.c.impl.rule.other.VillagerBatchBedBindingServerImpl;import com.villagerdetails.command.c.impl.rule.resistance.BlockExplosionResistanceServerImpl;import com.villagerdetails.command.c.impl.rule.resistance.BlockMiningResistanceServerImpl;import com.villagerdetails.command.c.impl.rule.region.PortalBindingServerImpl;import com.villagerdetails.command.c.impl.rule.region.PortalPiglinNoSpawnServerImpl;import com.villagerdetails.command.c.impl.rule.rule.*;import com.villagerdetails.command.c.server.RegisterServer;
 import com.villagerdetails.command.c.server.RegisterTypeServer;
 import com.villagerdetails.command.c.server.StateSuggestionServer;
 import com.villagerdetails.config.ReloadableConfig;
@@ -18,7 +18,6 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static com.villagerdetails.cache.RuleCache.isEnabled;
 import static com.villagerdetails.command.SwitchComponentType.*;
 import static com.villagerdetails.rule.type.RuleCategoryType.*;
 
@@ -63,6 +62,13 @@ public enum RuleType implements RegisterTypeServer {
      * 禁止生成。阻止特定实体生成。实体名单由 /ec c MobNoSpawn 维护。
      */
     MOB_NO_SPAWN("MobNoSpawn", "rule.entity.no_spawn", "rule.entity.no_spawn.desc", List.of(ENTITY, COMMAND), new ArrayList<>(), () -> MobNoSpawnServerImpl.INSTANCE, () -> MobNoSpawnConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR, null),
+
+    /**
+     * 禁用地狱门刷僵尸猪灵。用命名为 tool 的拴绳左/右键选出地狱门方块区域，
+     * 执行 {@code /ec c PortalPiglinNoSpawn bind} 绑定；绑定区域里的地狱门方块
+     * 随机刻时不再刷出僵尸猪灵（区域表见 {@link PortalPiglinNoSpawnConfig}）。
+     */
+    PORTAL_PIGLIN_NO_SPAWN("PortalPiglinNoSpawn", "rule.entity.portal_piglin_no_spawn", "rule.entity.portal_piglin_no_spawn.desc", List.of(ENTITY, COMMAND), List.of(ListenerType.BLOCK_RANGE_SELECTION), () -> PortalPiglinNoSpawnServerImpl.INSTANCE, () -> PortalPiglinNoSpawnConfig.INSTANCE, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR, null),
 
     /**
      * 僵尸村民快速治愈。命名牌写 help 贴到僵尸村民，立刻走完治愈流程（保留职业/交易/声望）。
@@ -260,8 +266,12 @@ public enum RuleType implements RegisterTypeServer {
 
     /**
      * 传送门绑定。将特定范围内的方块绑定到传送门。
+     *
+     * <p>开关走权限档位（{@code false / true / ops / master / admin / owner}），
+     * 和「禁用地狱门刷僵尸猪灵」一致：档位既是开关，也是「谁能触发这条绑定」的权限等级 ——
+     * 设成 {@code ops} 就只有 OP 及以上进绑定区域才会被强制传送，普通玩家照常走原版。
      */
-    PORTAL_BINDING("PortalBinding", "setting.PortalBinding", "setting.PortalBinding.desc", List.of(BLOCK), List.of(ListenerType.BLOCK_RANGE_SELECTION), () -> PortalBindingServerImpl.INSTANCE, () -> PortalBindingConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    PORTAL_BINDING("PortalBinding", "setting.PortalBinding", "setting.PortalBinding.desc", List.of(BLOCK), List.of(ListenerType.BLOCK_RANGE_SELECTION), () -> PortalBindingServerImpl.INSTANCE, () -> PortalBindingConfig.INSTANCE, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR, null),
 
     /**
      * 传送门绑定增强版。
@@ -390,9 +400,16 @@ public enum RuleType implements RegisterTypeServer {
         return reloadableConfig != null ? reloadableConfig.get() : null;
     }
 
+    /**
+     * 规则命令（{@code /ec c <规则> ...}）的准入条件。
+     *
+     * <p>规则关着 → 一律不可用；开着再按规则类型分两种：逐条配置类规则写死 owner 级，
+     * 其余规则要求执行者自身的权限等级达到该规则的档位。
+     * 具体判定与原因见 {@link com.villagerdetails.cache.RuleCache#requirement(RuleType)}。
+     */
     @Override
     public Predicate<CommandSourceStack> requirement() {
-        return src -> isEnabled(src, this);
+        return RuleCache.requirement(this);
     }
 
     public List<String> getQuickSwitches() {

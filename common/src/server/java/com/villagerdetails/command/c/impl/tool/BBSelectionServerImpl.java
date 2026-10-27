@@ -51,7 +51,9 @@ public class BBSelectionServerImpl implements RegisterServer {
                 .append("\n")
                 .append(Component.translatable("message.selection.help.show"))
                 .append("\n")
-                .append(Component.translatable("message.selection.help.clear"));
+                .append(Component.translatable("message.selection.help.clear"))
+                .append("\n")
+                .append(Component.translatable("message.selection.help.dimension"));
         sendOrBroadcast(player, msg);
         return 1;
     }

@@ -42,6 +42,7 @@ VillagerDetails is a Fabric mod that provides a large collection of behavior fix
 |-----------------------------------|----------------------------------------------------------------------|
 | NoSqueeze                         | No squeeze — specified entities are immune to entity cramming damage |
 | MobNoSpawn                        | No mob spawning — listed entity types never spawn (natural spawn, spawners, eggs, `/summon`, breeding) |
+| PortalPiglinNoSpawn               | No zombified piglins at bound portals — pick a nether portal region with a `tool` leash and bind it, then those portals stop spawning zombified piglins |
 | PiglinBarterDelay                 | Piglin barter delay adjustment                                       |
 | PiglinGoldBlockMultiply           | Gold block barter — piglins accept gold blocks, 9x output            |
 | PiglinGoldBlockMultiplyPunishment | Gold block barter punishment timer adjustment                        |
@@ -92,6 +93,8 @@ Everything is done through the `/ec` command:
 /ec <rule> <state>               # Toggle a rule
 /ec c <subcommand>               # Management subcommands (selections, bindings, etc.)
 ```
+
+Additionally, `/op <player> <0-4>` overrides a player's permission level: level 4 may change anyone (including other level-4 players), while lower levels may only change players below them and only assign levels below their own; level 0 removes op. `/op <player>` itself still behaves like vanilla.
 
 ### Client Features
 
@@ -195,6 +198,7 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 |-----------------------------------|-------------------------------------------|
 | NoSqueeze                         | 无挤压 — 指定实体不参与挤压、不受挤压伤害 |
 | MobNoSpawn                        | 禁止生物生成 — 名单里的实体类型不再生成（自然生成 / 刷怪笼 / 刷怪蛋 / `/summon` / 繁殖） |
+| PortalPiglinNoSpawn               | 禁用地狱门刷僵尸猪灵 — 用命名为 `tool` 的拴绳圈出地狱门区域并执行绑定，该区域的地狱门不再刷出僵尸猪灵 |
 | PiglinBarterDelay                 | 猪灵交易等待时间调整                      |
 | PiglinGoldBlockMultiply           | 金块交易 — 猪灵愿捡金块，9 倍产出         |
 | PiglinGoldBlockMultiplyPunishment | 金块交易惩罚时间调整                      |
@@ -245,6 +249,8 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 /ec <rule> <state>               # 切换规则状态
 /ec c <subcommand>               # 管理类子命令（选区、绑定等）
 ```
+
+另外，`/op <玩家> <0-4>` 可以直接覆写玩家权限等级：4 级可以调整任何人（包括 4 级），其他等级只能调整比自己低的人、并且只能设置比自己低的等级；等级 0 等于取消 OP。`/op <玩家>` 本身仍是原版行为。
 
 ### 客户端功能
 

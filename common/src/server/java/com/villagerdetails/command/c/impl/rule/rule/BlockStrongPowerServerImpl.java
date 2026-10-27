@@ -1,36 +1,36 @@
-package com.villagerdetails.command.c.impl.rule;
+package com.villagerdetails.command.c.impl.rule.rule;
 
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.command.c.impl.base.AbstractRuleCommand;
 import com.villagerdetails.command.c.impl.suggestion.BlockSuggestionData;
-import com.villagerdetails.config.impl.section.item.EndPortalGravityBlockConfig;
+import com.villagerdetails.config.impl.section.item.BlockStrongPowerConfig;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.resources.Identifier;
 
 import java.util.List;
 
 /**
- * /ec c EndPortalGravityBlock &lt;方块id&gt; true|false —— 设置/取消某个方块的重力特性。
- * /ec c EndPortalGravityBlock reset —— 清空所有配置。
- * /ec c EndPortalGravityBlock show  —— 显示当前名单。
+ * /ec c BlockStrongPower &lt;方块id&gt; true|false —— 设置/取消某个方块的「红石导体」。
+ * /ec c BlockStrongPower reset —— 清空所有配置。
+ * /ec c BlockStrongPower show  —— 显示当前名单。
  */
-public final class EndPortalGravityBlockServerImpl extends AbstractRuleCommand {
+public final class BlockStrongPowerServerImpl extends AbstractRuleCommand {
 
-    public static final EndPortalGravityBlockServerImpl INSTANCE = new EndPortalGravityBlockServerImpl();
+    public static final BlockStrongPowerServerImpl INSTANCE = new BlockStrongPowerServerImpl();
 
-    private EndPortalGravityBlockServerImpl() {
+    private BlockStrongPowerServerImpl() {
     }
 
-    private static final String K_SET = "command.block.end_portal_gravity.set";
-    private static final String K_REMOVE = "command.block.end_portal_gravity.remove";
-    private static final String K_RESET = "command.block.end_portal_gravity.reset";
-    private static final String K_SHOW_HEADER = "command.block.end_portal_gravity.show.header";
-    private static final String K_SHOW_EMPTY = "command.block.end_portal_gravity.show.empty";
-    private static final String K_INVALID_VALUE = "command.block.end_portal_gravity.invalid_value";
+    private static final String K_SET = "command.block.strong_power.set";
+    private static final String K_REMOVE = "command.block.strong_power.remove";
+    private static final String K_RESET = "command.block.strong_power.reset";
+    private static final String K_SHOW_HEADER = "command.block.strong_power.show.header";
+    private static final String K_SHOW_EMPTY = "command.block.strong_power.show.empty";
+    private static final String K_INVALID_VALUE = "command.block.strong_power.invalid_value";
 
     @Override
     protected String literalName() {
-        return "EndPortalGravityBlock";
+        return "BlockStrongPower";
     }
 
     @Override
@@ -54,22 +54,22 @@ public final class EndPortalGravityBlockServerImpl extends AbstractRuleCommand {
 
     @Override
     protected void add(Identifier id) {
-        EndPortalGravityBlockConfig.INSTANCE.add(id);
+        BlockStrongPowerConfig.INSTANCE.add(id);
     }
 
     @Override
     protected void remove(Identifier id) {
-        EndPortalGravityBlockConfig.INSTANCE.remove(id);
+        BlockStrongPowerConfig.INSTANCE.remove(id);
     }
 
     @Override
     protected void resetConfig() {
-        EndPortalGravityBlockConfig.INSTANCE.reset();
+        BlockStrongPowerConfig.INSTANCE.reset();
     }
 
     @Override
     protected List<Identifier> snapshot() {
-        return EndPortalGravityBlockConfig.INSTANCE.snapshot();
+        return BlockStrongPowerConfig.INSTANCE.snapshot();
     }
 
     @Override

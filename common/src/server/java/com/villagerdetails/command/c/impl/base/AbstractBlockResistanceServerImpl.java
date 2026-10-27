@@ -1,9 +1,11 @@
-package com.villagerdetails.command.c.impl.rule;
+package com.villagerdetails.command.c.impl.base;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.villagerdetails.command.c.impl.rule.resistance.BlockExplosionResistanceServerImpl;
+import com.villagerdetails.command.c.impl.rule.resistance.BlockMiningResistanceServerImpl;
 import com.villagerdetails.command.c.impl.suggestion.BlockSuggestionData;
 import com.villagerdetails.command.c.server.RegisterServer;
 import net.minecraft.commands.CommandSourceStack;

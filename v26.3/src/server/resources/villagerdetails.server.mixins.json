@@ -10,6 +10,7 @@
     "block.explosionResistance.ExplosionResistanceMixin",
     "block.miningResistance.MiningResistanceMixin",
     "block.portalBinding.EntityPortalMixin",
+    "block.portalPiglinNoSpawn.NetherPortalSpawnMixin",
     "block.power.BlockStateBaseConductorMixin",
     "craft.AbstractCraftingMenuAccessor",
     "craft.BoxCraftingMenuMixin",
