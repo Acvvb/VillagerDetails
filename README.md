@@ -1,3 +1,4 @@
+
 # VillagerDetails
 
 A mod that fixes the infuriating villager AI behavior that makes players rage.
@@ -14,71 +15,76 @@ VillagerDetails is a Fabric mod that provides a large collection of behavior fix
 
 ### Features
 
+#### Settings & Fixes
+
+| Rule | Description |
+|------|-------------|
+| Language | Mod language setting — controls server-side translations for UI and messages |
+| RuleCommand | Global `/ec` permissions — manages permissions for all `/ec` commands (except `/ec c`) |
+| GlobalSpeedBypass | Global speed bypass — bypasses server speed checks to prevent rubberbanding when moving too fast (self or riding vehicles) |
+| HappyGhastSpeed | Happy Ghast flight speed — adjusts the flying speed when riding a Happy Ghast |
+
 #### Villagers
 
-| Rule                       | Description                                                                                         |
-|----------------------------|-----------------------------------------------------------------------------------------------------|
-| VillagerBedBinding         | Villager bed editor — rebind a villager's bed with a lead named `bed`                               |
-| VillagerWorkBlockBinding   | Villager work block editor — rebind the work block with a lead named `work`                         |
-| VillagerBatchBedBinding    | Batch bed binding — auto-bind villagers in an area to the nearest bed                               |
-| VillagerInfiniteTrade      | Infinite trades — villager trades never run out                                                     |
-| VillagerAutoTrader         | Auto trade refresh — write a target enchantment on a name tag, right-click a librarian to reroll    |
-| VillagerSilentTrader       | Silent trade reroll — remove the name tag after rerolling                                           |
-| VillagerAutoLockHitTrader  | Auto-lock trades — lock rerolled enchanted books automatically                                      |
-| VillagerGodTools           | God tools — use `331a` / `331b` name tags to reroll triple-enchanted diamond tools                  |
-| VillagerTerracottaTrader   | Terracotta trader — name tag `Terracotta` rerolls both terracotta and glazed terracotta             |
-| VillagerHardWorking        | Hard-working villagers — adjust restock amount per trade                                            |
-| VillagerMoveController     | Move controller — set a destination with a lead named `move`                                        |
-| VillagerToolsmithExchange  | Diamond exchange reversal — toolsmith trades emeralds for diamonds                                  |
-| VillagerBookshelfDecompose | Auto bookshelf decomposition — bookshelves auto-decompose into books when used as payment           |
-| VillagerEmeraldDecompose   | Auto emerald block decomposition — emerald blocks auto-decompose into emeralds when used as payment |
-| VillagerOneTickTraderCount | Adjust trades refreshed per tick                                                                    |
-| VillagerBoneMealFlower     | Bone meal overworld flowers — spawn overworld flowers regardless of biome                           |
-| ZombieVillagerHelp         | Instant zombie villager cure — name tag `help` cures instantly                                      |
+| Rule | Description |
+|------|-------------|
+| VillagerBedBinding | Villager bed editor — rebind a villager's bed with a lead named `bed` |
+| VillagerWorkBlockBinding | Villager work block editor — rebind the work block with a lead named `work` |
+| VillagerBatchBedBinding | Batch bed binding — auto-bind villagers in an area to the nearest bed |
+| VillagerInfiniteTrade | Infinite trades — villager trades never run out |
+| VillagerAutoTrader | Auto trade refresh — write a target enchantment on a name tag, right-click a librarian to reroll |
+| VillagerSilentTrader | Silent trade reroll — remove the name tag after rerolling |
+| VillagerAutoLockHitTrader | Auto-lock trades — lock rerolled enchanted books automatically |
+| VillagerGodTools | God tools — use `331a` / `331b` name tags to reroll triple-enchanted diamond tools |
+| VillagerTerracottaTrader | Terracotta trader — name tag `Terracotta` rerolls both terracotta and glazed terracotta |
+| VillagerHardWorking | Hard-working villagers — adjust restock amount per trade |
+| VillagerMoveController | Move controller — set a destination with a lead named `move` |
+| VillagerToolsmithExchange | Diamond exchange reversal — toolsmith trades emeralds for diamonds |
+| VillagerBookshelfDecompose | Auto bookshelf decomposition — bookshelves auto-decompose into books when used as payment |
+| VillagerEmeraldDecompose | Auto emerald block decomposition — emerald blocks auto-decompose into emeralds when used as payment |
+| VillagerOneTickTraderCount | Adjust trades refreshed per tick |
 
-#### Entities
+#### Entities & Mobs
 
-| Rule                              | Description                                                          |
-|-----------------------------------|----------------------------------------------------------------------|
-| NoSqueeze                         | No squeeze — specified entities are immune to entity cramming damage |
-| MobNoSpawn                        | No mob spawning — listed entity types never spawn (natural spawn, spawners, eggs, `/summon`, breeding) |
-| PortalPiglinNoSpawn               | No zombified piglins at bound portals — pick a nether portal region with a `tool` leash and bind it, then those portals stop spawning zombified piglins |
-| PiglinBarterDelay                 | Piglin barter delay adjustment                                       |
-| PiglinGoldBlockMultiply           | Gold block barter — piglins accept gold blocks, 9x output            |
-| PiglinGoldBlockMultiplyPunishment | Gold block barter punishment timer adjustment                        |
-
-#### Mobs
-
-| Rule            | Description                                                                  |
-|-----------------|------------------------------------------------------------------------------|
+| Rule | Description |
+|------|-------------|
+| NoSqueeze | No squeeze — specified entities are immune to entity cramming damage |
+| MobNoSpawn | No mob spawning — listed entity types never spawn (natural spawn, spawners, eggs, `/summon`, breeding) |
+| PortalPiglinNoSpawn | No zombified piglins at bound portals — pick a nether portal region with a `tool` leash and bind it, then those portals stop spawning zombified piglins |
+| PiglinBarterDelay | Piglin barter delay adjustment |
+| PiglinGoldBlockMultiply | Gold block barter — piglins accept gold blocks, 9x output |
+| PiglinGoldBlockMultiplyPunishment | Gold block barter punishment timer adjustment |
 | NoBrainOnPortal | Portal brain loss — mobs lose their AI after passing through a nether portal |
+| ZombieVillagerHelp | Instant zombie villager cure — name tag `help` cures instantly |
 
-#### Blocks
+#### Plants & Animals
 
-| Rule                     | Description                                                            |
-|--------------------------|------------------------------------------------------------------------|
-| PortalBinding            | Portal binding — force-bind overworld and nether selections            |
-| PortalBindingEnhanced    | Enhanced portal binding — skip the "portal exists at target" check     |
-| BlockCollectable         | Configurable block collection                                          |
-| BlockMiningResistance    | Configurable block mining resistance                                   |
-| BlockExplosionResistance | Configurable block explosion resistance                                |
-| TntNoDestroyDrops        | TNT does not destroy drops                                             |
-| BoxCrafting              | Box crafting — craft with shulker boxes as if they were their contents |
-
-#### Animals
-
-| Rule          | Description                                                    |
-|---------------|----------------------------------------------------------------|
+| Rule | Description |
+|------|-------------|
+| VillagerBoneMealFlower | Bone meal overworld flowers — spawn overworld flowers regardless of biome |
 | InfiniteShear | Infinite shearing — sheep regrow wool instantly after shearing |
 
 #### Players
 
-| Rule               | Description                                                                                                                                      |
-|--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
-| PlayerHeadSitting  | Player head sitting — empty-hand right-click another player to sit on their head; the rider stands on top of the target's bounding box (the two boxes touch, never overlap); sneak to dismount; only works on targets who enabled "Allow others to sit on my head" in their own client config; riders are dismounted when the target sneaks, sleeps, changes dimension or mounts another vehicle; stacking depth is configurable |
+| Rule | Description |
+|------|-------------|
+| PlayerHeadSitting | Player head sitting — empty-hand right-click another player to sit on their head; the rider stands on top of the target's bounding box (the two boxes touch, never overlap); sneak to dismount; only works on targets who enabled "Allow others to sit on my head" in their own client config; riders are dismounted when the target sneaks, sleeps, changes dimension or mounts another vehicle; stacking depth is configurable |
 | PlayerBlockSitting | Sit on stairs and slabs — empty-hand right-click a **bottom slab / bottom stairs** block to sit on it (top slabs, double slabs and upside-down stairs are refused), Shift to stand up; the seat is the top of the block's flat part, so stairs and slabs sit at the same height, and stairs get nudged 2 pixels towards the low side so your back does not touch the upper step; per-player switch "Allow sitting on stairs and slabs" in the client config, which defaults to **on** and also applies to players without this mod; seats disappear when the block is broken, the rule is off or you disconnect |
 
-Commands: `/ec PlayerHeadSitting true` · `/ec PlayerBlockSitting true` · `/ec list players` (head-sitting tuning lives in the `PlayerHeadSitting` section of `villagerdetails/config.json`; both per-player switches live in the client config GUI)
+#### Blocks
+
+| Rule | Description |
+|------|-------------|
+| PortalBinding | Portal binding — force-bind overworld and nether selections |
+| PortalBindingEnhanced | Enhanced portal binding — skip the "portal exists at target" check |
+| BlockCollectable | Configurable block collection |
+| BlockMiningResistance | Configurable block mining resistance |
+| BlockExplosionResistance | Configurable block explosion resistance |
+| BlockStrongPower | Block strong power — configured blocks act as redstone conductors to transmit signals |
+| TntNoDestroyDrops | TNT does not destroy drops |
+| BoxCrafting | Box crafting — craft with shulker boxes as if they were their contents |
+| EndPortalGravityBlock | End portal gravity block — configured blocks fall like sand if hanging in the 5x5x5 area of an end portal |
+| FurnaceDirtyHighlight | Furnace dirty highlight — highlights furnaces in the client if input slots have unburnable items or fuel slots have invalid fuel |
 
 ### Commands
 
@@ -120,7 +126,7 @@ Additionally, `/op <player> <0-4>` overrides a player's permission level: level 
 
 ```bash
 # Build every version and collect the packages into lib/
-./gradlew build            # same as ./gradlew collectJars
+./gradlew build            
 
 # Build only one version
 ./gradlew :v26.2:build
@@ -170,71 +176,76 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 
 ### 功能列表
 
+#### 设置与修复
+
+| 规则名 | 说明 |
+|--------|------|
+| Language | 模组语言设置 — 控制界面和消息的服务端翻译语言 |
+| RuleCommand | `/ec` 全局权限管理 — 管理除 `/ec c` 以外的所有权限档位 |
+| GlobalSpeedBypass | 全局移速防回弹 — 绕过服务端速度校验，防止移速过快（自身或骑乘载具）时被拉回和刷屏警告 |
+| HappyGhastSpeed | 乐魂飞行速度 — 调整玩家骑乘乐魂时的飞行速度 |
+
 #### 村民
 
-| 规则名                     | 说明                                                      |
-|----------------------------|-----------------------------------------------------------|
-| VillagerBedBinding         | 村民床编辑器 — 使用命名为 `bed` 的拴绳修改村民绑定的床    |
-| VillagerWorkBlockBinding   | 村民工作方块编辑器 — 使用命名为 `work` 的拴绳修改工作方块 |
-| VillagerBatchBedBinding    | 批量村民床编辑器 — 区域内村民自动绑定最近的床             |
-| VillagerInfiniteTrade      | 无限交易 — 村民交易永不耗尽                               |
-| VillagerAutoTrader         | 自动刷新交易 — 命名牌写目标附魔，右键图书管理员自动刷出   |
-| VillagerSilentTrader       | 无感交易刷新 — 刷新后自动移除命名标签                     |
-| VillagerAutoLockHitTrader  | 自动锁定交易 — 刷新出的附魔书自动锁定                     |
-| VillagerGodTools           | 神装工具刷新 — 使用 331a/331b 命名牌刷三附魔钻石工具      |
-| VillagerTerracottaTrader   | 陶瓦刷新 — 用陶瓦名称命名牌同时刷出陶瓦和带釉陶瓦         |
-| VillagerHardWorking        | 勤劳的村民 — 调整村民每次补货数量                         |
-| VillagerMoveController     | 村民移动控制器 — 使用命名为 `move` 的拴绳设置目的地       |
-| VillagerToolsmithExchange  | 钻石兑换反转 — 工具匠改为绿宝石换钻石                     |
-| VillagerBookshelfDecompose | 书架自动拆解 — 用书架支付时自动拆成书                     |
-| VillagerEmeraldDecompose   | 绿宝石块自动拆解 — 用绿宝石块支付时自动拆成绿宝石         |
-| VillagerOneTickTraderCount | 每 tick 刷新交易次数调整                                  |
-| VillagerBoneMealFlower     | 骨粉催熟主世界花 — 无视生物群系生成主世界花               |
-| ZombieVillagerHelp         | 僵尸村民秒治愈 — 贴 `help` 命名牌立刻变回村民             |
+| 规则名 | 说明 |
+|--------|------|
+| VillagerBedBinding | 村民床编辑器 — 使用命名为 `bed` 的拴绳修改村民绑定的床 |
+| VillagerWorkBlockBinding | 村民工作方块编辑器 — 使用命名为 `work` 的拴绳修改工作方块 |
+| VillagerBatchBedBinding | 批量村民床编辑器 — 区域内村民自动绑定最近的床 |
+| VillagerInfiniteTrade | 无限交易 — 村民交易永不耗尽 |
+| VillagerAutoTrader | 自动刷新交易 — 命名牌写目标附魔，右键图书管理员自动刷出 |
+| VillagerSilentTrader | 无感交易刷新 — 刷新后自动移除命名标签 |
+| VillagerAutoLockHitTrader | 自动锁定交易 — 刷新出的附魔书自动锁定 |
+| VillagerGodTools | 神装工具刷新 — 使用 `331a/331b` 命名牌刷三附魔钻石工具 |
+| VillagerTerracottaTrader | 陶瓦刷新 — 用陶瓦名称命名牌同时刷出陶瓦和带釉陶瓦 |
+| VillagerHardWorking | 勤劳的村民 — 调整村民每次补货数量 |
+| VillagerMoveController | 村民移动控制器 — 使用命名为 `move` 的拴绳设置目的地 |
+| VillagerToolsmithExchange | 钻石兑换反转 — 工具匠改为绿宝石换钻石 |
+| VillagerBookshelfDecompose | 书架自动拆解 — 用书架支付时自动拆成书 |
+| VillagerEmeraldDecompose | 绿宝石块自动拆解 — 用绿宝石块支付时自动拆成绿宝石 |
+| VillagerOneTickTraderCount | 每 tick 刷新交易次数调整 |
 
-#### 实体
+#### 实体与怪物
 
-| 规则名                            | 说明                                      |
-|-----------------------------------|-------------------------------------------|
-| NoSqueeze                         | 无挤压 — 指定实体不参与挤压、不受挤压伤害 |
-| MobNoSpawn                        | 禁止生物生成 — 名单里的实体类型不再生成（自然生成 / 刷怪笼 / 刷怪蛋 / `/summon` / 繁殖） |
-| PortalPiglinNoSpawn               | 禁用地狱门刷僵尸猪灵 — 用命名为 `tool` 的拴绳圈出地狱门区域并执行绑定，该区域的地狱门不再刷出僵尸猪灵 |
-| PiglinBarterDelay                 | 猪灵交易等待时间调整                      |
-| PiglinGoldBlockMultiply           | 金块交易 — 猪灵愿捡金块，9 倍产出         |
-| PiglinGoldBlockMultiplyPunishment | 金块交易惩罚时间调整                      |
-
-#### 怪物
-
-| 规则名          | 说明                                   |
-|-----------------|----------------------------------------|
+| 规则名 | 说明 |
+|--------|------|
+| NoSqueeze | 无挤压 — 指定实体不参与挤压、不受挤压伤害 |
+| MobNoSpawn | 禁止生物生成 — 名单里的实体类型不再生成（自然生成 / 刷怪笼 / 刷怪蛋 / `/summon` / 繁殖） |
+| PortalPiglinNoSpawn | 禁用地狱门刷僵尸猪灵 — 用命名为 `tool` 的拴绳圈出地狱门区域并执行绑定，该区域的地狱门不再刷出僵尸猪灵 |
+| PiglinBarterDelay | 猪灵交易等待时间调整 |
+| PiglinGoldBlockMultiply | 金块交易 — 猪灵愿捡金块，9 倍产出 |
+| PiglinGoldBlockMultiplyPunishment | 金块交易惩罚时间调整 |
 | NoBrainOnPortal | 过门失智 — 怪物穿过下界传送门后失去 AI |
+| ZombieVillagerHelp | 僵尸村民秒治愈 — 贴 `help` 命名牌立刻变回村民 |
 
-#### 方块
+#### 植物与动物
 
-| 规则名                   | 说明                                        |
-|--------------------------|---------------------------------------------|
-| PortalBinding            | 传送门绑定 — 主世界与地狱选区强制绑定       |
-| PortalBindingEnhanced    | 地狱门增强绑定 — 不检测目标位置是否有传送门 |
-| BlockCollectable         | 方块可采集配置                              |
-| BlockMiningResistance    | 方块挖掘抗性配置                            |
-| BlockExplosionResistance | 方块爆炸抗性配置                            |
-| TntNoDestroyDrops        | TNT 不炸毁掉落物                            |
-| BoxCrafting              | 盒子合成 — 潜影盒当作内容物合成             |
-
-#### 动物
-
-| 规则名        | 说明                          |
-|---------------|-------------------------------|
+| 规则名 | 说明 |
+|--------|------|
+| VillagerBoneMealFlower | 骨粉催熟主世界花 — 无视生物群系生成主世界花 |
 | InfiniteShear | 无限剪羊毛 — 羊剪毛后立即恢复 |
 
 #### 玩家
 
-| 规则名             | 说明                                                                                                            |
-|--------------------|-----------------------------------------------------------------------------------------------------------------|
-| PlayerHeadSitting  | 玩家头顶乘坐 — 空手右键其他玩家坐到其头顶；乘客站在对方碰撞箱顶上（两个碰撞箱相切、不重叠）；潜行下坐；只在对方于自己客户端里开启「允许别人坐到我头上」时有效（没装 mod 的玩家默认不允许）；目标潜行 / 睡觉 / 换维度 / 骑上别的载具会自动下坐；叠加上限可配 |
+| 规则名 | 说明 |
+|--------|------|
+| PlayerHeadSitting | 玩家头顶乘坐 — 空手右键其他玩家坐到其头顶；乘客站在对方碰撞箱顶上（两个碰撞箱相切、不重叠）；潜行下坐；只在对方于自己客户端里开启「允许别人坐到我头上」时有效（没装 mod 的玩家默认不允许）；目标潜行 / 睡觉 / 换维度 / 骑上别的载具会自动下坐；叠加上限可配 |
 | PlayerBlockSitting | 坐在楼梯 / 半砖上 — 空手右键**下半砖 / 下半楼梯**即可坐上去（上半砖、双半砖、上下颠倒的楼梯都不行），按 Shift 起身；坐面是方块平的那一面的顶面，楼梯和半砖一样高，楼梯再往矮的那一侧偏 2 个像素，免得背贴着上面那一级；每人可以在客户端配置里关掉自己的「允许坐在楼梯 / 半砖上」，该项默认开启，**没装本 mod 的玩家也按开启处理**；方块被挖掉 / 换成上半砖 / 规则关闭 / 掉线时座位自动收掉 |
 
-命令：`/ec PlayerHeadSitting true` · `/ec PlayerBlockSitting true` · `/ec list players`（头顶乘坐的细项在 `villagerdetails/config.json` 的 `PlayerHeadSitting` 节；两个每人的开关都在客户端配置界面里）
+#### 方块
+
+| 规则名 | 说明 |
+|--------|------|
+| PortalBinding | 传送门绑定 — 主世界与地狱选区强制绑定 |
+| PortalBindingEnhanced | 地狱门增强绑定 — 不检测目标位置是否有传送门 |
+| BlockCollectable | 方块可采集配置 |
+| BlockMiningResistance | 方块挖掘抗性配置 |
+| BlockExplosionResistance | 方块爆炸抗性配置 |
+| BlockStrongPower | 方块红石强充能 — 配置的方块作为红石导体，传递红石信号 |
+| TntNoDestroyDrops | TNT 不炸毁掉落物 |
+| BoxCrafting | 盒子合成 — 潜影盒当作内容物合成 |
+| EndPortalGravityBlock | 末地门重力方块 — 末地传送门 5x5x5 范围内悬空的指定方块会像沙子一样掉落 |
+| FurnaceDirtyHighlight | 熔炉脏东西高亮 — 输入槽有烧不了的东西或燃料槽不是有效燃料时，在客户端将熔炉高亮 |
 
 ### 命令
 
@@ -276,7 +287,7 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 
 ```bash
 # 构建所有版本并把产物收集到 lib/
-./gradlew build            # 等价于 ./gradlew collectJars
+./gradlew build            
 
 # 仅构建指定版本
 ./gradlew :v26.2:build

@@ -9,94 +9,127 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # ★ 重要：拉取完整的 git 历史，用于自动生成 Release Notes
-
+        uses: actions/checkout@v6
       - name: validate gradle wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
+        uses: gradle/actions/wrapper-validation@v6
       - name: setup jdk
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '25'
           distribution: 'microsoft'
-
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
 
-      # 走根项目 build → collectJars：每个子版本产出 client / server / all / sources 四件套，
-      # 统一收进 lib/<模组版本>/，文件名形如：
-      #   villagerdetails-<模组版本>+fabric-<loader>+api-<fabric-api>+minecraft-<MC>-<classifier>.jar
+      # 构建并收集所有产物到 lib/1.0.1/ 下
       - name: build
-        run: ./gradlew build --no-daemon --console=plain --stacktrace
+        run: ./gradlew build
 
-      # ★ 调试步骤：打印 lib 目录下的所有 jar，方便在日志里检查产物
-      - name: Print lib folder
-        run: find lib -type f -name '*.jar' | sort
-
-      # 产物自检：四种 classifier 一个都不能少（collectJars 的过滤/重命名改坏时这里会直接失败）
-      - name: verify artifacts
-        run: |
-          set -euo pipefail
-          missing=0
-          for suffix in client server all sources; do
-            if ! find lib -type f -name "*-${suffix}.jar" | grep -q .; then
-              echo "::error::missing *-${suffix}.jar in lib/"
-              missing=1
-            fi
-          done
-          echo "found $(find lib -type f -name '*.jar' | wc -l) jars"
-          if [ "$missing" -ne 0 ]; then
-            find lib -type f -name '*.jar' | sort
-            exit 1
-          fi
-
-      # 平时 push / PR：上传客户端包（main + client，联机客户端用，体积最小）
+      # 平时 push / PR：分类上传 Artifacts 供内部使用
       - name: capture client artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: client
           path: lib/**/*-client.jar
           if-no-files-found: error
 
-      # 平时 push / PR：上传服务端包（main + server，专用服用）
       - name: capture server artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: server
           path: lib/**/*-server.jar
           if-no-files-found: error
 
-      # 平时 push / PR：上传通用包（main + client + server，装哪端都能用）
       - name: capture all artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: all
           path: lib/**/*-all.jar
           if-no-files-found: error
 
-      # 平时 push / PR：上传源码包
       - name: capture sources artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sources
           path: lib/**/*-sources.jar
           if-no-files-found: error
 
-      # 只有推送 tag 时才发布 Release：客户端 + 服务端 + 通用包 + 源码包 全传
+      # 只有推送 tag 时才发布 Release，全量包都传，并读取指定的 md 日志
       - name: publish release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          # ★ 四种产物按 glob 收，新增 classifier 时这里和上面的 upload 一起改
           files: |
-            lib/**/*-client.jar
-            lib/**/*-server.jar
-            lib/**/*-all.jar
-            lib/**/*-sources.jar
-          fail_on_unmatched_files: true
-          generate_release_notes: true
+            lib/**/*.jar
+          # 动态读取 changelogs/v1.0.1.md
+          body_path: changelogs/${{ github.ref_name }}.md
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ==========================================
+  # 发布到 Modrinth (按 MC 版本拆分，默认下载 all 包)
+  # ==========================================
+  publish-modrinth:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        mc-version: ["26.2", "26.3"]
+      max-parallel: 1 # 串行上传，防止 Modrinth API 并发冲突
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+
+      # 下载刚刚构建好的三个包（不需要 sources 包），保留原始目录结构
+      - name: download all artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: all
+          path: artifacts
+
+      - name: download client artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: client
+          path: artifacts
+
+      - name: download server artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: server
+          path: artifacts
+
+      # 提取 Tag 中的纯版本号 (例如 v1.0.1 -> 1.0.1)
+      - name: Extract version
+        id: extract_version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Publish to Modrinth
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          # ⚠️ 请在这里填入你的 Modrinth 项目 ID
+          modrinth-id: 1yB39Suz
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+
+          # 生成如 1.0.1+26.2 的版本号和名称
+          name: "VillagerDetails ${{ steps.extract_version.outputs.VERSION }} for MC ${{ matrix.mc-version }}"
+          version: "${{ steps.extract_version.outputs.VERSION }}+${{ matrix.mc-version }}"
+          version-type: release
+
+          # 动态读取 changelogs/v1.0.1.md
+          changelog-file: changelogs/${{ github.ref_name }}.md
+
+          # 利用文件名中的 +<mc-version>- 精准匹配对应版本的包
+          files: |
+            artifacts/**/*+${{ matrix.mc-version }}-all.jar
+            artifacts/**/*+${{ matrix.mc-version }}-client.jar
+            artifacts/**/*+${{ matrix.mc-version }}-server.jar
+
+          # 强制指定 all 包为主文件（默认下载按钮）
+          primary-file: artifacts/**/*+${{ matrix.mc-version }}-all.jar
+
+          game-versions: |
+            ${{ matrix.mc-version }}
+          loaders: fabric
+          environment: client, server
