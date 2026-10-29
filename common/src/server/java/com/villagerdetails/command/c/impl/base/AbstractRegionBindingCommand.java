@@ -34,9 +34,13 @@ import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
  * <p>两种典型形态：
  * <ul>
  *     <li>单段绑定（一次选区一条区域，可清空）—— 如 {@code PortalPiglinNoSpawn}；</li>
- *     <li>两侧配对（主世界 set 一次、地狱 set 一次，再 bind）—— 如 {@code PortalBinding}，
- *         它不挂 {@code clear}。</li>
+ *     <li>两侧配对（主世界 set 一次、地狱 set 一次，再 bind）—— 如 {@code PortalBinding}。</li>
  * </ul>
+ *
+ * <p><b>额外子命令</b>：基类只认识 set / bind / show / view / delete / clear 这几个标准形态。
+ * 某个子类需要额外子命令（比如 {@code PortalBinding} 的 {@code refresh}）时，
+ * 重写 {@link #addExtraSubcommands(LiteralArgumentBuilder)} 自己往 {@code root} 上挂即可——
+ * 基类不参与、不认识具体子命令。
  */
 public abstract class AbstractRegionBindingCommand implements RegisterServer {
 
@@ -101,6 +105,22 @@ public abstract class AbstractRegionBindingCommand implements RegisterServer {
     }
 
     // ==============================================================
+    // 扩展点：子类自己挂额外子命令
+    // ==============================================================
+
+    /**
+     * 子类追加自定义子命令的入口。
+     *
+     * <p>默认什么都不加。需要额外子命令的子类在这里往 {@code root} 上挂，
+     * 基类不参与、不认识具体子命令。
+     *
+     * <p>钩子在所有标准子命令挂完之后调用；自定义子命令需要自己处理
+     * 「不是玩家」的判空（参考 {@link #kNotPlayer()} 用法）。
+     */
+    protected void addExtraSubcommands(LiteralArgumentBuilder<CommandSourceStack> root) {
+    }
+
+    // ==============================================================
     // 命令树
     // ==============================================================
 
@@ -123,6 +143,10 @@ public abstract class AbstractRegionBindingCommand implements RegisterServer {
         if (supportsClear()) {
             root = root.then(Commands.literal("clear").executes(this::clearCmd));
         }
+
+        // 子类自定义子命令挂载点
+        addExtraSubcommands(root);
+
         return root;
     }
 

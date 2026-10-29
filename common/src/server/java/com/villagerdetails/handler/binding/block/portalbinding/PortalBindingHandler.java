@@ -2,6 +2,7 @@ package com.villagerdetails.handler.binding.block.portalbinding;
 
 import com.villagerdetails.cache.impl.BBSectionStateCache;
 import com.villagerdetails.cache.impl.PortalSelectionCache;
+import com.villagerdetails.config.impl.section.item.PortalBindingConfig;
 import com.villagerdetails.lang.ServerTranslations;
 import com.villagerdetails.network.sync.clientbound.PortalViewSyncChannel;
 import com.villagerdetails.pojo.dto.PortalBinding;
@@ -16,6 +17,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
@@ -283,6 +285,34 @@ public final class PortalBindingHandler {
     private static HoverEvent hover(String hoverKey) {
         return new HoverEvent.ShowText(
                 Component.literal(ServerTranslations.resolve(Component.translatable(hoverKey))));
+    }
+
+    public static int refresh(ServerPlayer player, int displayIndex) {
+        PortalBinding binding = PortalBindingConfig.INSTANCE.get(displayIndex - 1);
+        if (binding == null) {
+            sendOrBroadcast(player, Component.translatable(
+                    "command.portal_binding.refresh.out_of_range", displayIndex));
+            return 0;
+        }
+
+        PortalBinding refreshed = PortalBindingService.refreshCachedPortals(binding);
+        if (refreshed == null) {
+            sendOrBroadcast(player, Component.translatable(
+                    "command.portal_binding.refresh.failure"));
+            return 0;
+        }
+
+        sendOrBroadcast(player, Component.translatable(
+                "command.portal_binding.refresh.done",
+                displayIndex,
+                formatCached(refreshed.portalA()),
+                formatCached(refreshed.portalB())));
+        return 1;
+    }
+
+    private static Component formatCached(@Nullable BlockPos pos) {
+        if (pos == null) return Component.literal("-");
+        return Component.literal(pos.getX() + "," + pos.getY() + "," + pos.getZ());
     }
 
     /**

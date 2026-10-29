@@ -6,20 +6,18 @@ import com.villagerdetails.handler.binding.bbselection.SelectionInteractionHandl
 import com.villagerdetails.network.sync.clientbound.BBSyncChannel;
 import com.villagerdetails.network.sync.payload.clientbound.BBSyncPayload;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
+import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
-import org.jspecify.annotations.Nullable;
 
 import static com.villagerdetails.cache.RuleCache.isEnableOfListener;
 import static com.villagerdetails.event.type.ListenerType.BLOCK_RANGE_SELECTION;
@@ -36,7 +34,7 @@ public class BBSelectionManager implements ServerEventRegisterServer {
 
     @Override
     public void register() {
-        PlayerBlockBreakEvents.BEFORE.register(BBSelectionManager::onLeftClickBlock);
+        AttackBlockCallback.EVENT.register(BBSelectionManager::onAttackBlock);
         UseBlockCallback.EVENT.register(BBSelectionManager::onRightClickBlock);
         ServerTickEvents.END_SERVER_TICK.register(BBSelectionManager::onEndServerTick);
     }
@@ -52,26 +50,26 @@ public class BBSelectionManager implements ServerEventRegisterServer {
         }
     }
 
-    private static boolean onLeftClickBlock(Level level, Player player, BlockPos blockPos,
-                                            BlockState blockState, @Nullable BlockEntity blockEntity) {
-        if (!(player instanceof ServerPlayer sp)) return true;
-        if (!isEnableOfListener(sp, BLOCK_RANGE_SELECTION)) return true;
-        boolean handled = SelectionInteractionHandler.onLeftClickBlock(sp, blockPos);
+    private static InteractionResult onAttackBlock(Player player, Level level, InteractionHand hand, BlockPos pos, Direction direction) {
+        if (!(player instanceof ServerPlayer sp)) return InteractionResult.PASS;
+        if (sp.isSpectator()) return InteractionResult.PASS;
+        if (!isEnableOfListener(sp, BLOCK_RANGE_SELECTION)) return InteractionResult.PASS;
+        if (hand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
+        boolean handled = SelectionInteractionHandler.onLeftClickBlock(sp, pos);
         if (handled) {
-            syncTo(sp);          // ← 状态变了，推给客户端
+            syncTo(sp);
+            return InteractionResult.SUCCESS;
         }
-        return !handled;
+        return InteractionResult.PASS;
     }
 
-    private static InteractionResult onRightClickBlock(Player player, Level level,
-                                                       InteractionHand interactionHand,
-                                                       BlockHitResult blockHitResult) {
+    private static InteractionResult onRightClickBlock(Player player, Level level, InteractionHand interactionHand, BlockHitResult blockHitResult) {
         if (!(player instanceof ServerPlayer sp)) return InteractionResult.PASS;
         if (!isEnableOfListener(sp, BLOCK_RANGE_SELECTION)) return InteractionResult.PASS;
         if (interactionHand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
         if (blockHitResult.getType() != HitResult.Type.BLOCK) return InteractionResult.PASS;
         if (SelectionInteractionHandler.onRightClickBlock(sp, blockHitResult.getBlockPos())) {
-            syncTo(sp);          // ← 状态变了，推给客户端
+            syncTo(sp);
             return InteractionResult.SUCCESS;
         }
         return InteractionResult.PASS;

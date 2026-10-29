@@ -1,5 +1,5 @@
 name: build
-on: [ pull_request, push ]
+"on": [ pull_request, push ]
 
 permissions:
   contents: write
@@ -20,11 +20,9 @@ jobs:
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
 
-      # 构建并收集所有产物到 lib/1.0.1/ 下
       - name: build
         run: ./gradlew build
 
-      # 平时 push / PR：分类上传 Artifacts 供内部使用
       - name: capture client artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -53,22 +51,17 @@ jobs:
           path: lib/**/*-sources.jar
           if-no-files-found: error
 
-      # 只有推送 tag 时才发布 Release，全量包都传，并读取指定的 md 日志
       - name: publish release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
             lib/**/*.jar
-          # 动态读取 changelogs/v1.0.1.md
           body_path: changelogs/${{ github.ref_name }}.md
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ==========================================
-  # 发布到 Modrinth (按 MC 版本拆分，默认下载 all 包)
-  # ==========================================
   publish-modrinth:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
@@ -76,12 +69,11 @@ jobs:
     strategy:
       matrix:
         mc-version: ["26.2", "26.3"]
-      max-parallel: 1 # 串行上传，防止 Modrinth API 并发冲突
+      max-parallel: 1
     steps:
       - name: checkout repository
         uses: actions/checkout@v6
 
-      # 下载刚刚构建好的三个包（不需要 sources 包），保留原始目录结构
       - name: download all artifact
         uses: actions/download-artifact@v4
         with:
@@ -100,33 +92,32 @@ jobs:
           name: server
           path: artifacts
 
-      # 提取 Tag 中的纯版本号 (例如 v1.0.1 -> 1.0.1)
       - name: Extract version
         id: extract_version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
-      - name: Publish to Modrinth
+      - name: Publish to Modrinth & CurseForge
         uses: Kir-Antipov/mc-publish@v3.3
         with:
-          # ⚠️ 请在这里填入你的 Modrinth 项目 ID
-          modrinth-id: 1yB39Suz
+          # ========== Modrinth ==========
+          modrinth-id: ${{ secrets.MODRINTH_PROJECT_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
 
-          # 生成如 1.0.1+26.2 的版本号和名称
+          # ========== CurseForge ==========
+          curseforge-id: ${{ secrets.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+
           name: "VillagerDetails ${{ steps.extract_version.outputs.VERSION }} for MC ${{ matrix.mc-version }}"
           version: "${{ steps.extract_version.outputs.VERSION }}+${{ matrix.mc-version }}"
           version-type: release
 
-          # 动态读取 changelogs/v1.0.1.md
           changelog-file: changelogs/${{ github.ref_name }}.md
 
-          # 利用文件名中的 +<mc-version>- 精准匹配对应版本的包
           files: |
             artifacts/**/*+${{ matrix.mc-version }}-all.jar
             artifacts/**/*+${{ matrix.mc-version }}-client.jar
             artifacts/**/*+${{ matrix.mc-version }}-server.jar
 
-          # 强制指定 all 包为主文件（默认下载按钮）
           primary-file: artifacts/**/*+${{ matrix.mc-version }}-all.jar
 
           game-versions: |

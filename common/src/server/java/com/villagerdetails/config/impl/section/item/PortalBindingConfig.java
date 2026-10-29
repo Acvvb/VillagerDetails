@@ -14,6 +14,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
@@ -30,17 +31,28 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * 指令 {@code /ec PortalBinding bind} 走 {@link #add}，加完立刻写文件。
  *
  * <p>一条绑定就是<b>一个对象</b>：键是两端的维度 id，值是该维度里的坐标区域
- * （{@code max} 省略时按单格区域算，{@code min}/{@code max} 顺序写反了会被归一化）：
+ * （{@code max} 省略时按单格区域算，{@code min}/{@code max} 顺序写反了会被归一化）。
+ * 每侧还可以带一个可选的 {@code portal} 字段，记录该侧「已解析出的门底坐标」缓存，
+ * 用于传送时跳过 33×33×33 的方块扫描：
  * <pre>{@code
  * "PortalBinding": {
  *   "bindings": [
  *     {
- *       "minecraft:overworld": { "min": [100, 64, 200], "max": [110, 70, 210] },
- *       "minecraft:the_nether":  { "min": [12, 60, 25],  "max": [14, 62, 27] }
+ *       "minecraft:overworld": {
+ *         "min": [100, 64, 200], "max": [110, 70, 210],
+ *         "portal": [105, 64, 205]
+ *       },
+ *       "minecraft:the_nether": {
+ *         "min": [12, 60, 25], "max": [14, 62, 27],
+ *         "portal": [13, 60, 26]
+ *       }
  *     }
  *   ]
  * }
  * }</pre>
+ * {@code portal} 缺失 = 尚未解析；传送时走扫描，扫描成功后会由
+ * {@link #updateCachedPortal} 回写。门被拆后缓存失效，传送时验证失败会自动重扫重写，
+ * 所以这里存的是<b>快路径缓存</b>，不是唯一真相。
  *
  * <p>因为两端是对称的（互相传送到对方区域中心），所以不区分先后，也就没有 a / b 这种侧名。
  * 代价是「同一维度之间」的绑定表达不了 —— 指令那边也造不出这种绑定，真出现会在 {@link #add} 被挡下。
@@ -60,6 +72,9 @@ public final class PortalBindingConfig implements ReloadableConfig {
      * 节里真正装绑定的字段（外面套一层，以后要加元数据不用挪数据）
      */
     private static final String BINDINGS_KEY = "bindings";
+
+    /** 区域里记录「已解析门底坐标」的可选字段名。 */
+    private static final String PORTAL_KEY = "portal";
 
     private final List<PortalBinding> bindings = new CopyOnWriteArrayList<>();
 
@@ -144,6 +159,44 @@ public final class PortalBindingConfig implements ReloadableConfig {
         LOGGER.info("[{}] 已清空 {} 条绑定", SECTION, removed);
     }
 
+    /**
+     * 回写某侧「已解析门底坐标」缓存并立刻落盘。
+     *
+     * <p>定位依赖 {@link PortalBinding#equals} —— 它<b>只比较 6 个原始字段、忽略缓存</b>，
+     * 所以传入的 {@code binding} 即使是「扫描前拿到的旧副本」，也能精确命中原条目。
+     *
+     * <p>门被拆后缓存失效无需主动监听：传送时验证 {@code getBlockState(cached)} 不是门，
+     * 会走扫描，扫描成功后再次调用本方法把新坐标覆盖回来。
+     *
+     * @param binding   要更新的绑定（equals 匹配，缓存字段不参与）
+     * @param targetIsB true 更新 {@code portalB}（目标在 B 侧），false 更新 {@code portalA}
+     * @param portalPos 解析出的门底坐标（{@code bottomOfPortal} 的结果）
+     * @return 真的改动了返回 true；找不到 / 已是该值返回 false
+     */
+    public boolean updateCachedPortal(PortalBinding binding, boolean targetIsB, BlockPos portalPos) {
+        if (binding == null || portalPos == null) {
+            return false;
+        }
+        int idx = bindings.indexOf(binding);
+        if (idx < 0) {
+            // 正常流程不该出现：binding 被删除、或 equals 被改坏
+            LOGGER.warn("[{}] 找不到要回写缓存的绑定：{}", SECTION, binding);
+            return false;
+        }
+        PortalBinding old = bindings.get(idx);
+        BlockPos oldCached = targetIsB ? old.portalB() : old.portalA();
+        if (portalPos.equals(oldCached)) {
+            // 已是该值：不落盘，避免每次传送都触发一次 IO
+            return false;
+        }
+        PortalBinding updated = targetIsB ? old.withPortalB(portalPos) : old.withPortalA(portalPos);
+        bindings.set(idx, updated);
+        save();
+        LOGGER.debug("[{}] 回写缓存（{}）：{}", SECTION,
+                targetIsB ? "B 侧" : "A 侧", format(portalPos));
+        return true;
+    }
+
     // ------------------------------------------------------------------
     //  文件读写
     // ------------------------------------------------------------------
@@ -198,18 +251,25 @@ public final class PortalBindingConfig implements ReloadableConfig {
 
     private static JsonObject toJson(PortalBinding binding) {
         JsonObject obj = new JsonObject();
-        obj.add(binding.dimA().identifier().toString(), regionToJson(binding.minA(), binding.maxA()));
-        obj.add(binding.dimB().identifier().toString(), regionToJson(binding.minB(), binding.maxB()));
+        obj.add(binding.dimA().identifier().toString(),
+                regionToJson(binding.minA(), binding.maxA(), binding.portalA()));
+        obj.add(binding.dimB().identifier().toString(),
+                regionToJson(binding.minB(), binding.maxB(), binding.portalB()));
         return obj;
     }
 
     /**
-     * 一侧的区域：{@code {"min": [x,y,z], "max": [x,y,z]}}；它属于哪个维度写在上一层的键上。
+     * 一侧的区域：{@code {"min": [x,y,z], "max": [x,y,z], "portal": [x,y,z]?}}；
+     * 它属于哪个维度写在上一层的键上。{@code portal} 为 null 时整字段省略，
+     * 保持「没解析过就不写」的语义，避免配置文件里出现 {@code null} 占位。
      */
-    private static JsonObject regionToJson(BlockPos min, BlockPos max) {
+    private static JsonObject regionToJson(BlockPos min, BlockPos max, @Nullable BlockPos portal) {
         JsonObject region = new JsonObject();
         region.add("min", posToJson(min));
         region.add("max", posToJson(max));
+        if (portal != null) {
+            region.add(PORTAL_KEY, posToJson(portal));
+        }
         return region;
     }
 
@@ -225,6 +285,10 @@ public final class PortalBindingConfig implements ReloadableConfig {
      * 一个对象 = 一条绑定：遍历它那两个「维度 → 区域」条目。
      *
      * <p>必须正好两条、且两条都读得懂 —— 少一条宁可整条丢掉，也不留半个绑定在内存里。
+     *
+     * <p>两个键的读取顺序即 A / B 的顺序；Gson 的 {@code JsonObject} 保插入顺序，
+     * 而 {@link #toJson} 固定先写 A 后写 B，所以「写入-读取」两侧顺序自洽，
+     * {@code portalA} / {@code portalB} 不会错位。
      */
     private static PortalBinding fromJson(JsonElement element) {
         if (element == null || !element.isJsonObject()) {
@@ -249,9 +313,13 @@ public final class PortalBindingConfig implements ReloadableConfig {
         if (first == null || second == null) {
             return null;
         }
-        // 交给 of() 归一化，手写的 min/max 顺序乱了也没关系
-        return PortalBinding.of(first.dimension(), first.min(), first.max(),
+        // 先 of() 归一化（min/max 乱序也能修），再挂上两侧缓存
+        PortalBinding normalized = PortalBinding.of(
+                first.dimension(), first.min(), first.max(),
                 second.dimension(), second.min(), second.max());
+        return normalized
+                .withPortalA(first.portal())
+                .withPortalB(second.portal());
     }
 
     private static Side sideFromJson(String dimensionKey, JsonElement element) {
@@ -268,8 +336,10 @@ public final class PortalBindingConfig implements ReloadableConfig {
             return null;
         }
         BlockPos max = posFromJson(region.get("max"));
+        // portal 缺失（旧配置 / 未解析）→ null，向后兼容
+        BlockPos portal = region.has(PORTAL_KEY) ? posFromJson(region.get(PORTAL_KEY)) : null;
         // max 省略 → 单格区域
-        return new Side(dimension, min, max == null ? min : max);
+        return new Side(dimension, min, max == null ? min : max, portal);
     }
 
     private static ResourceKey<Level> dimensionFromJson(String key) {
@@ -294,17 +364,47 @@ public final class PortalBindingConfig implements ReloadableConfig {
     }
 
     /**
-     * 解析中间态：一侧的维度 + 两个角点
+     * 解析中间态：一侧的维度 + 两个角点 + 可选的门缓存
      */
-    private record Side(ResourceKey<Level> dimension, BlockPos min, BlockPos max) {
+    private record Side(ResourceKey<Level> dimension, BlockPos min, BlockPos max,
+                        @Nullable BlockPos portal) {
     }
 
     private static String describe(PortalBinding binding) {
         return binding.dimA().identifier() + " " + format(binding.minA()) + "~" + format(binding.maxA())
-                + " <-> " + binding.dimB().identifier() + " " + format(binding.minB()) + "~" + format(binding.maxB());
+                + " <-> " + binding.dimB().identifier() + " " + format(binding.minB()) + "~" + format(binding.maxB())
+                + (binding.portalA() != null || binding.portalB() != null
+                ? " [cached A=" + format(binding.portalA()) + ", B=" + format(binding.portalB()) + "]"
+                : "");
     }
 
-    private static String format(BlockPos pos) {
-        return pos.getX() + "," + pos.getY() + "," + pos.getZ();
+    private static String format(@Nullable BlockPos pos) {
+        return pos == null ? "null" : pos.getX() + "," + pos.getY() + "," + pos.getZ();
+    }
+
+    /**
+     * 清空一条绑定两侧的缓存门坐标并落盘。
+     *
+     * <p>用于 {@code refresh} 指令：清掉后下次传送会重新按区域状态扫描。
+     * 如果两侧本来就没缓存，返回 false，不落盘。
+     */
+    public boolean clearCachedPortals(PortalBinding binding) {
+        if (binding == null) return false;
+        int idx = bindings.indexOf(binding);
+        if (idx < 0) {
+            LOGGER.warn("[{}] 找不到要清缓存的绑定：{}", SECTION, binding);
+            return false;
+        }
+        PortalBinding old = bindings.get(idx);
+        if (old.portalA() == null && old.portalB() == null) {
+            return false;
+        }
+        bindings.set(idx, new PortalBinding(
+                old.dimA(), old.minA(), old.maxA(),
+                old.dimB(), old.minB(), old.maxB(),
+                null, null));
+        save();
+        LOGGER.debug("[{}] 已清空缓存：{}", SECTION, describe(binding));
+        return true;
     }
 }

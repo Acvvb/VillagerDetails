@@ -2,18 +2,17 @@ package com.villagerdetails.mixin.block.portalBinding;
 
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.handler.binding.block.portalbinding.PortalBindingService;
+import com.villagerdetails.handler.binding.block.portalbinding.PortalLocator;
 import com.villagerdetails.pojo.dto.PortalDestination;
 import com.villagerdetails.rule.type.RuleType;
+import com.villagerdetails.util.SendMessengerUtils;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.util.BlockUtil;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.NetherPortalBlock;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.portal.PortalForcer;
 import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.Vec3;
 import org.apache.logging.log4j.LogManager;
@@ -22,8 +21,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
-
-import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 @Mixin(Entity.class)
 public class EntityPortalMixin {
@@ -31,174 +29,182 @@ public class EntityPortalMixin {
     @Unique
     private static final Logger log = LogManager.getLogger(EntityPortalMixin.class);
 
-    // 26.3 把 handlePortal 里的 canTeleport + teleport 抽到了新方法 teleportToPortalDestination 里，
-    // 所以重定向的靶子要跟着搬——两处都在 canTeleport 之后，语义一致。
     @Redirect(
-
-
-
             method = "handlePortal",
-
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/world/entity/Entity;teleport(Lnet/minecraft/world/level/portal/TeleportTransition;)Lnet/minecraft/world/entity/Entity;"
             )
     )
     private Entity villagerdetails$redirectPortalTeleport(Entity self, TeleportTransition transition) {
-        if (!(self instanceof ServerPlayer player)) {
-            return self.teleport(transition);
-        }
-        if (!RuleCache.isEnabled(player, RuleType.PORTAL_BINDING)) {
+        if (!(self.level() instanceof ServerLevel sourceLevel)) {
             return self.teleport(transition);
         }
 
-        BlockPos startPos = null;
-        if (player.portalProcess != null) {
-            startPos = player.portalProcess.getEntryPosition();
-        }
-        if (startPos == null) {
-            startPos = player.blockPosition();
+        // 全局规则：规则状态非 false 即对所有实体生效
+        // 用无参重载，不再按玩家判断——怪物/物品没有权限概念
+        if (!RuleCache.isEnabled(RuleType.PORTAL_BINDING)) {
+            return self.teleport(transition);
         }
 
-        PortalDestination dest = PortalBindingService.resolve(player, startPos);
+        BlockPos currentPos = self.blockPosition();
+        BlockPos startPos = (self.portalProcess != null)
+                ? self.portalProcess.getEntryPosition()
+                : null;
+        if (startPos == null) startPos = currentPos;
+
+        PortalDestination dest = PortalBindingService.resolve(self, startPos);
+        if (dest == null && !startPos.equals(currentPos)) {
+            dest = PortalBindingService.resolve(self, currentPos);
+        }
         if (dest == null) {
-            dest = PortalBindingService.resolve(player, player.blockPosition());
-        }
-        if (dest == null) {
             return self.teleport(transition);
         }
 
-        ServerLevel targetLevel = player.level().getServer().getLevel(dest.dimension());
+        ServerLevel targetLevel = sourceLevel.getServer().getLevel(dest.dimension());
         if (targetLevel == null) {
             return self.teleport(transition);
         }
 
-        BlockPos portalPos;
-
-        if (RuleCache.isEnabled(player, RuleType.PORTAL_BINDING_ENHANCED)) {
-            // 增强模式：直接传送到绑定坐标，不做任何门检查
-            portalPos = dest.pos();
-            log.debug("[PortalBinding] enhanced mode, teleport directly to {}", portalPos);
-        } else {
-            // 普通模式：精确判断绑定坐标是否是门 → 扫描 → 生成
-            BlockState atDest = targetLevel.getBlockState(dest.pos());
-            if (atDest.getBlock() instanceof NetherPortalBlock) {
-                portalPos = bottomOfPortal(targetLevel, dest.pos());
-                log.debug("[PortalBinding] binding position itself is portal at {}", portalPos);
-            } else {
-                portalPos = findPortalNear(targetLevel, dest.pos());
-                if (portalPos != null) {
-                    log.debug("[PortalBinding] found nearby portal at {}", portalPos);
-                } else {
-                    log.debug("[PortalBinding] no portal near {}, creating one", dest.pos());
-                    portalPos = createPortalAt(targetLevel, dest.pos());
-                    if (portalPos == null) {
-                        log.debug("[PortalBinding] create failed, using simple portal");
-                        portalPos = placeSimplePortal(targetLevel, dest.pos());
-                    }
-                }
-            }
+        // 增强模式（仅玩家）：落脚点由原版异步搜索给出，传送推迟到 future 完成的回调里，
+        // 这里必须提前返回，不能再走下面的同步传送（否则会把人先丢到未验证的坐标上）。
+        if (self instanceof ServerPlayer player
+                && RuleCache.isEnabled(player, RuleType.PORTAL_BINDING_ENHANCED)) {
+            return teleportEnhanced(player, targetLevel, dest, transition);
         }
 
+        BlockPos portalPos = resolvePortalPos(targetLevel, dest);
         if (portalPos == null) {
-            log.warn("[PortalBinding] all failed, fallback to vanilla, player={}, dest={}",
-                    player.getName().getString(), dest);
+            log.warn("[PortalBinding] all failed, fallback to vanilla, entity={}, dest={}",
+                    describe(self), dest);
             return self.teleport(transition);
         }
 
+        // 原版行为：所有实体（无论玩家、怪物还是物品）均落在门底正中心
+        Vec3 spawnPos = Vec3.atBottomCenterOf(portalPos);
+
+        return teleportToSpawn(self, targetLevel, spawnPos, transition, dest);
+    }
+
+    /**
+     * 增强模式（仅玩家）：把落脚点交给 {@link PortalLocator#forceSpawnAt} 异步找，
+     * 完成后再回服务端主线程真正传送。
+     *
+     * <p>同步返回 {@code self}：原版（{@code handlePortal}）把这个返回值直接丢弃，
+     * 所以提前返回不会卡住它。
+     *
+     * <p>排队前先清 {@code portalProcess}：搜索可能跳好几个 tick（findSpawn 自己加 ticket
+     * 加载 chunk），不清的话过完门动画会重新计时，同一个玩家又触发一次 handlePortal，
+     * 于是排上两次异步传送。回调里再用 {@code isRemoved()} 兜底：
+     * 传送成功时旧 {@code ServerPlayer} 会被标成 removed，重复的回调就此作废。
+     *
+     * <p>回写缓存：异步 {@code findSpawn} 给的是普通地面，{@code portalBottom} 为 {@code null}，
+     * <b>绝不能</b>把那个坐标当成门缓存；只有 {@code forceSpawnAt} 的同步快路径（区域内已有门）
+     * 才会带出门底，此时顺手 {@link PortalBindingService#cachePortal}，
+     * 让下次普通模式和增强模式都直接 O(1) 命中。
+     */
+    @Unique
+    private Entity teleportEnhanced(ServerPlayer player, ServerLevel targetLevel,
+                                    PortalDestination dest, TeleportTransition origin) {
+        MinecraftServer server = targetLevel.getServer();
+        player.portalProcess = null;
+
+        PortalLocator.forceSpawnAt(targetLevel, dest.pos(), dest.regionMin(), dest.regionMax())
+                .thenAccept(result -> server.execute(() -> {
+                    if (result == null || result.spawnPos() == null) {
+                        // 找不到安全落脚点 → 不传送，别让玩家掉虚空/卡进方块
+                        SendMessengerUtils.sendOverlayOrBroadcast(player,
+                                Component.translatable("command.portal_binding.enhanced.no_ground"));
+                        player.portalProcess = null;
+                        log.warn("[PortalBinding] enhanced mode found no safe spot, teleport cancelled, "
+                                + "player={}, target={} {}", player.getName().getString(),
+                                dest.dimension().identifier(), dest.pos());
+                        return;
+                    }
+                    if (player.isRemoved()) {
+                        // 等待期间已被另一次传送替换掉，这个重复回调直接丢弃
+                        return;
+                    }
+                    // 只有「区域内已有门」才会带出门底；异步 findSpawn 给的是普通地面，不能写缓存
+                    if (result.portalBottom() != null) {
+                        PortalBindingService.cachePortal(dest, result.portalBottom());
+                        log.debug("[PortalBinding] enhanced mode hit portal, cached at {}",
+                                result.portalBottom());
+                    }
+                    teleportToSpawn(player, targetLevel, result.spawnPos(), origin, dest);
+                }));
+
+        return player;
+    }
+
+    /**
+     * 按新落点重建 {@link TeleportTransition} 并传送；成功后清掉 portalProcess
+     * （落点本身可能在门里，不清会被原版立刻二次弹回）。
+     *
+     * <p>同步路径与增强模式的异步回调共用这一份构造，免得两边参数对不齐。
+     */
+    @Unique
+    private @Nullable Entity teleportToSpawn(Entity self, ServerLevel targetLevel, Vec3 spawnPos,
+                                             TeleportTransition origin, PortalDestination dest) {
         TeleportTransition newTransition = new TeleportTransition(
                 targetLevel,
-                Vec3.atBottomCenterOf(portalPos),
-                transition.deltaMovement(),
-                transition.yRot(),
-                transition.xRot(),
-                transition.missingRespawnBlock(),
-                transition.asPassenger(),
-                transition.relatives(),
-                transition.postTeleportTransition()
+                spawnPos,
+                origin.deltaMovement(),
+                origin.yRot(),
+                origin.xRot(),
+                origin.missingRespawnBlock(),
+                origin.asPassenger(),
+                origin.relatives(),
+                origin.postTeleportTransition()
         );
 
-        // 执行传送
         Entity result = self.teleport(newTransition);
 
-        // 传送失败 → 错误日志
         if (result == null) {
-            log.warn("[PortalBinding] teleport returned null, player={}, target={} {}",
-                    player.getName().getString(), dest.dimension().identifier(), portalPos);
+            log.warn("[PortalBinding] teleport returned null, entity={}, target={} {}",
+                    describe(self), dest.dimension().identifier(), spawnPos);
             return null;
         }
 
-        // 重置 portalProcess，防止落点在门里被原版立即二次传送
         result.portalProcess = null;
-        log.debug("[PortalBinding] cleared portalProcess after teleport");
+        if (result != self) {
+            self.portalProcess = null;
+        }
+        log.debug("[PortalBinding] cleared portalProcess after teleport, entity={}", describe(self));
 
         return result;
     }
 
+    /**
+     * 在目标维度确定最终门底坐标。
+     *
+     * <p>只服务非增强路径（增强模式已由 {@link #teleportEnhanced} 另走异步通道）：
+     * 有区域信息（绑定 {@code resolve} 出来的目的地）只在区域内选门/建门；
+     * 旧构造的目的地无区域，退回以目标点为中心的通用定位。
+     */
     @Unique
-    private static BlockPos findPortalNear(ServerLevel level, BlockPos center) {
-        if (level.getBlockState(center).getBlock() instanceof NetherPortalBlock) {
-            return bottomOfPortal(level, center);
+    private @Nullable BlockPos resolvePortalPos(ServerLevel targetLevel, PortalDestination dest) {
+        BlockPos cached = dest.cachedPortalPos();
+        if (cached != null && targetLevel.getBlockState(cached).getBlock() instanceof NetherPortalBlock) {
+            log.debug("[PortalBinding] cache hit at {}", cached);
+            return PortalLocator.bottomOfPortal(targetLevel, cached);
         }
 
-        BlockPos closest = null;
-        double closestDist = Double.MAX_VALUE;
+        BlockPos located = dest.hasRegion()
+                ? PortalLocator.locateInRegion(targetLevel, dest.pos(), dest.regionMin(), dest.regionMax())
+                : PortalLocator.locateOrCreate(targetLevel, dest.pos());
 
-        for (int dx = -16; dx <= 16; dx++) {
-            for (int dy = -16; dy <= 16; dy++) {
-                for (int dz = -16; dz <= 16; dz++) {
-                    BlockPos p = center.offset(dx, dy, dz);
-                    if (level.getBlockState(p).getBlock() instanceof NetherPortalBlock) {
-                        double dist = p.distSqr(center);
-                        if (dist < closestDist) {
-                            closestDist = dist;
-                            closest = p;
-                        }
-                    }
-                }
-            }
+        if (located != null) {
+            PortalBindingService.cachePortal(dest, located);
         }
-
-        return closest == null ? null : bottomOfPortal(level, closest);
+        return located;
     }
 
     @Unique
-    private static BlockPos bottomOfPortal(ServerLevel level, BlockPos p) {
-        BlockPos bottom = p;
-        while (level.getBlockState(bottom.below()).getBlock() instanceof NetherPortalBlock) {
-            bottom = bottom.below();
+    private static String describe(Entity entity) {
+        if (entity instanceof ServerPlayer player) {
+            return player.getName().getString();
         }
-        return bottom;
-    }
-
-    @Unique
-    private static BlockPos createPortalAt(ServerLevel level, BlockPos center) {
-        try {
-            PortalForcer portalForcer = new PortalForcer(level);
-            Optional<BlockUtil.FoundRectangle> result =
-                    portalForcer.createPortal(center, Direction.Axis.X);
-            if (result.isPresent()) {
-                return result.get().minCorner;
-            }
-        } catch (Throwable t) {
-            log.warn("[PortalBinding] PortalForcer.createPortal failed, center={}", center, t);
-        }
-        return null;
-    }
-
-    @Unique
-    private static BlockPos placeSimplePortal(ServerLevel level, BlockPos center) {
-        BlockPos.MutableBlockPos mutableBlockPos = center.mutable();
-        for (int y = center.getY(); y > level.getMinY(); y--) {
-            mutableBlockPos.setY(y);
-            BlockState state = level.getBlockState(mutableBlockPos);
-            if (!state.getCollisionShape(level, mutableBlockPos).isEmpty()) {
-                BlockPos portalPos = mutableBlockPos.above().immutable();
-                level.setBlockAndUpdate(portalPos, Blocks.NETHER_PORTAL.defaultBlockState());
-                return portalPos;
-            }
-        }
-        log.warn("[PortalBinding] placeSimplePortal failed, no solid block below {}", center);
-        return null;
+        return entity.getType() + "#" + entity.getStringUUID().substring(0, 8);
     }
 }
