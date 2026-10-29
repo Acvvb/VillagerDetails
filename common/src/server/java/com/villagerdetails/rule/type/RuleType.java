@@ -1,7 +1,13 @@
 package com.villagerdetails.rule.type;
 
 import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.command.c.impl.rule.other.VillagerBatchBedBindingServerImpl;import com.villagerdetails.command.c.impl.rule.resistance.BlockExplosionResistanceServerImpl;import com.villagerdetails.command.c.impl.rule.resistance.BlockMiningResistanceServerImpl;import com.villagerdetails.command.c.impl.rule.region.PortalBindingServerImpl;import com.villagerdetails.command.c.impl.rule.region.PortalPiglinNoSpawnServerImpl;import com.villagerdetails.command.c.impl.rule.rule.*;import com.villagerdetails.command.c.server.RegisterServer;
+import com.villagerdetails.command.c.impl.rule.other.VillagerBatchBedBindingServerImpl;
+import com.villagerdetails.command.c.impl.rule.resistance.BlockExplosionResistanceServerImpl;
+import com.villagerdetails.command.c.impl.rule.resistance.BlockMiningResistanceServerImpl;
+import com.villagerdetails.command.c.impl.rule.region.PortalBindingServerImpl;
+import com.villagerdetails.command.c.impl.rule.region.PortalPiglinNoSpawnServerImpl;
+import com.villagerdetails.command.c.impl.rule.rule.*;
+import com.villagerdetails.command.c.server.RegisterServer;
 import com.villagerdetails.command.c.server.RegisterTypeServer;
 import com.villagerdetails.command.c.server.StateSuggestionServer;
 import com.villagerdetails.config.ReloadableConfig;

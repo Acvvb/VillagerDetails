@@ -40,6 +40,55 @@ public record PortalBinding(
         this(dimA, minA, maxA, dimB, minB, maxB, null, null);
     }
 
+    // ==================== 区域尺寸上限 ====================
+
+    /**
+     * 单侧区域允许的最大边长（格，<b>含两端</b>）。
+     *
+     * <p>X / Z 各 128 格、Y 64 格。这个上限同时是「扫描一定看得全」的前提：
+     * POI 扫描的覆盖半径是区域中心到角点的水平距离（这里最大 64），
+     * 远小于 {@code PortalLocator} 的<b>单次</b>扫描安全半径 128，
+     * 所以合法区域永远一次扫完，不会出现「区域内明明有门却扫不到」。
+     *
+     * <p>命令 {@code set} 会按它拦下过大的选区；手工改配置文件塞进更大的区域时
+     * 不会丢数据，但刷新/传送会退化成「只扫中心一片」并提示未覆盖完整
+     * （见 {@code PortalLocator#MAX_TILES} 与 {@code scanRegion}）。
+     */
+    public static final int MAX_SIZE_X = 128;
+    public static final int MAX_SIZE_Y = 64;
+    public static final int MAX_SIZE_Z = 128;
+
+    /**
+     * 一个区域的三边格数（含两端）。
+     */
+    public record Size(int x, int y, int z) {
+    }
+
+    /**
+     * 量出两个角点构成的区域大小（含两端，所以单格区域是 1×1×1）。
+     */
+    public static Size sizeOf(BlockPos a, BlockPos b) {
+        return new Size(
+                Math.abs(a.getX() - b.getX()) + 1,
+                Math.abs(a.getY() - b.getY()) + 1,
+                Math.abs(a.getZ() - b.getZ()) + 1);
+    }
+
+    /**
+     * 单侧区域是否在 {@link #MAX_SIZE_X} / {@link #MAX_SIZE_Y} / {@link #MAX_SIZE_Z} 之内。
+     */
+    public static boolean withinSizeLimits(BlockPos a, BlockPos b) {
+        Size size = sizeOf(a, b);
+        return size.x() <= MAX_SIZE_X && size.y() <= MAX_SIZE_Y && size.z() <= MAX_SIZE_Z;
+    }
+
+    /**
+     * 两侧区域是否都在尺寸上限之内。
+     */
+    public boolean withinSizeLimits() {
+        return withinSizeLimits(minA, maxA) && withinSizeLimits(minB, maxB);
+    }
+
     /** 返回替换了 A 侧缓存的新副本（原对象不变）。 */
     public PortalBinding withPortalA(@Nullable BlockPos pos) {
         return new PortalBinding(dimA, minA, maxA, dimB, minB, maxB, pos, portalB);
@@ -58,10 +107,10 @@ public record PortalBinding(
      * 与目标区域边界，供调用方回写缓存与限定扫描范围。
      */
     public @Nullable PortalDestination resolve(ResourceKey<Level> currentDim, BlockPos pos) {
-        if (currentDim.equals(dimA) && inRange(pos, minA, maxA)) {
+        if (currentDim.equals(dimA) && inRegion(pos, minA, maxA)) {
             return new PortalDestination(dimB, centerOf(minB, maxB), this, true, minB, maxB);
         }
-        if (currentDim.equals(dimB) && inRange(pos, minB, maxB)) {
+        if (currentDim.equals(dimB) && inRegion(pos, minB, maxB)) {
             return new PortalDestination(dimA, centerOf(minA, maxA), this, false, minA, maxA);
         }
         return null;
@@ -75,7 +124,14 @@ public record PortalBinding(
                 dimB, min(b1, b2), max(b1, b2), null, null);
     }
 
-    private static boolean inRange(BlockPos p, BlockPos min, BlockPos max) {
+    /**
+     * 坐标是否落在区域里（含边界）。
+     *
+     * <p>public 是因为「刷新时保留旧缓存」那条判定要用同一套边界语义：
+     * 旧缓存的门一旦被缩小后的选区排除在外，就必须清掉，
+     * 否则下次传送会把玩家送到区域外的那扇门。
+     */
+    public static boolean inRegion(BlockPos p, BlockPos min, BlockPos max) {
         return p.getX() >= min.getX() && p.getX() <= max.getX()
                 && p.getY() >= min.getY() && p.getY() <= max.getY()
                 && p.getZ() >= min.getZ() && p.getZ() <= max.getZ();

@@ -36,4 +36,15 @@ public class PortalViewSyncChannel extends SyncChannel<PortalViewSyncPayload> {
     public void clear(ServerPlayer player) {
         sendTo(player, new PortalViewSyncPayload(null, null, null));
     }
+
+    /**
+     * 清掉<b>所有在线客户端</b>的视图高亮。
+     *
+     * <p>用在高亮区域本身消失的场景（例如 {@code /ec c PortalBinding delete}）：
+     * 高亮只是客户端缓存，服务端没有「谁在看哪条」的账本，所以只能整体清一遍，
+     * 否则删掉的那条区域在别人屏幕上还会一直画着。空包语义就是「清空所有维度」。
+     */
+    public void clearAll() {
+        broadcast(new PortalViewSyncPayload(null, null, null));
+    }
 }

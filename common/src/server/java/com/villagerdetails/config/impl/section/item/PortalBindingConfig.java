@@ -5,10 +5,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.villagerdetails.config.ReloadableConfig;
 import com.villagerdetails.config.impl.UnifiedConfigFile;
+import com.villagerdetails.config.impl.util.BindingJson;
 import com.villagerdetails.pojo.dto.PortalBinding;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.Level;
@@ -18,7 +17,9 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 传送门绑定的持久化。
@@ -78,12 +79,36 @@ public final class PortalBindingConfig implements ReloadableConfig {
 
     private final List<PortalBinding> bindings = new CopyOnWriteArrayList<>();
 
+    /**
+     * 列表的「结构版本」：<b>只</b>在增 / 删 / 清空 / 重新加载时自增，
+     * 缓存回写（{@code portalA}/{@code portalB}）不算 —— 那不会让序号错位。
+     *
+     * <p>{@code show} 会把当时的版本写进每个条目的 [刷新] / [删除] 按钮里，
+     * 点按钮时带回来校验：版本对不上就说明「你看到列表之后又有人增删过」，
+     * 此时序号已经指向别的绑定了，直接拒绝执行，让玩家重新 {@code show}，
+     * 免得刷错门、或者删掉一条完全不相干的绑定。
+     *
+     * <p>所有增删都发生在服务端主线程，读方也在主线程；这里用 {@link AtomicInteger} 而不是
+     * {@code volatile int}：{@code version++} 是「读-改-写」，写在 volatile 上不是原子操作
+     * （静态检查会直接报「volatile 字段上的非原子操作」），换成原子自增既消掉告警，语义也更准。
+     */
+    private final AtomicInteger structureVersion = new AtomicInteger();
+
     private PortalBindingConfig() {
     }
 
     @Override
     public String configName() {
         return SECTION;
+    }
+
+    /**
+     * 当前列表结构版本（见 {@link #structureVersion}）。
+     *
+     * <p>只在 {@code show} 渲染按钮时读取，命令执行时拿它和按钮带回来的值比对。
+     */
+    public int structureVersion() {
+        return structureVersion.get();
     }
 
     /**
@@ -121,6 +146,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
             return false;
         }
         bindings.add(binding);
+        structureVersion.incrementAndGet();
         save();
         LOGGER.info("[{}] 已写入第 {} 条绑定：{}", SECTION, bindings.size(), describe(binding));
         return true;
@@ -141,6 +167,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
             return null;
         }
         PortalBinding removed = bindings.remove(index);
+        structureVersion.incrementAndGet();
         save();
         LOGGER.info("[{}] 已删除第 {} 条绑定：{}", SECTION, index + 1, describe(removed));
         return removed;
@@ -155,6 +182,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         }
         int removed = bindings.size();
         bindings.clear();
+        structureVersion.incrementAndGet();
         save();
         LOGGER.info("[{}] 已清空 {} 条绑定", SECTION, removed);
     }
@@ -185,7 +213,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         }
         PortalBinding old = bindings.get(idx);
         BlockPos oldCached = targetIsB ? old.portalB() : old.portalA();
-        if (portalPos.equals(oldCached)) {
+        if (Objects.equals(portalPos, oldCached)) {
             // 已是该值：不落盘，避免每次传送都触发一次 IO
             return false;
         }
@@ -194,6 +222,43 @@ public final class PortalBindingConfig implements ReloadableConfig {
         save();
         LOGGER.debug("[{}] 回写缓存（{}）：{}", SECTION,
                 targetIsB ? "B 侧" : "A 侧", format(portalPos));
+        return true;
+    }
+
+    /**
+     * 一次性覆盖某条绑定<b>两侧</b>的缓存门坐标并落盘（{@code refresh} 专用）。
+     *
+     * <p>等价于「先 {@link #clearCachedPortals} 清空、再对两侧各调一次
+     * {@link #updateCachedPortal}」，但中间不会落盘：整份配置文件只写一次。
+     * 刷新一次要连续改三条记录（清缓存 + A 侧 + B 侧），走老路子会连写三次文件。
+     *
+     * <p>语义与刷新一致：<b>完全覆盖</b>，{@code portalA} / {@code portalB} 传 {@code null}
+     * 就表示该侧「区域内暂时没门」，缓存被清掉（下次传送懒解析）。
+     *
+     * @param binding 要更新的绑定（equals 匹配，缓存字段不参与）
+     * @param portalA 新的 A 侧门底坐标；{@code null} 表示该侧无缓存
+     * @param portalB 新的 B 侧门底坐标；{@code null} 表示该侧无缓存
+     * @return 真的改动了返回 true；找不到 / 与现状完全一致返回 false（不落盘）
+     */
+    public boolean applyCachedPortals(PortalBinding binding,
+                                      @Nullable BlockPos portalA, @Nullable BlockPos portalB) {
+        if (binding == null) {
+            return false;
+        }
+        int idx = bindings.indexOf(binding);
+        if (idx < 0) {
+            LOGGER.warn("[{}] 找不到要刷新缓存的绑定：{}", SECTION, binding);
+            return false;
+        }
+        PortalBinding old = bindings.get(idx);
+        if (Objects.equals(old.portalA(), portalA) && Objects.equals(old.portalB(), portalB)) {
+            // 和现状一模一样：不落盘，刷新一次没换门时连 IO 都不做
+            return false;
+        }
+        bindings.set(idx, old.withPortalA(portalA).withPortalB(portalB));
+        save();
+        LOGGER.debug("[{}] 已刷新缓存：{} -> A={}, B={}", SECTION,
+                describe(binding), format(portalA), format(portalB));
         return true;
     }
 
@@ -213,6 +278,8 @@ public final class PortalBindingConfig implements ReloadableConfig {
         JsonObject section = UnifiedConfigFile.getSection(SECTION);
         JsonElement element = section.get(BINDINGS_KEY);
         int skipped = 0;
+        int duplicated = 0;
+        int oversized = 0;
         if (element != null && element.isJsonArray()) {
             for (JsonElement entry : element.getAsJsonArray()) {
                 PortalBinding binding = fromJson(entry);
@@ -220,14 +287,36 @@ public final class PortalBindingConfig implements ReloadableConfig {
                     skipped++;
                     continue;
                 }
+                // 手改文件可能写出两条一模一样的绑定：这里合并掉。
+                // 缓存回写 / 刷新 / 清缓存全都按 equals 找第一条，
+                // 留两条相等记录会让「第 2 条的缓存」永远改不到（也删不干净）。
+                if (bindings.contains(binding)) {
+                    duplicated++;
+                    continue;
+                }
+                if (!binding.withinSizeLimits()) {
+                    oversized++;
+                }
                 bindings.add(binding);
             }
         }
 
         section.add(BINDINGS_KEY, toJsonArray());
+        // 重载后序号可能整体变了：旧聊天记录里的按钮一律作废
+        structureVersion.incrementAndGet();
 
         if (skipped > 0) {
             LOGGER.warn("[{}] 有 {} 条记录读不懂，已跳过；落盘后文件里只剩能用的", SECTION, skipped);
+        }
+        if (duplicated > 0) {
+            LOGGER.warn("[{}] 有 {} 条重复记录，已合并；落盘后文件里每条绑定只留一份", SECTION, duplicated);
+        }
+        if (oversized > 0) {
+            // 命令 set 已经不允许这么大的选区了，这里只可能是手改配置文件塞进来的
+            LOGGER.warn("[{}] 有 {} 条绑定超出选区上限（{}x{}x{}），已原样保留；"
+                            + "刷新 / 传送只会扫描中心附近一片，可能漏掉外围的门",
+                    SECTION, oversized, PortalBinding.MAX_SIZE_X, PortalBinding.MAX_SIZE_Y,
+                    PortalBinding.MAX_SIZE_Z);
         }
         LOGGER.info("[{}] 已加载 {} 项", SECTION, bindings.size());
     }
@@ -265,20 +354,12 @@ public final class PortalBindingConfig implements ReloadableConfig {
      */
     private static JsonObject regionToJson(BlockPos min, BlockPos max, @Nullable BlockPos portal) {
         JsonObject region = new JsonObject();
-        region.add("min", posToJson(min));
-        region.add("max", posToJson(max));
+        region.add("min", BindingJson.posToJson(min));
+        region.add("max", BindingJson.posToJson(max));
         if (portal != null) {
-            region.add(PORTAL_KEY, posToJson(portal));
+            region.add(PORTAL_KEY, BindingJson.posToJson(portal));
         }
         return region;
-    }
-
-    private static JsonArray posToJson(BlockPos pos) {
-        JsonArray array = new JsonArray(3);
-        array.add(pos.getX());
-        array.add(pos.getY());
-        array.add(pos.getZ());
-        return array;
     }
 
     /**
@@ -326,41 +407,20 @@ public final class PortalBindingConfig implements ReloadableConfig {
         if (element == null || !element.isJsonObject()) {
             return null;
         }
-        ResourceKey<Level> dimension = dimensionFromJson(dimensionKey);
+        ResourceKey<Level> dimension = BindingJson.dimensionFromKey(dimensionKey);
         if (dimension == null) {
             return null;
         }
         JsonObject region = element.getAsJsonObject();
-        BlockPos min = posFromJson(region.get("min"));
+        BlockPos min = BindingJson.posFromJson(region.get("min"));
         if (min == null) {
             return null;
         }
-        BlockPos max = posFromJson(region.get("max"));
+        BlockPos max = BindingJson.posFromJson(region.get("max"));
         // portal 缺失（旧配置 / 未解析）→ null，向后兼容
-        BlockPos portal = region.has(PORTAL_KEY) ? posFromJson(region.get(PORTAL_KEY)) : null;
+        BlockPos portal = region.has(PORTAL_KEY) ? BindingJson.posFromJson(region.get(PORTAL_KEY)) : null;
         // max 省略 → 单格区域
         return new Side(dimension, min, max == null ? min : max, portal);
-    }
-
-    private static ResourceKey<Level> dimensionFromJson(String key) {
-        Identifier id = Identifier.tryParse(key);
-        return id == null ? null : ResourceKey.create(Registries.DIMENSION, id);
-    }
-
-    private static BlockPos posFromJson(JsonElement element) {
-        if (element == null || !element.isJsonArray()) {
-            return null;
-        }
-        JsonArray array = element.getAsJsonArray();
-        if (array.size() < 3) {
-            return null;
-        }
-        try {
-            return new BlockPos(array.get(0).getAsInt(), array.get(1).getAsInt(), array.get(2).getAsInt());
-        } catch (RuntimeException e) {
-            // 写成非数字之类：当这条坏了
-            return null;
-        }
     }
 
     /**
@@ -385,8 +445,11 @@ public final class PortalBindingConfig implements ReloadableConfig {
     /**
      * 清空一条绑定两侧的缓存门坐标并落盘。
      *
-     * <p>用于 {@code refresh} 指令：清掉后下次传送会重新按区域状态扫描。
-     * 如果两侧本来就没缓存，返回 false，不落盘。
+     * <p>用于 {@code delete} 指令：删记录之前先把「这条绑定的缓存已作废」落一次盘。
+     * {@code refresh} 不走这里 —— 它要的是「扫完再一次写回」，走
+     * {@link #applyCachedPortals}，整份文件只写一次。
+     *
+     * <p>如果两侧本来就没缓存，返回 false，不落盘。
      */
     public boolean clearCachedPortals(PortalBinding binding) {
         if (binding == null) return false;

@@ -21,12 +21,18 @@ import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
  *   /ec c &lt;规则&gt; show          → 列出所有已绑定区域
  *   /ec c &lt;规则&gt; view &lt;序号&gt;   → 把某条区域推给客户端高亮
  *   /ec c &lt;规则&gt; delete &lt;序号&gt; → 删除某条区域
+ *   /ec c &lt;规则&gt; delete &lt;序号&gt; &lt;版本&gt; → 同上，{@code show} 按钮点的就是这个形式
  *   /ec c &lt;规则&gt; clear         → 清空全部区域（可选，{@link #supportsClear()}）
  * </pre>
  *
  * <p>命令树、参数解析、「不是玩家」提示这些纯机械的东西全在基类里；
  * <b>子类只描述「用哪个字面量」「挂哪些子命令」和「业务交给谁」</b> ——
  * 真正的业务（改配置、拼消息、推高亮）一律写在处理器里，命令类不碰。
+ *
+ * <p><b>按钮过期</b>：聊天里的 [刷新] / [删除] 只带序号，而序号是位置，
+ * 别人在你看到列表之后增删一条，序号就指到别的条目上了。支持版本校验的规则
+ * （{@link #structureVersion()}）会把「渲染这一刻的结构版本」写进按钮，
+ * 点的时候带回来比对，对不上就拒绝执行、让你重新 {@code show}，不会删错/刷错。
  *
  * <p>序号参数按玩家输入的 1 起算原样传给业务方法，减一与越界判断由处理器负责；
  * 这样命令层不用知道「列表怎么存」。
@@ -105,6 +111,42 @@ public abstract class AbstractRegionBindingCommand implements RegisterServer {
     }
 
     // ==============================================================
+    // 按钮过期校验（列表结构版本）
+    // ==============================================================
+
+    /**
+     * 列表的「结构版本」：{@code show} 把它写进每个条目的 [刷新] / [删除] 按钮，
+     * 点按钮时再带回来比对。版本对不上 = 「你看到列表之后又有人增删过」，
+     * 此时序号已经指向别的条目了。
+     *
+     * <p>默认 {@code -1} 表示本规则不支持版本校验：按钮不带版本，也不校验，
+     * 行为与以前完全一致。子类（例如 {@code PortalBinding}）返回自己配置里的版本号即可。
+     */
+    protected int structureVersion() {
+        return -1;
+    }
+
+    /**
+     * 按钮带回来的版本是否仍然有效。
+     *
+     * <p>返回 {@code false} 表示列表已过期，调用方应提示玩家重新 {@code show} 再点，
+     * <b>不要再按序号执行任何操作</b>（那个序号现在可能指向别的条目）。
+     */
+    protected final boolean versionMatches(int expected) {
+        int current = structureVersion();
+        return current < 0 || current == expected;
+    }
+
+    /**
+     * 列表过期时的提示键（按钮带回来的版本与当前版本不一致）。
+     *
+     * <p>直接沿用「区域绑定」这一族规则的通用文案，各规则不需要自己实现。
+     */
+    protected String kStaleList() {
+        return "command.region_binding.failure.stale_list";
+    }
+
+    // ==============================================================
     // 扩展点：子类自己挂额外子命令
     // ==============================================================
 
@@ -128,14 +170,16 @@ public abstract class AbstractRegionBindingCommand implements RegisterServer {
     public LiteralArgumentBuilder<CommandSourceStack> register() {
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal(literalName())
                 .executes(this::showCmd)
-                .then(Commands.literal("show").executes(this::showCmd))
                 .then(Commands.literal("bind").executes(this::bindCmd))
                 .then(Commands.literal("view")
                         .then(Commands.argument("index", IntegerArgumentType.integer(1))
                                 .executes(this::viewCmd)))
                 .then(Commands.literal("delete")
                         .then(Commands.argument("index", IntegerArgumentType.integer(1))
-                                .executes(this::deleteCmd)));
+                                .executes(this::deleteCmd)
+                                // show 渲染的按钮会多带一个「列表结构版本」，用来发现列表过期
+                                .then(Commands.argument("version", IntegerArgumentType.integer(0))
+                                        .executes(this::deleteWithVersionCmd))));
 
         if (supportsSet()) {
             root = root.then(Commands.literal("set").executes(this::setCmd));
@@ -177,6 +221,24 @@ public abstract class AbstractRegionBindingCommand implements RegisterServer {
     private int deleteCmd(CommandContext<CommandSourceStack> ctx) {
         ServerPlayer player = playerOrNull(ctx.getSource());
         return player == null ? 0 : delete(player, IntegerArgumentType.getInteger(ctx, "index"));
+    }
+
+    /**
+     * {@code delete <序号> <结构版本>}：按钮点下来的形式。
+     *
+     * <p>版本对不上就不执行 —— 序号可能已经指到别的条目上了，宁可让玩家重新
+     * {@code show} 一次，也不要删错一条绑定。
+     */
+    private int deleteWithVersionCmd(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = playerOrNull(ctx.getSource());
+        if (player == null) {
+            return 0;
+        }
+        if (!versionMatches(IntegerArgumentType.getInteger(ctx, "version"))) {
+            sendOrBroadcast(player, Component.translatable(kStaleList(), literalName()));
+            return 0;
+        }
+        return delete(player, IntegerArgumentType.getInteger(ctx, "index"));
     }
 
     private int clearCmd(CommandContext<CommandSourceStack> ctx) {

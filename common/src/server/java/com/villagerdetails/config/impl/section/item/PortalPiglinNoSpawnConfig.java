@@ -5,10 +5,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.villagerdetails.config.ReloadableConfig;
 import com.villagerdetails.config.impl.UnifiedConfigFile;
+import com.villagerdetails.config.impl.util.BindingJson;
 import com.villagerdetails.pojo.dto.PortalPiglinNoSpawnRegion;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.Level;
@@ -211,17 +210,9 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
     private static JsonObject toJson(PortalPiglinNoSpawnRegion region) {
         JsonObject obj = new JsonObject();
         obj.addProperty(KEY_DIMENSION, region.dimension().identifier().toString());
-        obj.add(KEY_MIN, posToJson(region.min()));
-        obj.add(KEY_MAX, posToJson(region.max()));
+        obj.add(KEY_MIN, BindingJson.posToJson(region.min()));
+        obj.add(KEY_MAX, BindingJson.posToJson(region.max()));
         return obj;
-    }
-
-    private static JsonArray posToJson(BlockPos pos) {
-        JsonArray array = new JsonArray(3);
-        array.add(pos.getX());
-        array.add(pos.getY());
-        array.add(pos.getZ());
-        return array;
     }
 
     /**
@@ -233,41 +224,17 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
         }
         JsonObject obj = element.getAsJsonObject();
 
-        ResourceKey<Level> dimension = dimensionFromJson(obj.get(KEY_DIMENSION));
+        ResourceKey<Level> dimension = BindingJson.dimensionFromJson(obj.get(KEY_DIMENSION));
         if (dimension == null) {
             return null;
         }
-        BlockPos min = posFromJson(obj.get(KEY_MIN));
+        BlockPos min = BindingJson.posFromJson(obj.get(KEY_MIN));
         if (min == null) {
             return null;
         }
-        BlockPos max = posFromJson(obj.get(KEY_MAX));
+        BlockPos max = BindingJson.posFromJson(obj.get(KEY_MAX));
         // max 省略 → 单格区域
         return PortalPiglinNoSpawnRegion.of(dimension, min, max == null ? min : max);
-    }
-
-    private static ResourceKey<Level> dimensionFromJson(JsonElement element) {
-        if (element == null || !element.isJsonPrimitive()) {
-            return null;
-        }
-        Identifier id = Identifier.tryParse(element.getAsString());
-        return id == null ? null : ResourceKey.create(Registries.DIMENSION, id);
-    }
-
-    private static BlockPos posFromJson(JsonElement element) {
-        if (element == null || !element.isJsonArray()) {
-            return null;
-        }
-        JsonArray array = element.getAsJsonArray();
-        if (array.size() < 3) {
-            return null;
-        }
-        try {
-            return new BlockPos(array.get(0).getAsInt(), array.get(1).getAsInt(), array.get(2).getAsInt());
-        } catch (RuntimeException e) {
-            // 写成非数字之类：当这条坏了
-            return null;
-        }
     }
 
     private static String describe(PortalPiglinNoSpawnRegion region) {

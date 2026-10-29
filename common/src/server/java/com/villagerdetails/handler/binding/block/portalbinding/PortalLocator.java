@@ -31,7 +31,10 @@ import java.util.concurrent.CompletableFuture;
  *   <li>{@link #locateOrCreate(ServerLevel, BlockPos)} —— 无区域信息时的通用定位，
  *       以给定点为中心在 {@value #SCAN_RADIUS} 水平半径内找门；</li>
  *   <li>{@link #locateInRegion(ServerLevel, BlockPos, BlockPos, BlockPos)} —— 绑定区域专用，
- *       <b>只接受区域内的门</b>，区域外有门也不选，区域内没门时在区域内建新门。</li>
+ *       <b>只接受区域内的门</b>，区域外有门也不选；<b>确认整片区域确实没门</b>时
+ *       才会在区域内建新门（扫描没覆盖全就返回 null，交给调用方回退原版）。</li>
+ *   <li>{@link #scanRegion(ServerLevel, BlockPos, BlockPos, BlockPos)} —— 区域扫描本体：
+ *       按瓦片扫满整片区域，并告诉调用方「这次有没有扫全」。</li>
  *   <li>{@link #forceSpawnAt(ServerLevel, BlockPos, BlockPos, BlockPos)} —— 增强模式专用，
  *       不要求落脚点是门，只要求站得住；结果是 {@link CompletableFuture}。</li>
  * </ul>
@@ -39,6 +42,11 @@ import java.util.concurrent.CompletableFuture;
  * <p>找门统一走 {@link #scanByPoi}（原版 POI 引擎，与 {@code PortalForcer} 找门的实现是同一套），
  * 不再逐格遍历方块；传送一次后结果由 {@link PortalBindingService#cachePortal} 缓存，
  * 后续传送走 O(1) 缓存命中。
+ *
+ * <p><b>扫描覆盖</b>：单次 POI 调用有半径上限（{@link #POI_SCAN_RADIUS_LIMIT}），
+ * 所以区域扫描一律按 {@link #TILE} 分片铺满，不靠「一次半径」硬撑；
+ * 分片总量与冷 chunk 数都受预算（{@link #MAX_TILES} / {@link #MAX_COLD_CHUNKS}）约束，
+ * 超预算只扫中心一片并把 {@code complete} 标成 false —— 宁可说「没扫全」，也不猜。
  *
  * <p>所有方法均要求调用方在服务器主线程执行，内部不处理并发。
  */
@@ -53,12 +61,43 @@ public final class PortalLocator {
     private static final Direction.Axis[] PORTAL_AXES = { Direction.Axis.X, Direction.Axis.Z };
 
     /**
-     * 区域 POI 搜索的水平半径上限（取原版 {@code PortalForcer} 主世界找门的 128）。
+     * 区域 POI 搜索的<b>单次</b>水平半径上限（取原版 {@code PortalForcer} 主世界找门的 128）。
      *
-     * <p>{@link PoiManager#ensureLoadedAndValid} 是<b>同步</b>加载 chunk，区域异常大时按真实跨度
-     * 搜索会把主线程卡住；超出上限只搜中心附近这一大片，并告警。
+     * <p>{@link PoiManager#ensureLoadedAndValid} 是<b>同步</b>加载 chunk，一次给的半径越大，
+     * 主线程一次要加载的 chunk 越多；所以单次调用永远不超过这个值。
+     * 区域本身比这大时不再「夹紧半径了事」，而是按 {@link #TILE} 分片扫（见 {@link #scanRegion}）。
      */
     private static final int POI_SCAN_RADIUS_LIMIT = 128;
+
+    /**
+     * 区域扫描的瓦片边长（格）。取单次扫描的安全半径，保证一片之内一定看得全。
+     */
+    private static final int TILE = POI_SCAN_RADIUS_LIMIT;
+
+    /**
+     * 相邻瓦片中心的步进（格），故意小于瓦片边长，让相邻瓦片的覆盖区重叠，不留缝隙。
+     *
+     * <p>单次 {@link #scanByPoi} 的实际覆盖是「半径向上取整到 chunk」，约 ±(半径 + 16) 格，
+     * 步进 {@code TILE * 3 / 4 = 96} 远小于两片覆盖之和，边界上的门不会漏。
+     */
+    private static final int TILE_STEP = TILE * 3 / 4;
+
+    /**
+     * 一次区域扫描最多铺多少片瓦片；超了只扫中心一片并标记「没扫全」。
+     *
+     * <p>64 片 ≈ 1000×1000 格的区域（实际上绑定的区域上限是 128×64×128，
+     * 见 {@code PortalBinding#MAX_SIZE_X}，所以正常绑定只用到 2×2 片）。
+     * 这个预算只是给手改配置塞进来的超大区域兜底。
+     */
+    private static final int MAX_TILES = 64;
+
+    /**
+     * 一次区域扫描最多允许同步加载多少「未加载的 chunk 列」；超了同样只扫中心一片。
+     *
+     * <p>冷 chunk 的代价是<b>生成 + 落盘</b>，几百 ms 到数秒；256 列（16×16）是一次
+     * 主动刷新可以接受的卡顿上限，再大就该让玩家先把那一片跑热或缩小选区。
+     */
+    private static final int MAX_COLD_CHUNKS = 256;
 
     /**
      * 增强模式的落点结果。
@@ -68,6 +107,18 @@ public final class PortalLocator {
      *                     异步 {@code findSpawn} 找到的普通地面为 {@code null}，<b>不可写缓存</b>
      */
     public record ForceSpawnResult(Vec3 spawnPos, @Nullable BlockPos portalBottom) {
+    }
+
+    /**
+     * 一次区域扫描的结果（{@link #scanRegion}）。
+     *
+     * @param portal     离区域中心最近的<b>门底</b>坐标；区域内没扫到是 {@code null}
+     * @param complete   这次扫描有没有覆盖<b>整个</b>区域。{@code false} 表示区域超出预算、
+     *                   只扫了中心一片 —— 此时 {@code portal == null} <b>不能</b>当成「区域内没门」
+     * @param tiles      区域铺满需要多少片瓦片（诊断 / 日志用）
+     * @param coldChunks 区域里当前未加载（不到 FULL）的 chunk 列数（诊断 / 日志用）
+     */
+    public record RegionScan(@Nullable BlockPos portal, boolean complete, int tiles, int coldChunks) {
     }
 
     private PortalLocator() {
@@ -160,42 +211,121 @@ public final class PortalLocator {
      * 在绑定区域内定位或创建传送门。
      *
      * <p>与 {@link #locateOrCreate} 的区别：<b>只接受区域内的门</b>。
-     * 区域外有门不会选；区域内没门时在区域内建新门，绝不跑到区域外。
+     * 区域外有门不会选；区域内确实没门时才在区域内建新门，绝不跑到区域外。
      *
      * <p>策略：
      * <ol>
-     *   <li>{@link #scanRegionOnly}：中心自身是区域内门 → 用中心；否则用原版 POI 引擎
-     *       在区域内找离中心最近的门；等距按坐标字典序</li>
-     *   <li>区域内没门 → 在区域内建新门</li>
+     *   <li>{@link #scanRegion}：按瓦片扫完整个区域，取离区域中心最近的门；</li>
+     *   <li>扫到了 → 直接用；</li>
+     *   <li>扫完、确实没有 → 在区域内建新门；</li>
+     *   <li><b>没扫完</b>（区域过大超预算）→ 返回 {@code null}：
+     *       既不建门也不猜。「没扫到」和「没有门」是两回事，在这里建门会直接
+     *       多出一扇门、破坏玩家的建筑，所以宁可让调用方回退原版传送。</li>
      * </ol>
      *
-     * <p>区域内找门不做体积阈值判断——绑定选区通常就是玩家手动框的一小片，
-     * 且首次传送后结果会缓存（{@code cachePortal}），后续走 O(1) 命中。
+     * <p>返回 {@code null} 时调用方走原版兜底（{@code EntityPortalMixin} 就是这么处理的）。
+     * 本方法签名保持不变，行为只随 {@link RegionScan#complete()} 变化。
      */
     public static @Nullable BlockPos locateInRegion(ServerLevel level, BlockPos center,
                                                     BlockPos min, BlockPos max) {
-        BlockPos found = scanRegionOnly(level, center, min, max);
-        if (found != null) {
-            LOG.debug("[PortalLocator] found portal in region at {}", found);
-            return found;
+        RegionScan scan = scanRegion(level, center, min, max);
+        if (scan.portal() != null) {
+            LOG.debug("[PortalLocator] found portal in region at {}", scan.portal());
+            return scan.portal();
+        }
+        if (!scan.complete()) {
+            LOG.warn("[PortalLocator] region scan incomplete ({} tiles, {} cold chunks), "
+                            + "refuse to build a new portal, center={}",
+                    scan.tiles(), scan.coldChunks(), center);
+            return null;
         }
 
-        // 区域内没门 → 建新门
+        // 区域内确实没门 → 建新门
         LOG.debug("[PortalLocator] no portal in region, building inside near {}", center);
         return buildInRegion(level, center, min, max);
     }
 
     /**
-     * 在区域内找离 {@code center} 最近的门方块；没有返回 null。
+     * 按瓦片扫一遍整个区域：返回「离 {@code center} 最近的门底坐标」以及
+     * <b>这次扫描有没有覆盖整个区域</b>。
      *
-     * <p>半径按区域的<b>水平</b>跨度算（{@link #scanByPoi} 不看 Y），Y 范围交给区域裁剪，
-     * 所以把 Y 跨度算进半径只会白白多加载 chunk。
+     * <p>为什么分瓦片：{@link #scanByPoi} 单次半径被 {@link #POI_SCAN_RADIUS_LIMIT} 卡着，
+     * 若只拿「区域中心到角点的距离」当半径调一次，跨度超过约 300 格的区域外圈<b>永远扫不到</b> ——
+     * 于是「区域里明明有门」会被误判成「没门」，进而建出第二扇门（破坏建筑）、
+     * 或者把刷新时本来可用的缓存刷没。现在铺满整个区域，每片都带同一个区域裁剪，取全局最近。
+     *
+     * <p>预算（决定 {@link RegionScan#complete()}）：
+     * <ul>
+     *   <li>瓦片数 &gt; {@link #MAX_TILES}，或</li>
+     *   <li>区域里未加载（不到 FULL）的 chunk 列数 &gt; {@link #MAX_COLD_CHUNKS}</li>
+     * </ul>
+     * 任一超了就<b>只扫中心一片</b>并标记 {@code complete = false}：只告诉玩家没扫全，
+     * 不猜结果、不清缓存、不建门。预算存在的理由：{@link PoiManager#ensureLoadedAndValid}
+     * 是主线程同步加载，冷区域一次扫几千个 chunk 会把服务器卡死。
+     *
+     * <p>绑定的选区本身有尺寸上限（{@code PortalBinding#MAX_SIZE_X} 等），
+     * 所以正常绑定最多 2×2 片、一定扫全；本预算只是给手改配置的超大区域兜底。
      */
-    private static @Nullable BlockPos scanRegionClosest(ServerLevel level,
-                                                        BlockPos min, BlockPos max, BlockPos center) {
-        int radiusX = Math.max(Math.abs(center.getX() - min.getX()), Math.abs(center.getX() - max.getX()));
-        int radiusZ = Math.max(Math.abs(center.getZ() - min.getZ()), Math.abs(center.getZ() - max.getZ()));
-        return scanByPoi(level, center, Math.max(radiusX, radiusZ), min, max);
+    public static RegionScan scanRegion(ServerLevel level, BlockPos center, BlockPos min, BlockPos max) {
+        // 中心自身就是区域内的门：不用扫，直接命中
+        if (inRegion(center, min, max)
+                && level.getBlockState(center).getBlock() instanceof NetherPortalBlock) {
+            return new RegionScan(bottomOfPortal(level, center, min.getY()), true, 0, 0);
+        }
+
+        int tilesX = tileCount(min.getX(), max.getX());
+        int tilesZ = tileCount(min.getZ(), max.getZ());
+        int tiles = tilesX * tilesZ;
+        int coldChunks = countColdChunks(level, min, max);
+
+        if (tiles > MAX_TILES || coldChunks > MAX_COLD_CHUNKS) {
+            LOG.warn("[PortalLocator] region too large ({}x{} = {} tiles, {} cold chunks; "
+                            + "budgets {} tiles / {} cold): scanning the centre tile only, "
+                            + "complete=false, center={}",
+                    tilesX, tilesZ, tiles, coldChunks, MAX_TILES, MAX_COLD_CHUNKS, center);
+            BlockPos single = scanByPoi(level, center, TILE / 2, min, max);
+            return new RegionScan(bottomOfPortalOrNull(level, single, min.getY()), false, tiles, coldChunks);
+        }
+
+        BlockPos best = null;
+        for (int x = min.getX(); x <= max.getX(); x += TILE_STEP) {
+            for (int z = min.getZ(); z <= max.getZ(); z += TILE_STEP) {
+                BlockPos hit = scanByPoi(level, new BlockPos(x, center.getY(), z), TILE / 2, min, max);
+                if (hit != null && (best == null || closer(hit, best, center))) {
+                    best = hit;
+                }
+            }
+        }
+        return new RegionScan(bottomOfPortalOrNull(level, best, min.getY()), true, tiles, coldChunks);
+    }
+
+    /**
+     * 区域内要找多少片瓦片（与 {@link #scanRegion} 的循环边界一致）。
+     */
+    private static int tileCount(int min, int max) {
+        return Math.max(1, max - min) / TILE_STEP + 1;
+    }
+
+    /**
+     * {@code a} 是否比 {@code b} 更「近」：先比到 {@code origin} 的距离，
+     * 等距按 x / y / z 字典序 —— 和 {@link #scanByPoi} 内部的 tie-break 一致，结果可复现。
+     */
+    private static boolean closer(BlockPos a, BlockPos b, BlockPos origin) {
+        int byDistance = Double.compare(a.distSqr(origin), b.distSqr(origin));
+        if (byDistance != 0) {
+            return byDistance < 0;
+        }
+        if (a.getX() != b.getX()) return a.getX() < b.getX();
+        if (a.getY() != b.getY()) return a.getY() < b.getY();
+        return a.getZ() < b.getZ();
+    }
+
+    /**
+     * 把扫到的门方块归一到门底；{@code hit} 为 null 时直接返回 null。
+     */
+    private static @Nullable BlockPos bottomOfPortalOrNull(ServerLevel level,
+                                                           @Nullable BlockPos hit, int floorY) {
+        return hit == null ? null : bottomOfPortal(level, hit, floorY);
     }
 
     /**
@@ -434,30 +564,37 @@ public final class PortalLocator {
      * 只扫描区域内的门，返回离 {@code center} 最近的那扇门底坐标；没门返回 null。
      * <b>不建门</b>——供预热和刷新使用，避免 bind 时意外建房。
      *
-     * <p>语义与 {@link #locateInRegion} 的扫描阶段一致：走原版 POI 引擎在区域内找，
-     * 离 center 最近，等距按坐标字典序。区别只是不进入建门兜底。
+     * <p>内部就是 {@link #scanRegion} 的「只要结果」版本，分片 / 预算 / 裁剪语义完全一致。
+     * 需要区分「没门」和「没扫全」的调用方（刷新、传送）请直接用 {@link #scanRegion}。
      */
     public static @Nullable BlockPos scanRegionOnly(ServerLevel level, BlockPos center,
                                                     BlockPos min, BlockPos max) {
-        if (inRegion(center, min, max)
-                && level.getBlockState(center).getBlock() instanceof NetherPortalBlock) {
-            return bottomOfPortal(level, center, min.getY());
-        }
-        BlockPos found = scanRegionClosest(level, min, max, center);
-        return found == null ? null : bottomOfPortal(level, found, min.getY());
+        return scanRegion(level, center, min, max).portal();
     }
 
-    /** 区域的所有 chunk 列是否都已加载（只查 (x,z)）。 */
-    public static boolean isRegionLoaded(ServerLevel level, BlockPos min, BlockPos max) {
+    /**
+     * 区域里还有多少 chunk 列没到 {@link ChunkStatus#FULL}（只查 (x,z)）。
+     *
+     * <p>用来做「一次扫描要同步加载多少冷 chunk」的预算判断，{@link #isRegionLoaded} 也走它。
+     */
+    public static int countColdChunks(ServerLevel level, BlockPos min, BlockPos max) {
         int minChunkX = SectionPos.blockToSectionCoord(min.getX());
         int maxChunkX = SectionPos.blockToSectionCoord(max.getX());
         int minChunkZ = SectionPos.blockToSectionCoord(min.getZ());
         int maxChunkZ = SectionPos.blockToSectionCoord(max.getZ());
+        int cold = 0;
         for (int cx = minChunkX; cx <= maxChunkX; cx++) {
             for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
-                if (level.getChunk(cx, cz, ChunkStatus.FULL, false) == null) return false;
+                if (level.getChunk(cx, cz, ChunkStatus.FULL, false) == null) {
+                    cold++;
+                }
             }
         }
-        return true;
+        return cold;
+    }
+
+    /** 区域的所有 chunk 列是否都已加载（只查 (x,z)）。 */
+    public static boolean isRegionLoaded(ServerLevel level, BlockPos min, BlockPos max) {
+        return countColdChunks(level, min, max) == 0;
     }
 }

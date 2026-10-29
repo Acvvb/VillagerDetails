@@ -169,15 +169,26 @@ public final class PortalPiglinNoSpawnHandler {
     }
 
     /**
-     * delete：删除某条区域并落盘
+     * delete：删除某条区域并落盘，顺手把客户端上的高亮框清掉
+     *
+     * <p>区域记录里没有缓存字段（只有维度 + 两个角点），所以不需要像
+     * {@code /ec c PortalBinding delete} 那样先刷缓存；这里真正的残留只有一个 ——
+     * <b>客户端高亮</b>：它是纯客户端状态（{@code PortalViewClientState}），
+     * 谁点过 {@code view} 谁的客户端里就存着一份，不光删记录不会带走它，
+     * 只清执行者一个人也不够（别人屏幕上那块框会一直留到下次 {@code view} / 断线，
+     * 看着就像这条被删掉的区域还生效着）。所以统一广播一次清空。
      *
      * @param displayIndex 玩家输入的序号（1 起）
      */
     public static int delete(ServerPlayer player, int displayIndex) {
-        if (PortalPiglinNoSpawnConfig.INSTANCE.removeAt(displayIndex - 1) == null) {
+        PortalPiglinNoSpawnRegion removed = PortalPiglinNoSpawnConfig.INSTANCE.removeAt(displayIndex - 1);
+        if (removed == null) {
             sendOutOfRange(player, displayIndex);
             return 0;
         }
+
+        // 这条区域已经不存在了：所有客户端都不该再画它的框
+        PortalViewSyncChannel.INSTANCE.clearAll();
 
         sendOrBroadcast(player, Component.translatable(K_DELETE_SUCCESS, String.valueOf(displayIndex)));
         return 1;
@@ -185,6 +196,9 @@ public final class PortalPiglinNoSpawnHandler {
 
     /**
      * clear：清空全部区域
+     *
+     * <p>和 {@link #delete} 同理，区域都没了，客户端上对应的高亮框也要一起清，
+     * 否则清空之后屏幕上还留着最后一两条的框。
      */
     public static int clear(ServerPlayer player) {
         int count = PortalPiglinNoSpawnConfig.INSTANCE.snapshot().size();
@@ -193,6 +207,7 @@ public final class PortalPiglinNoSpawnHandler {
             return 0;
         }
         PortalPiglinNoSpawnConfig.INSTANCE.clear();
+        PortalViewSyncChannel.INSTANCE.clearAll();
         sendOrBroadcast(player, Component.translatable(K_CLEAR_SUCCESS, String.valueOf(count)));
         return 1;
     }
