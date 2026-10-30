@@ -34,7 +34,7 @@ import static com.villagerdetails.client.setting.util.ColorUtil.toArgb;
  */
 public final class EntityBlockLinkRenderer {
 
-    private static final Logger LOGGER = LogManager.getLogger(EntityBlockLinkRenderer.class);
+    private static final Logger log = LogManager.getLogger(EntityBlockLinkRenderer.class);
 
     /**
      * 收集器缺失的告警只提示一次，避免刷屏
@@ -151,7 +151,7 @@ public final class EntityBlockLinkRenderer {
             // 万一以后渲染路径变了导致没有收集器，这里只告警一次，而不是让游戏崩掉
             if (!collectorWarningLogged) {
                 collectorWarningLogged = true;
-                LOGGER.warn("当前没有激活的 gizmo 收集器，实体与方块的连线这次没有渲染", e);
+                log.warn("当前没有激活的 gizmo 收集器，实体与方块的连线这次没有渲染", e);
             }
         }
     }

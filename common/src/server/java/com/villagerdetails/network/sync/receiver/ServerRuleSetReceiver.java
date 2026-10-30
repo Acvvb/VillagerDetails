@@ -27,7 +27,7 @@ import static com.villagerdetails.command.CommandConstants.RULE_ERROR_INVALID_ST
  */
 public final class ServerRuleSetReceiver implements ServerReceiver<ServerRuleSetPayload> {
 
-    private static final Logger LOGGER = LogManager.getLogger(ServerRuleSetReceiver.class);
+    private static final Logger log = LogManager.getLogger(ServerRuleSetReceiver.class);
 
     public static final ServerRuleSetReceiver INSTANCE = new ServerRuleSetReceiver();
 
@@ -47,14 +47,14 @@ public final class ServerRuleSetReceiver implements ServerReceiver<ServerRuleSet
 
         RuleType type = RuleType.getRuleTypeByRegisterName(payload.registerName());
         if (type == null) {
-            LOGGER.warn("收到未知规则的状态修改请求：{}", payload.registerName());
+            log.warn("收到未知规则的状态修改请求：{}", payload.registerName());
             return;
         }
 
         // 和 /ec 命令同一套权限判定
         if (RuleCache.lacksRuleCommandPermission(player)) {
             player.sendSystemMessage(Component.translatable("villagerdetails.ui.rule.no_permission"));
-            LOGGER.warn("玩家 {} 尝试修改规则 {} 但没有权限", player.getName().getString(), type.getRegisterName());
+            log.warn("玩家 {} 尝试修改规则 {} 但没有权限", player.getName().getString(), type.getRegisterName());
             return;
         }
 
@@ -68,13 +68,13 @@ public final class ServerRuleSetReceiver implements ServerReceiver<ServerRuleSet
 
         if (result instanceof RuleSwitches.Canonical.BadState(String raw)) {
             player.sendSystemMessage(Component.translatable(RULE_ERROR_INVALID_STATE, raw));
-            LOGGER.warn("玩家 {} 给规则 {} 传了非法状态：{}",
+            log.warn("玩家 {} 给规则 {} 传了非法状态：{}",
                     player.getName().getString(), type.getRegisterName(), raw);
             return;
         }
         if (result instanceof RuleSwitches.Canonical.BadOption(String option)) {
             player.sendSystemMessage(Component.translatable(RULE_ERROR_INVALID_OPTION, option));
-            LOGGER.warn("玩家 {} 给规则 {} 传了非法选项：{}",
+            log.warn("玩家 {} 给规则 {} 传了非法选项：{}",
                     player.getName().getString(), type.getRegisterName(), option);
             return;
         }

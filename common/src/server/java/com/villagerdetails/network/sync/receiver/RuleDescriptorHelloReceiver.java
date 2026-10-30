@@ -19,7 +19,7 @@ import org.apache.logging.log4j.Logger;
  */
 public final class RuleDescriptorHelloReceiver implements ServerReceiver<RuleDescriptorHelloPayload> {
 
-    private static final Logger LOGGER = LogManager.getLogger(RuleDescriptorHelloReceiver.class);
+    private static final Logger log = LogManager.getLogger(RuleDescriptorHelloReceiver.class);
 
     public static final RuleDescriptorHelloReceiver INSTANCE = new RuleDescriptorHelloReceiver();
 
@@ -37,7 +37,7 @@ public final class RuleDescriptorHelloReceiver implements ServerReceiver<RuleDes
             return;
         }
         if (payload.protocol() != SyncProtocol.VERSION) {
-            LOGGER.warn("玩家 {} 的同步协议版本是 {}，服务端是 {}，不做规则描述符同步",
+            log.warn("玩家 {} 的同步协议版本是 {}，服务端是 {}，不做规则描述符同步",
                     player.getName().getString(), payload.protocol(), SyncProtocol.VERSION);
             return;
         }

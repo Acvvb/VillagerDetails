@@ -47,7 +47,7 @@ public final class ClientRenderConfig {
     /**
      * 日志
      */
-    private static final Logger LOGGER = LogManager.getLogger(ClientRenderConfig.class);
+    private static final Logger log = LogManager.getLogger(ClientRenderConfig.class);
 
     /**
      * JSON 读写器（缩进对齐、不转义 HTML 字符）
@@ -199,7 +199,7 @@ public final class ClientRenderConfig {
         Path file = path();
         if (!Files.exists(file)) {
             instance.save();
-            LOGGER.info("已生成默认客户端配置：{}", file);
+            log.info("已生成默认客户端配置：{}", file);
             return;
         }
         try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
@@ -216,11 +216,11 @@ public final class ClientRenderConfig {
             instance.clamp();
             if (filled) {
                 instance.save();
-                LOGGER.info("已把新增配置项的默认值补写进客户端配置：{}", file);
+                log.info("已把新增配置项的默认值补写进客户端配置：{}", file);
             }
-            LOGGER.info("已加载客户端渲染配置：{}", file);
+            log.info("已加载客户端渲染配置：{}", file);
         } catch (Exception e) {
-            LOGGER.error("加载客户端渲染配置失败，回退到默认值：{}", file, e);
+            log.error("加载客户端渲染配置失败，回退到默认值：{}", file, e);
             instance = new ClientRenderConfig();
         }
     }
@@ -254,7 +254,7 @@ public final class ClientRenderConfig {
                 values.put(registerName, root.get(oldField).getAsString());
             }
         } catch (Exception e) {
-            LOGGER.warn("迁移旧配置字段失败：{} → {}", oldField, registerName, e);
+            log.warn("迁移旧配置字段失败：{} → {}", oldField, registerName, e);
         }
     }
 
@@ -268,7 +268,7 @@ public final class ClientRenderConfig {
             // 和存档里的配置走同一套原子写：中途崩游戏不会把这份配置截成半截
             JsonIO.writeString(file, GSON.toJson(this));
         } catch (Exception e) {
-            LOGGER.error("保存客户端渲染配置失败：{}", file, e);
+            log.error("保存客户端渲染配置失败：{}", file, e);
         }
     }
 

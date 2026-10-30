@@ -1,9 +1,14 @@
+import groovy.json.JsonGenerator
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
 plugins {
     id 'idea'
 }
+
+
+// 只影响这几个字符，其它输出与 JsonOutput 完全一致。
+def JSON_UNESCAPED = new JsonGenerator.Options().disableUnicodeEscaping().build()
 
 subprojects { sp ->
     sp.plugins.withId('java') {
@@ -68,6 +73,10 @@ subprojects { sp ->
 
         def baseName = sp.base.archivesName.get()
         def ver = sp.version
+        // breaks 规则里要用的「纯模组版本」（不含 +26.2 这种构建元数据）。
+        // 注意不能用 sp.version：那个是 1.0.1+26.2，按 semver 它和 1.0.1 优先级相同，
+        // 写进 breaks 里既看不出意图，也容易误判。
+        def modVersion = sp.property('modVersion').toString()
 
         // 默认 jar（无后缀）不再产出，避免和 client / server 包混在一起
         sp.tasks.named('jar', Jar) {
@@ -97,6 +106,8 @@ subprojects { sp ->
                 // 否则改了 includeServerInClient 之后任务被判定 UP-TO-DATE，包里的 metadata 还是旧的
                 inputs.property('side', side)
                 inputs.property('withServer', withServer)
+                // breaks 的取值依赖 modVersion，必须声明成输入，否则只改版本号时任务会被判定 UP-TO-DATE
+                inputs.property('modVersion', modVersion)
                 outputs.dir(outDir)
 
                 doLast {
@@ -144,8 +155,26 @@ subprojects { sp ->
                         return entry
                     }
 
+                    // -------- breaks 规则：一律放开自我拦截，兼容交给运行期握手 --------
+                    // 硬诉求是「服务端随便更新、客户端养老」，所以这里【不再】对自身写 breaks：
+                    // 三个产物（client / server / all）输出的 breaks 里都不会出现 villagerdetails。
+                    // 版本不兼容改由代码层解决，而不是打包时粗暴拦截：
+                    //   · C2SHandshakePayload 上报版本 → HandshakeReceiver 按 MIN_COMPATIBLE_VERSION 判下限；
+                    //   · 发包一律过 canSendTo / canSend（能力探测），旧客户端没有的包根本不会发出去。
+                    //
+                    // 但仍然要 remove(selfId)：模板里万一声明了自指的 breaks，也不能让它把发布包锁死。
+                    // 这个坑真踩过 —— 1.1.0 一度在三端全锁 <1.1.0，直接把「客户端养老」锁没了。
+                    // 别的模组的不兼容项（真·冲突）一律原样保留。
+                    def selfId = json.id
+                    def breaks = new LinkedHashMap(json.breaks instanceof Map ? json.breaks : [:])
+                    breaks.remove(selfId)
+                    json.breaks = breaks
+
                     outFile.parentFile.mkdirs()
-                    outFile.setText(JsonOutput.prettyPrint(JsonOutput.toJson(json)), 'UTF-8')
+                    // disableUnicodeEscaping：JsonOutput 默认会把 < 写成 \u003c，
+                    // breaks 的值就成了 "\u003c1.1.0" —— 功能上等价，但解压 jar 用肉眼核对
+                    // 或者 grep "<1.1.0" 时会以为没生效，所以这里按字面量输出。
+                    outFile.setText(JsonOutput.prettyPrint(JSON_UNESCAPED.toJson(json)), 'UTF-8')
                 }
             }
         }

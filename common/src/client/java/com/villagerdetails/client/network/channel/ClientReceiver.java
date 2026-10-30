@@ -5,6 +5,11 @@ import com.villagerdetails.network.channel.SyncPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 同步通道的<b>客户端侧</b>能力（默认方法）。
@@ -17,6 +22,8 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
  * 由 {@code ClientChannels} 统一注册一次。
  */
 public interface ClientReceiver<P extends SyncPayload<P>> {
+
+    Logger LOG = LogManager.getLogger(ClientReceiver.class);
 
     /** 这条通道的身份证（父类 SyncChannel 已经实现） */
     PayloadId<P> id();
@@ -46,13 +53,49 @@ public interface ClientReceiver<P extends SyncPayload<P>> {
 
     /**
      * 给「只有静态发送方法」的场景用：不持有通道实例也能发（拿包的 type 直接判 + 发）。
+     *
+     * <p>这是整个客户端<b>唯一</b>的自定义包发送口（{@code ClientPlayNetworking.send} 全项目只出现在这一处）。
+     * 服务端没装本 mod 时 {@code canSend} 返回 false，这里直接跳过 —— 不会把包发出去让对端报未知包。
+     *
+     * <p>异常隔离：本方法会被 tick 监听器、按键回调、界面动作调用，发送失败必须只影响这一次发送，
+     * 不能顺着调用栈把客户端 tick 打断。每个包类型只 WARN 一次（首次），之后降 DEBUG。
+     *
+     * @return 是否真的发出去了
      */
     static boolean send(CustomPacketPayload payload) {
-        if (!ClientPlayNetworking.canSend(payload.type())) {
+        if (payload == null) {
             return false;
         }
-        ClientPlayNetworking.send(payload);
-        return true;
+        try {
+            if (!ClientPlayNetworking.canSend(payload.type())) {
+                return false;
+            }
+            ClientPlayNetworking.send(payload);
+            return true;
+        } catch (Exception e) {
+            reportFailure(payload, e);
+            return false;
+        }
+    }
+
+    /**
+     * 已经报过「发送失败」的包类型
+     */
+    Set<String> REPORTED_FAILURES = ConcurrentHashMap.newKeySet();
+
+    /**
+     * 发送失败的统一上报：每个包类型只 WARN 一次，之后 DEBUG。
+     *
+     * <p>用类名而不是包 id 做键：包 id 要在 {@code payload.type()} 上取，
+     * 而这里可能正是因为 {@code type()} 抛异常才进来的。
+     */
+    private static void reportFailure(CustomPacketPayload payload, Throwable cause) {
+        String key = payload.getClass().getName();
+        if (REPORTED_FAILURES.add(key)) {
+            LOG.warn("客户端发送 {} 失败（该包此后只在 DEBUG 里提示）：{}", key, cause.toString(), cause);
+        } else {
+            LOG.debug("客户端发送 {} 失败：{}", key, cause.toString());
+        }
     }
 
     /** 服务器装没装本 mod（按包类型判断） */

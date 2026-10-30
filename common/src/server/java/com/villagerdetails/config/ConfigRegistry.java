@@ -31,6 +31,8 @@ public final class ConfigRegistry {
         // （ServerLangConfig 等）才能读到「规则现在是什么」并据此对齐自己的状态。
         register(RuleConfig.INSTANCE);
         register(UnifiedConfigFile.INSTANCE);
+        // 注意：网络版本兼容策略【不在这里注册】—— 它已固化成编译期常量
+        // （com.villagerdetails.network.channel.NetworkConstants），不读也不写外部配置。
     }
 
     // ==============================================================

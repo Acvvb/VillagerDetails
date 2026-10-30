@@ -24,7 +24,7 @@ public final class NoSqueezeConfig extends IdSetConfig {
 
     public static final NoSqueezeConfig INSTANCE = new NoSqueezeConfig();
 
-    private static final Logger LOGGER = LogManager.getLogger(NoSqueezeConfig.class);
+    private static final Logger log = LogManager.getLogger(NoSqueezeConfig.class);
 
     @Override
     public String configName() {
@@ -57,7 +57,7 @@ public final class NoSqueezeConfig extends IdSetConfig {
         // 写规则状态统一走 RuleChangeService —— 它会经 RuleCache 落盘，
         // 这里不再自己动 RuleConfig（以前是 setBindingState + setState 写两遍）
         RuleChangeService.change(VILLAGER_NO_SQUEEZE, SwitchComponentType.TRUE_STR);
-        LOGGER.info("已把「无挤压」规则状态里的老名单迁移进配置（{} 项）", ids.size());
+        log.info("已把「无挤压」规则状态里的老名单迁移进配置（{} 项）", ids.size());
     }
 
     private static boolean isLegacyState(String state) {

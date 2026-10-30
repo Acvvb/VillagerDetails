@@ -62,7 +62,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
 
     public static final PortalBindingConfig INSTANCE = new PortalBindingConfig();
 
-    private static final Logger LOGGER = LogManager.getLogger(PortalBindingConfig.class);
+    private static final Logger log = LogManager.getLogger(PortalBindingConfig.class);
 
     /**
      * 统一配置文件里的节名
@@ -138,7 +138,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
     public boolean add(PortalBinding binding) {
         if (binding.dimA().equals(binding.dimB())) {
             // 一条绑定靠「两个维度键」表达两端，同维度之间的绑定这种格式装不下
-            LOGGER.warn("[{}] 两端维度相同（{}），存不进配置文件，已忽略",
+            log.warn("[{}] 两端维度相同（{}），存不进配置文件，已忽略",
                     SECTION, binding.dimA().identifier());
             return false;
         }
@@ -148,7 +148,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         bindings.add(binding);
         structureVersion.incrementAndGet();
         save();
-        LOGGER.info("[{}] 已写入第 {} 条绑定：{}", SECTION, bindings.size(), describe(binding));
+        log.info("[{}] 已写入第 {} 条绑定：{}", SECTION, bindings.size(), describe(binding));
         return true;
     }
 
@@ -169,7 +169,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         PortalBinding removed = bindings.remove(index);
         structureVersion.incrementAndGet();
         save();
-        LOGGER.info("[{}] 已删除第 {} 条绑定：{}", SECTION, index + 1, describe(removed));
+        log.info("[{}] 已删除第 {} 条绑定：{}", SECTION, index + 1, describe(removed));
         return removed;
     }
 
@@ -184,7 +184,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         bindings.clear();
         structureVersion.incrementAndGet();
         save();
-        LOGGER.info("[{}] 已清空 {} 条绑定", SECTION, removed);
+        log.info("[{}] 已清空 {} 条绑定", SECTION, removed);
     }
 
     /**
@@ -208,7 +208,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         int idx = bindings.indexOf(binding);
         if (idx < 0) {
             // 正常流程不该出现：binding 被删除、或 equals 被改坏
-            LOGGER.warn("[{}] 找不到要回写缓存的绑定：{}", SECTION, binding);
+            log.warn("[{}] 找不到要回写缓存的绑定：{}", SECTION, binding);
             return false;
         }
         PortalBinding old = bindings.get(idx);
@@ -220,7 +220,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         PortalBinding updated = targetIsB ? old.withPortalB(portalPos) : old.withPortalA(portalPos);
         bindings.set(idx, updated);
         save();
-        LOGGER.debug("[{}] 回写缓存（{}）：{}", SECTION,
+        log.debug("[{}] 回写缓存（{}）：{}", SECTION,
                 targetIsB ? "B 侧" : "A 侧", format(portalPos));
         return true;
     }
@@ -247,7 +247,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         }
         int idx = bindings.indexOf(binding);
         if (idx < 0) {
-            LOGGER.warn("[{}] 找不到要刷新缓存的绑定：{}", SECTION, binding);
+            log.warn("[{}] 找不到要刷新缓存的绑定：{}", SECTION, binding);
             return false;
         }
         PortalBinding old = bindings.get(idx);
@@ -257,7 +257,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         }
         bindings.set(idx, old.withPortalA(portalA).withPortalB(portalB));
         save();
-        LOGGER.debug("[{}] 已刷新缓存：{} -> A={}, B={}", SECTION,
+        log.debug("[{}] 已刷新缓存：{} -> A={}, B={}", SECTION,
                 describe(binding), format(portalA), format(portalB));
         return true;
     }
@@ -306,19 +306,19 @@ public final class PortalBindingConfig implements ReloadableConfig {
         structureVersion.incrementAndGet();
 
         if (skipped > 0) {
-            LOGGER.warn("[{}] 有 {} 条记录读不懂，已跳过；落盘后文件里只剩能用的", SECTION, skipped);
+            log.warn("[{}] 有 {} 条记录读不懂，已跳过；落盘后文件里只剩能用的", SECTION, skipped);
         }
         if (duplicated > 0) {
-            LOGGER.warn("[{}] 有 {} 条重复记录，已合并；落盘后文件里每条绑定只留一份", SECTION, duplicated);
+            log.warn("[{}] 有 {} 条重复记录，已合并；落盘后文件里每条绑定只留一份", SECTION, duplicated);
         }
         if (oversized > 0) {
             // 命令 set 已经不允许这么大的选区了，这里只可能是手改配置文件塞进来的
-            LOGGER.warn("[{}] 有 {} 条绑定超出选区上限（{}x{}x{}），已原样保留；"
+            log.warn("[{}] 有 {} 条绑定超出选区上限（{}x{}x{}），已原样保留；"
                             + "刷新 / 传送只会扫描中心附近一片，可能漏掉外围的门",
                     SECTION, oversized, PortalBinding.MAX_SIZE_X, PortalBinding.MAX_SIZE_Y,
                     PortalBinding.MAX_SIZE_Z);
         }
-        LOGGER.info("[{}] 已加载 {} 项", SECTION, bindings.size());
+        log.info("[{}] 已加载 {} 项", SECTION, bindings.size());
     }
 
     private void save() {
@@ -455,7 +455,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         if (binding == null) return false;
         int idx = bindings.indexOf(binding);
         if (idx < 0) {
-            LOGGER.warn("[{}] 找不到要清缓存的绑定：{}", SECTION, binding);
+            log.warn("[{}] 找不到要清缓存的绑定：{}", SECTION, binding);
             return false;
         }
         PortalBinding old = bindings.get(idx);
@@ -467,7 +467,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
                 old.dimB(), old.minB(), old.maxB(),
                 null, null));
         save();
-        LOGGER.debug("[{}] 已清空缓存：{}", SECTION, describe(binding));
+        log.debug("[{}] 已清空缓存：{}", SECTION, describe(binding));
         return true;
     }
 }

@@ -19,7 +19,7 @@ import org.apache.logging.log4j.Logger;
  */
 public final class RuleDescriptorClientChannel implements ClientReceiver<RuleDescriptorSyncPayload> {
 
-    private static final Logger LOGGER = LogManager.getLogger(RuleDescriptorClientChannel.class);
+    private static final Logger log = LogManager.getLogger(RuleDescriptorClientChannel.class);
 
     public static final RuleDescriptorClientChannel INSTANCE = new RuleDescriptorClientChannel();
 
@@ -39,7 +39,7 @@ public final class RuleDescriptorClientChannel implements ClientReceiver<RuleDes
     @Override
     public void handleClient(Minecraft client, RuleDescriptorSyncPayload payload) {
         if (payload.protocol() != SyncProtocol.VERSION) {
-            LOGGER.warn("服务端的同步协议版本是 {}，客户端是 {}，忽略这次描述符同步",
+            log.warn("服务端的同步协议版本是 {}，客户端是 {}，忽略这次描述符同步",
                     payload.protocol(), SyncProtocol.VERSION);
             return;
         }

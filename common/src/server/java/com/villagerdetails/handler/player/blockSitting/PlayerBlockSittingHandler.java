@@ -46,7 +46,7 @@ public final class PlayerBlockSittingHandler {
     private PlayerBlockSittingHandler() {
     }
 
-    private static final Logger LOGGER = LogManager.getLogger(PlayerBlockSittingHandler.class);
+    private static final Logger log = LogManager.getLogger(PlayerBlockSittingHandler.class);
 
     private static final RuleType RULE = RuleType.PLAYER_BLOCK_SITTING;
 
@@ -100,7 +100,7 @@ public final class PlayerBlockSittingHandler {
         // 2. 方块 / 朝向 / 空间等业务判定
         String refuseReason = getSitRefuseReason(rider, level, hitResult);
         if (refuseReason != null) {
-            LOGGER.debug("[PlayerBlockSitting] {} 坐不上：{}", nameOf(rider), refuseReason);
+            log.debug("[PlayerBlockSitting] {} 坐不上：{}", nameOf(rider), refuseReason);
             return InteractionResult.PASS;
         }
 
@@ -143,13 +143,13 @@ public final class PlayerBlockSittingHandler {
         seat.setPos(seatPos.x, seatPos.y, seatPos.z);
 
         if (!level.addFreshEntity(seat)) {
-            LOGGER.debug("[PlayerBlockSitting] {} 坐不上 {}：座位实体没加进世界", nameOf(rider), pos);
+            log.debug("[PlayerBlockSitting] {} 坐不上 {}：座位实体没加进世界", nameOf(rider), pos);
             return InteractionResult.PASS;
         }
 
         if (!rider.startRiding(seat, true, true)) {
             seat.discard();
-            LOGGER.debug("[PlayerBlockSitting] {} 坐不上 {}：startRiding 返回 false (canSerialize={})",
+            log.debug("[PlayerBlockSitting] {} 坐不上 {}：startRiding 返回 false (canSerialize={})",
                     nameOf(rider), pos, seat.getType().canSerialize());
             return InteractionResult.PASS;
         }
@@ -160,7 +160,7 @@ public final class PlayerBlockSittingHandler {
 
         broadcastPassengers(seat, rider, null);
 
-        LOGGER.debug("[PlayerBlockSitting] {} 坐下：方块={}，座面=({}, {}, {})，座位=({}, {}, {})，玩家=({}, {}, {})",
+        log.debug("[PlayerBlockSitting] {} 坐下：方块={}，座面=({}, {}, {})，座位=({}, {}, {})，玩家=({}, {}, {})",
                 nameOf(rider), pos, seatPos.x, seatPos.y, seatPos.z,
                 seat.getX(), seat.getY(), seat.getZ(), rider.getX(), rider.getY(), rider.getZ());
 
@@ -220,7 +220,7 @@ public final class PlayerBlockSittingHandler {
 
             String reason = seatCloseReason(ruleEnabled, rider, seat);
             if (reason != null) {
-                LOGGER.debug("[PlayerBlockSitting] {} 从 {} 上起来：{}", nameOf(rider), seat.seatBlock(), reason);
+                log.debug("[PlayerBlockSitting] {} 从 {} 上起来：{}", nameOf(rider), seat.seatBlock(), reason);
                 standUp(rider, seat);
                 iterator.remove();
                 continue;

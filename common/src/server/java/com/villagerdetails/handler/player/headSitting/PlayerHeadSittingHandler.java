@@ -39,7 +39,7 @@ public final class PlayerHeadSittingHandler {
     private PlayerHeadSittingHandler() {
     }
 
-    private static final Logger LOGGER = LogManager.getLogger(PlayerHeadSittingHandler.class);
+    private static final Logger log = LogManager.getLogger(PlayerHeadSittingHandler.class);
 
     private static final RuleType RULE = RuleType.PLAYER_HEAD_SITTING;
 
@@ -60,20 +60,20 @@ public final class PlayerHeadSittingHandler {
     public static InteractionResult trySit(ServerPlayer rider, ServerPlayer target, InteractionHand hand) {
         // 规则状态自带权限等级（true / ops / master / ...）
         if (!RuleCache.isEnabled(rider, RULE)) {
-            LOGGER.debug("[PlayerHeadSitting] {} -> {}：规则没开（或该玩家没有对应权限等级）",
+            log.debug("[PlayerHeadSitting] {} -> {}：规则没开（或该玩家没有对应权限等级）",
                     nameOf(rider), nameOf(target));
             return InteractionResult.PASS;
         }
 
         String refuse = refuseReason(rider, target);
         if (refuse != null) {
-            LOGGER.debug("[PlayerHeadSitting] {} 不能坐上 {} 头顶：{}", nameOf(rider), nameOf(target), refuse);
+            log.debug("[PlayerHeadSitting] {} 不能坐上 {} 头顶：{}", nameOf(rider), nameOf(target), refuse);
             return InteractionResult.PASS;
         }
 
         // force = true：跳过 canRide / canAddPassenger（上面已经自己判过了）
         if (!rider.startRiding(target, true, true)) {
-            LOGGER.debug("[PlayerHeadSitting] {} 坐上 {} 头顶失败：startRiding 返回 false"
+            log.debug("[PlayerHeadSitting] {} 坐上 {} 头顶失败：startRiding 返回 false"
                             + "（vehicle.canSerialize={}, rider.isPassenger={}, target.getPassengers={}, ruleEnabled={}）",
                     nameOf(rider), nameOf(target),
                     target.getType().canSerialize(), rider.isPassenger(),
@@ -81,7 +81,7 @@ public final class PlayerHeadSittingHandler {
             return InteractionResult.PASS;
         }
 
-        LOGGER.debug("[PlayerHeadSitting] {} 坐上 {} 头顶", nameOf(rider), nameOf(target));
+        log.debug("[PlayerHeadSitting] {} 坐上 {} 头顶", nameOf(rider), nameOf(target));
 
         // 立刻按碰撞箱摆一次，免得客户端第一帧看到穿模
         PlayerHeadSittingSeat.snapToSeat(rider, target);
@@ -131,7 +131,7 @@ public final class PlayerHeadSittingHandler {
                 if (!(passenger instanceof ServerPlayer rider)) continue;
                 String reason = enabled ? kickReason(vehicle, rider) : "rule-disabled";
                 if (reason != null) {
-                    LOGGER.debug("[PlayerHeadSitting] {} 从 {} 头顶下来：{}", nameOf(rider), nameOf(vehicle), reason);
+                    log.debug("[PlayerHeadSitting] {} 从 {} 头顶下来：{}", nameOf(rider), nameOf(vehicle), reason);
                     rider.stopRiding();
                     continue;
                 }

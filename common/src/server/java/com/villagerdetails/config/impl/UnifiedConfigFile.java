@@ -19,7 +19,7 @@ public final class UnifiedConfigFile implements ReloadableConfig {
 
     public static final UnifiedConfigFile INSTANCE = new UnifiedConfigFile();
 
-    private static final Logger LOGGER = LogManager.getLogger(UnifiedConfigFile.class);
+    private static final Logger log = LogManager.getLogger(UnifiedConfigFile.class);
     private static final String SAVE_PATH = "villagerdetails/config.json";
 
     private static volatile MinecraftServer server;
@@ -46,7 +46,7 @@ public final class UnifiedConfigFile implements ReloadableConfig {
             try {
                 child.reload(server);
             } catch (Exception e) {
-                LOGGER.error("子配置 {} 重载失败", child.configName(), e);
+                log.error("子配置 {} 重载失败", child.configName(), e);
             }
         }
         save();
@@ -91,9 +91,9 @@ public final class UnifiedConfigFile implements ReloadableConfig {
         Path file = ConfigPaths.world(s, SAVE_PATH);
         try {
             root = JsonIO.readObject(file);
-            LOGGER.info("已加载统一配置：{}", file);
+            log.info("已加载统一配置：{}", file);
         } catch (Exception e) {
-            LOGGER.error("加载统一配置失败：{}", file, e);
+            log.error("加载统一配置失败：{}", file, e);
         }
     }
 }

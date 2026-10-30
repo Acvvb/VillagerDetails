@@ -24,7 +24,7 @@ public final class ServerLangConfig implements ReloadableConfig {
 
     public static final ServerLangConfig INSTANCE = new ServerLangConfig();
 
-    private static final Logger LOGGER = LogManager.getLogger(ServerLangConfig.class);
+    private static final Logger log = LogManager.getLogger(ServerLangConfig.class);
 
     private static final List<String> DEFAULT_PRELOAD = List.of("en_us", "zh_cn");
     private static final String DEFAULT_LANG = "zh_cn";
@@ -101,6 +101,6 @@ public final class ServerLangConfig implements ReloadableConfig {
         }
 
         if (dirty) UnifiedConfigFile.save();
-        LOGGER.info("[ServerLang] preload={}, default={}", preloadLanguage, defaultLang);
+        log.info("[ServerLang] preload={}, default={}", preloadLanguage, defaultLang);
     }
 }

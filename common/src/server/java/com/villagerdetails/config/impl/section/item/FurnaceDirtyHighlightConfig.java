@@ -34,7 +34,7 @@ public final class FurnaceDirtyHighlightConfig implements ReloadableConfig {
     private FurnaceDirtyHighlightConfig() {
     }
 
-    private static final Logger LOGGER = LogManager.getLogger(FurnaceDirtyHighlightConfig.class);
+    private static final Logger log = LogManager.getLogger(FurnaceDirtyHighlightConfig.class);
 
     private static final String KEY_SCAN_RADIUS = "scanRadius";
     private static final String KEY_SCAN_INTERVAL = "scanIntervalTicks";
@@ -96,7 +96,7 @@ public final class FurnaceDirtyHighlightConfig implements ReloadableConfig {
         if (dirty) {
             UnifiedConfigFile.save();
         }
-        LOGGER.info("[{}] scanRadius={}, scanIntervalTicks={}", configName(), scanRadius, scanIntervalTicks);
+        log.info("[{}] scanRadius={}, scanIntervalTicks={}", configName(), scanRadius, scanIntervalTicks);
     }
 
     /**

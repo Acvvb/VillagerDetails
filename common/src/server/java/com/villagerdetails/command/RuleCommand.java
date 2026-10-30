@@ -54,7 +54,7 @@ import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
  */
 public class RuleCommand {
 
-    private static final Logger LOGGER = LogManager.getLogger(RuleCommand.class);
+    private static final Logger log = LogManager.getLogger(RuleCommand.class);
 
     /** 唯一实例：registerHook() 的 lambda 通过它调实例方法 register(dispatcher) */
     private static final RuleCommand INSTANCE = new RuleCommand();
@@ -125,7 +125,7 @@ public class RuleCommand {
      */
     public static synchronized void registerHook() {
         if (commandHookRegistered) {
-            LOGGER.warn("CommandRegistrationCallback 重复注册被忽略");
+            log.warn("CommandRegistrationCallback 重复注册被忽略");
             return;
         }
         commandHookRegistered = true;

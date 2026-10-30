@@ -25,7 +25,7 @@ public final class JsonIO {
     private JsonIO() {
     }
 
-    private static final Logger LOGGER = LogManager.getLogger(JsonIO.class);
+    private static final Logger log = LogManager.getLogger(JsonIO.class);
 
     public static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
@@ -88,7 +88,7 @@ public final class JsonIO {
         try {
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException | UnsupportedOperationException e) {
-            LOGGER.warn("原子替换失败，退回普通覆盖写入：{}（{}）", file, e.toString());
+            log.warn("原子替换失败，退回普通覆盖写入：{}（{}）", file, e.toString());
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
         }
     }
@@ -137,7 +137,7 @@ public final class JsonIO {
         try {
             writeObject(file, root);
         } catch (Exception e) {
-            LOGGER.error("写入 JSON 失败：{}", file, e);
+            log.error("写入 JSON 失败：{}", file, e);
         }
     }
 }

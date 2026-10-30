@@ -6,13 +6,16 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
  * 所有同步通道的<b>唯一注册入口</b>（服务端侧对应物是客户端的 {@code ClientChannels}）。
  *
  * <p>{@code com.villagerdetails.network.sync} 下<b>每个目录对应一个角色接口</b>，
- * 这里就按「目录 → 接口 → 初始化方法」一张表逐行扫包、逐行调方法（见 {@link #ROLES}）：
+ * 这里就按「目录 → 接口 → 初始化方法」一张表逐行取数、逐行调方法（见 {@link #ROLES}）：
+ * 目录树只由 {@link com.villagerdetails.util.ScanService} 走一次，这五行只是按包名 + 角色过滤
+ * （改造前是每行各自递归扫一遍，五行就是五遍）。
  *
  * <table border="1">
  *     <caption>目录与角色接口</caption>
@@ -36,7 +39,7 @@ import java.util.function.Consumer;
  */
 public final class ServerChannels {
 
-    private static final Logger LOGGER = LogManager.getLogger(ServerChannels.class);
+    private static final Logger log = LogManager.getLogger(ServerChannels.class);
 
     /**
      * 同步相关的根包
@@ -77,19 +80,26 @@ public final class ServerChannels {
             new Role(OTHER_PACKAGE, "兜底同步", false, SyncRegistrar.class,
                     item -> ((SyncRegistrar) item).register()));
 
-    private static boolean registered;
+    private static final AtomicBoolean REGISTERED = new AtomicBoolean();
 
     private ServerChannels() {
     }
 
     /**
-     * 扫包注册全部同步内容；服务端初始化时调一次（重复调用是空操作）。
+     * 注册全部同步内容；服务端初始化时调一次（重复调用是空操作）。
+     *
+     * <p>用 {@code compareAndSet} 而<b>不是</b>「先判断、做完再置位」：这里要保留原来的语义 ——
+     * <b>先抢到标志再干活</b>。这样即使某个注册项回过头来又调到本方法，也不会二次注册；
+     * 而「干完再置位」在异常时会留下一个可以重跑的窗口，注册就会翻倍。
      */
     public static void registerAll() {
-        if (registered) {
+        if (!REGISTERED.compareAndSet(false, true)) {
+            // 防呆：全局只该有一个直接触发源（VillagerDetailsServer.init）。
+            // 这条 WARN 出现就说明有人又在别的入口点加了一行调用。
+            log.warn("检测到 ServerChannels.registerAll() 被重复调用，本次已忽略。"
+                    + "请检查接入口点（VillagerDetailsServer / VillagerDetails / client 入口）是否重复注册！");
             return;
         }
-        registered = true;
 
         List<ChannelScanner.Failure> failures = new ArrayList<>();
 
@@ -97,28 +107,31 @@ public final class ServerChannels {
         // 两个 payload 目录的角色接口就是在这里被按方向分派调用的
         PayloadTypes.registerAll();
 
-        // 其余目录：逐行扫包 → 只认该行指定的接口 → 调它的初始化方法
+        // 其余目录：逐行按包名 + 角色过滤 → 调该行的初始化方法（目录树全进程只走了一次）
         List<String> summary = new ArrayList<>();
         for (Role role : ROLES) {
             summary.add(role.stage() + " " + scan(role, failures));
         }
 
-        LOGGER.info("同步扫包注册完成：{}", String.join("、", summary));
+        log.info("同步扫包注册完成：{}", String.join("、", summary));
 
-        ChannelScanner.reportFailures(LOGGER, "同步注册", failures);
+        ChannelScanner.reportFailures(log, "同步注册", failures);
     }
 
     /**
-     * 扫一行（一个目录），返回「阶段名 + 注册成功的类名清单」，例如
+     * 处理一行（一个目录），返回「阶段名 + 注册成功的类名清单」，例如
      * {@code 服务端收包 10 个 [BBClearReceiver, ...]}。
+     *
+     * <p>{@code names} 在初始化动作<b>之后</b>才追加：半注册的类会进 {@link ChannelScanner.Failure}，
+     * 就不该再出现在「已注册」的清单里。
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static String scan(Role role, List<ChannelScanner.Failure> failures) {
         List<String> names = new ArrayList<>();
         int count = ChannelScanner.forEach(role.packageName(), ServerChannels.class, (Class) role.role(),
                 item -> {
-                    names.add(item.getClass().getSimpleName());
                     role.initializer().accept(item);
+                    names.add(item.getClass().getSimpleName());
                 }, failures);
         if (role.required()) {
             ChannelScanner.checkNotEmpty(count, role.packageName(), role.stage(), failures);

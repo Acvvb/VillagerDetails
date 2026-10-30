@@ -8,6 +8,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 客户端状态的<b>统一生命周期管理器</b>。
@@ -26,7 +27,7 @@ import java.util.List;
  */
 public final class ClientSessionStates {
 
-    private static final Logger LOGGER = LogManager.getLogger(ClientSessionStates.class);
+    private static final Logger log = LogManager.getLogger(ClientSessionStates.class);
 
     /**
      * 缓存所在的包（<b>含子包</b>）。
@@ -38,19 +39,40 @@ public final class ClientSessionStates {
 
     private static final List<Runnable> CLEAR_ACTIONS = new ArrayList<>();
 
-    private static boolean registered;
+    /**
+     * 先抢标志再干活：{@link #clearAll()} 在断线时也会兜底调 {@link #registerAll()}，
+     * 抢位语义保证清单只会被填一次（不会被填成两份、导致每个状态清两遍）。
+     */
+    private static final AtomicBoolean REGISTERED = new AtomicBoolean();
 
     private ClientSessionStates() {
     }
 
     /**
-     * 扫包接管所有缓存的生命周期；客户端初始化时调一次（重复调用是空操作）。
+     * 取包并接管所有缓存的生命周期；客户端初始化时调一次。
+     *
+     * <p><b>全局只该有一个直接触发源</b>（{@code VillagerDetailsClient.onInitializeClient}）。
+     * 重复调用不会重复注册，但会打一条 WARN 提示入口写重了。
      */
     public static void registerAll() {
-        if (registered) {
-            return;
+        if (!ensureRegistered()) {
+            log.warn("检测到 ClientSessionStates.registerAll() 被重复调用，本次已忽略。"
+                    + "请检查客户端入口是否重复注册！");
         }
-        registered = true;
+    }
+
+    /**
+     * 真正建清单（抢位 + 干活）。
+     *
+     * <p>{@link #clearAll()} 的断线兜底补扫走这里，<b>刻意不打 WARN</b> ——
+     * 那是设计内行为，不能和「入口写重了」混为一谈，否则每次断线都会刷一条黄色日志。
+     *
+     * @return 本次调用是否真的完成了初始化
+     */
+    private static boolean ensureRegistered() {
+        if (!REGISTERED.compareAndSet(false, true)) {
+            return false;
+        }
 
         List<ChannelScanner.Failure> failures = new ArrayList<>();
         List<String> names = new ArrayList<>();
@@ -68,9 +90,10 @@ public final class ClientSessionStates {
         CLEAR_ACTIONS.add(guard("SyncSubscriptionClient", SyncSubscriptionClient.INSTANCE::clearSession));
 
         ChannelScanner.checkNotEmpty(states, STATE_PACKAGE, "客户端状态扫包", failures);
-        ChannelScanner.reportFailures(LOGGER, "客户端状态扫包", failures);
+        ChannelScanner.reportFailures(log, "客户端状态扫包", failures);
 
-        LOGGER.info("客户端缓存扫包完成：{} 个状态接入断线清理 {}", CLEAR_ACTIONS.size(), names);
+        log.info("客户端缓存扫包完成：{} 个状态接入断线清理 {}", CLEAR_ACTIONS.size(), names);
+        return true;
     }
 
     /**
@@ -80,7 +103,8 @@ public final class ClientSessionStates {
      * 而不是默默什么都不清。
      */
     public static void clearAll() {
-        registerAll();
+        // 走静默版：这是兜底补扫，不是「入口重复注册」，不该惊动日志
+        ensureRegistered();
         for (Runnable action : CLEAR_ACTIONS) {
             action.run();
         }
@@ -99,7 +123,7 @@ public final class ClientSessionStates {
             try {
                 action.run();
             } catch (Throwable t) {
-                LOGGER.error("清理客户端会话状态 [{}] 失败", name, t);
+                log.error("清理客户端会话状态 [{}] 失败", name, t);
             }
         };
     }

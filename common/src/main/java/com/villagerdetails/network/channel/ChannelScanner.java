@@ -1,6 +1,6 @@
 package com.villagerdetails.network.channel;
 
-import com.villagerdetails.util.PackageScanner;
+import com.villagerdetails.util.ScanService;
 import org.apache.logging.log4j.Logger;
 
 import java.lang.reflect.Constructor;
@@ -17,13 +17,17 @@ import java.util.function.Consumer;
  *
  * <p>只做几件和具体角色无关的事：
  * <ol>
- *     <li>{@link #forEach} —— 扫一个包，筛出实现某个接口的具体类，实例化后交给回调；</li>
+ *     <li>{@link #forEach} —— 取一个包（含子包）的类，筛出实现某个接口的具体类，实例化后交给回调；</li>
  *     <li>{@link #instanceOf} —— 优先读 {@code public static final INSTANCE}，没有就退回无参构造；</li>
  *     <li>{@link #checkNotEmpty} —— 一个都没扫到必须报错（否则「少注册一块」会静默失效）；</li>
  *     <li>{@link #reportFailures} —— 把这一轮的失败汇总成一条 ERROR。</li>
  * </ol>
  *
  * <p>“扫哪个包、用什么角色接口、注册成什么”仍由两端各自的注册中心决定。
+ *
+ * <p><b>类不再由这里去磁盘上找</b>：包名到类名的映射由 {@link ScanService} 全进程只建一次，
+ * 这里只是按包名取用（见 {@link ScanService#loadClasses}）。改造前每个注册中心各自递归走一遍目录树，
+ * 专用服启动要扫 8 次。
  */
 public final class ChannelScanner {
 
@@ -46,14 +50,14 @@ public final class ChannelScanner {
     }
 
     /**
-     * 扫一个包，把实现 {@code role} 的类实例化后交给 {@code action}。
+     * 取一个包（含子包）里实现 {@code role} 的类，实例化后交给 {@code action}。
      *
-     * <p>顺序：按<b>类名排序</b>后逐个处理。扫包本身拿到的顺序由文件系统 / jar 条目顺序决定
-     * （开发环境和打包后不一样），而注册顺序有时是有意义的（比如一串渲染回调的先后），
-     * 所以这里统一排一次，保证每次启动完全一致。
+     * <p>顺序：按<b>类名排序</b>后逐个处理。{@link ScanService} 给出的已经是排好序的类名
+     * （改造前是文件系统 / jar 条目顺序，开发环境和打包后不一样），注册顺序有时是有意义的
+     * （比如一串渲染回调的先后），所以这里仍然保留一次排序，保证不依赖上游的实现细节。
      *
-     * @param packageName 扫包根（含子包）
-     * @param caller 调用方 class，仅用于 {@link PackageScanner} 定位/日志
+     * @param packageName 包名（含子包）
+     * @param caller 调用方 class，仅用于取类加载器
      * @param role 角色接口，只有它的具体实现会被处理
      * @param action 对每个实例做什么（注册收包 / 注册事件 / 体检……）
      * @param failures 失败收集器；单个类失败记进去并跳过，不影响其它类
@@ -61,7 +65,7 @@ public final class ChannelScanner {
      */
     public static <T> int forEach(String packageName, Class<?> caller, Class<T> role,
                                   Consumer<T> action, List<Failure> failures) {
-        List<Class<?>> candidates = new ArrayList<>(PackageScanner.scan(packageName, caller,
+        List<Class<?>> candidates = new ArrayList<>(ScanService.loadClasses(packageName, caller,
                 (name, cause) -> failures.add(new Failure(role.getSimpleName(), name,
                         "类加载失败（扫包时被跳过），这项不会生效", cause))));
         candidates.sort(Comparator.comparing(Class::getName));
@@ -73,12 +77,22 @@ public final class ChannelScanner {
                     || Modifier.isAbstract(candidate.getModifiers())) {
                 continue;
             }
+            Object instance;
             try {
-                action.accept(role.cast(instanceOf(candidate)));
+                instance = instanceOf(candidate);
+            } catch (Throwable t) {
+                // 明确区分「实例化就挂了」和「实例化成功、注册动作挂了一半」：
+                // 后者才是排查半注册时最需要的那种信息
+                failures.add(new Failure(role.getSimpleName(), candidate.getName(),
+                        "实例化失败（没有可用的 INSTANCE / 无参构造），注册动作尚未执行", t));
+                continue;
+            }
+            try {
+                action.accept(role.cast(instance));
                 count++;
             } catch (Throwable t) {
                 failures.add(new Failure(role.getSimpleName(), candidate.getName(),
-                        "注册失败，这项功能不会生效", t));
+                        "注册动作失败（实例已创建，可能已半注册），这项功能可能不完整", t));
             }
         }
         return count;

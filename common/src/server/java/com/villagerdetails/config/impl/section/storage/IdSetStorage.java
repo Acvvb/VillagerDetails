@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class IdSetStorage {
 
-    private static final Logger LOGGER = LogManager.getLogger(IdSetStorage.class);
+    private static final Logger log = LogManager.getLogger(IdSetStorage.class);
 
     private final String section;
     private final Set<Identifier> ids = ConcurrentHashMap.newKeySet();
@@ -115,7 +115,7 @@ public final class IdSetStorage {
             Identifier id = Identifier.tryParse(e.getKey());
             if (id != null) ids.add(id);
         }
-        LOGGER.info("[{}] 已加载 {} 项", section, ids.size());
+        log.info("[{}] 已加载 {} 项", section, ids.size());
     }
 
     public void save() {

@@ -29,7 +29,7 @@ import org.apache.logging.log4j.Logger;
  */
 public final class RuleDataReceiver implements ServerReceiver<RuleDataPayload> {
 
-    private static final Logger LOGGER = LogManager.getLogger(RuleDataReceiver.class);
+    private static final Logger log = LogManager.getLogger(RuleDataReceiver.class);
 
     public static final RuleDataReceiver INSTANCE = new RuleDataReceiver();
 
@@ -49,7 +49,7 @@ public final class RuleDataReceiver implements ServerReceiver<RuleDataPayload> {
 
         if (RuleCache.lacksRuleCommandPermission(player)) {
             player.sendSystemMessage(Component.translatable("villagerdetails.ui.rule.no_permission"));
-            LOGGER.warn("玩家 {} 尝试修改规则 {} 的数据但没有权限",
+            log.warn("玩家 {} 尝试修改规则 {} 的数据但没有权限",
                     player.getName().getString(), payload.registerName());
             return;
         }
@@ -57,12 +57,12 @@ public final class RuleDataReceiver implements ServerReceiver<RuleDataPayload> {
         RuleType type = RuleType.getRuleTypeByRegisterName(payload.registerName());
         RuleDataRegistry.Entry entry = type == null ? null : RuleDataRegistry.of(type);
         if (entry == null) {
-            LOGGER.warn("收到不支持逐条配置的规则的数据修改请求：{}", payload.registerName());
+            log.warn("收到不支持逐条配置的规则的数据修改请求：{}", payload.registerName());
             return;
         }
 
         if (!apply(entry, payload)) {
-            LOGGER.warn("规则 {} 的数据修改请求非法：id={} value={} remove={} reset={}",
+            log.warn("规则 {} 的数据修改请求非法：id={} value={} remove={} reset={}",
                     payload.registerName(), payload.id(), payload.value(), payload.remove(), payload.reset());
             return;
         }

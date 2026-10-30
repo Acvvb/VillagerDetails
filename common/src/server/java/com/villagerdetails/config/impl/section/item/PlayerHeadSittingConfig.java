@@ -42,7 +42,7 @@ public final class PlayerHeadSittingConfig implements ReloadableConfig {
     private PlayerHeadSittingConfig() {
     }
 
-    private static final Logger LOGGER = LogManager.getLogger(PlayerHeadSittingConfig.class);
+    private static final Logger log = LogManager.getLogger(PlayerHeadSittingConfig.class);
 
     // ==============================================================
     // 键名
@@ -95,7 +95,7 @@ public final class PlayerHeadSittingConfig implements ReloadableConfig {
         if (reader.dirty()) {
             UnifiedConfigFile.save();
         }
-        LOGGER.info("[{}] maxStackDepth={}, allowCreative={}, dismountOnTargetRide={}",
+        log.info("[{}] maxStackDepth={}, allowCreative={}, dismountOnTargetRide={}",
                 configName(), maxStackDepth, allowCreative, dismountOnTargetRide);
     }
 

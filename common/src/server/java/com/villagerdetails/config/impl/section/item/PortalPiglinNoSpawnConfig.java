@@ -42,7 +42,7 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
 
     public static final PortalPiglinNoSpawnConfig INSTANCE = new PortalPiglinNoSpawnConfig();
 
-    private static final Logger LOGGER = LogManager.getLogger(PortalPiglinNoSpawnConfig.class);
+    private static final Logger log = LogManager.getLogger(PortalPiglinNoSpawnConfig.class);
 
     /**
      * 统一配置文件里的节名
@@ -123,7 +123,7 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
         }
         regions.add(region);
         save();
-        LOGGER.info("[{}] 已写入第 {} 个区域：{}", SECTION, regions.size(), describe(region));
+        log.info("[{}] 已写入第 {} 个区域：{}", SECTION, regions.size(), describe(region));
         return true;
     }
 
@@ -136,7 +136,7 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
         }
         PortalPiglinNoSpawnRegion removed = regions.remove(index);
         save();
-        LOGGER.info("[{}] 已删除第 {} 个区域：{}", SECTION, index + 1, describe(removed));
+        log.info("[{}] 已删除第 {} 个区域：{}", SECTION, index + 1, describe(removed));
         return removed;
     }
 
@@ -150,7 +150,7 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
         int removed = regions.size();
         regions.clear();
         save();
-        LOGGER.info("[{}] 已清空 {} 个区域", SECTION, removed);
+        log.info("[{}] 已清空 {} 个区域", SECTION, removed);
     }
 
     // ------------------------------------------------------------------
@@ -185,9 +185,9 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
         section.add(REGIONS_KEY, toJsonArray());
 
         if (skipped > 0) {
-            LOGGER.warn("[{}] 有 {} 条记录读不懂，已跳过；落盘后文件里只剩能用的", SECTION, skipped);
+            log.warn("[{}] 有 {} 条记录读不懂，已跳过；落盘后文件里只剩能用的", SECTION, skipped);
         }
-        LOGGER.info("[{}] 已加载 {} 个区域", SECTION, regions.size());
+        log.info("[{}] 已加载 {} 个区域", SECTION, regions.size());
     }
 
     private void save() {

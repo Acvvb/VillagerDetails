@@ -56,7 +56,7 @@ import java.util.List;
  */
 public final class PortalBindingService {
 
-    private static final Logger LOGGER = LogManager.getLogger(PortalBindingService.class);
+    private static final Logger log = LogManager.getLogger(PortalBindingService.class);
 
     private PortalBindingService() {
     }
@@ -83,7 +83,7 @@ public final class PortalBindingService {
                 Level.NETHER, netherMin, netherMax);
         PortalBinding binding = findCurrent(probe);
         if (binding == null) {
-            LOGGER.warn("[PortalBinding] 绑定后找不到对应记录，跳过预热");
+            log.warn("[PortalBinding] 绑定后找不到对应记录，跳过预热");
             return;
         }
 
@@ -109,17 +109,17 @@ public final class PortalBindingService {
             return;
         }
         if (!PortalLocator.isRegionLoaded(targetLevel, targetMin, targetMax)) {
-            LOGGER.debug("[PortalBinding] 预热跳过（chunk 未加载）：{}", targetDim.identifier());
+            log.debug("[PortalBinding] 预热跳过（chunk 未加载）：{}", targetDim.identifier());
             return;
         }
         BlockPos center = centerOf(targetMin, targetMax);
         BlockPos portalPos = PortalLocator.scanRegionOnly(targetLevel, center, targetMin, targetMax);
         if (portalPos == null) {
-            LOGGER.debug("[PortalBinding] 预热跳过（区域内无门）：{}", targetDim.identifier());
+            log.debug("[PortalBinding] 预热跳过（区域内无门）：{}", targetDim.identifier());
             return;
         }
         PortalBindingConfig.INSTANCE.updateCachedPortal(binding, targetIsB, portalPos);
-        LOGGER.debug("[PortalBinding] 预热写缓存：{} -> {}", targetDim.identifier(), portalPos);
+        log.debug("[PortalBinding] 预热写缓存：{} -> {}", targetDim.identifier(), portalPos);
     }
 
     // ==================== 解析 ====================
@@ -287,7 +287,7 @@ public final class PortalBindingService {
         PortalBindingConfig config = PortalBindingConfig.INSTANCE;
         int idx = configIndexOf(binding);
         if (idx < 0) {
-            LOGGER.warn("[PortalBinding] refresh 找不到目标绑定：{}", binding);
+            log.warn("[PortalBinding] refresh 找不到目标绑定：{}", binding);
             return null;
         }
 
@@ -299,7 +299,7 @@ public final class PortalBindingService {
         MinecraftServer server = RuleCache.getServer();
         if (server == null) {
             // 一个维度都拿不到就没法重扫：直接算失败，别把现有缓存清空了却扫不回来
-            LOGGER.warn("[PortalBinding] refresh 跳过（server 不可用）：{}", binding);
+            log.warn("[PortalBinding] refresh 跳过（server 不可用）：{}", binding);
             return null;
         }
 
@@ -332,7 +332,7 @@ public final class PortalBindingService {
                                          @Nullable BlockPos oldPortal, BlockPos min, BlockPos max) {
         ServerLevel level = server.getLevel(dim);
         if (level == null) {
-            LOGGER.debug("[PortalBinding] refresh 跳过某侧（维度不可用）：{}", dim.identifier());
+            log.debug("[PortalBinding] refresh 跳过某侧（维度不可用）：{}", dim.identifier());
             return new SideResult(oldPortal, SideOutcome.UNTOUCHED, false);
         }
 
@@ -344,14 +344,14 @@ public final class PortalBindingService {
         }
         if (!scan.complete()) {
             // 「没扫全」和「没有门」不能混为一谈：保留旧缓存
-            LOGGER.debug("[PortalBinding] refresh 未扫全，保留旧缓存：{} -> {}",
+            log.debug("[PortalBinding] refresh 未扫全，保留旧缓存：{} -> {}",
                     dim.identifier(), oldPortal);
             return oldPortal != null
                     ? new SideResult(oldPortal, SideOutcome.KEPT, false)
                     : new SideResult(null, SideOutcome.CLEARED, false);
         }
         if (isUsableCachedPortal(level, oldPortal, min, max)) {
-            LOGGER.debug("[PortalBinding] refresh 区域内没扫到新门，沿用旧缓存：{} -> {}",
+            log.debug("[PortalBinding] refresh 区域内没扫到新门，沿用旧缓存：{} -> {}",
                     dim.identifier(), oldPortal);
             return new SideResult(oldPortal, SideOutcome.KEPT, true);
         }

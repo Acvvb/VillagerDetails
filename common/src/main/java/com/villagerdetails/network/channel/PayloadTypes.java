@@ -1,6 +1,6 @@
 package com.villagerdetails.network.channel;
 
-import com.villagerdetails.util.PackageScanner;
+import com.villagerdetails.util.ScanService;
 import net.minecraft.resources.Identifier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -30,7 +30,7 @@ import java.util.Set;
  */
 public final class PayloadTypes {
 
-    private static final Logger LOGGER = LogManager.getLogger(PayloadTypes.class);
+    private static final Logger log = LogManager.getLogger(PayloadTypes.class);
 
     /**
      * 同步相关代码的根包
@@ -74,10 +74,10 @@ public final class PayloadTypes {
                 ChannelScanner.checkNotEmpty(clientboundNames.size(), PAYLOAD_PACKAGE, "包类型（S→C）", failures);
                 ChannelScanner.checkNotEmpty(serverboundNames.size(), PAYLOAD_PACKAGE, "包类型（C→S）", failures);
 
-                LOGGER.info("包类型登记完成（S→C）：{} 个 {}", clientbound.size(), clientboundNames);
-                LOGGER.info("包类型登记完成（C→S）：{} 个 {}", serverbound.size(), serverboundNames);
+                log.info("包类型登记完成（S→C）：{} 个 {}", clientbound.size(), clientboundNames);
+                log.info("包类型登记完成（C→S）：{} 个 {}", serverbound.size(), serverboundNames);
 
-                ChannelScanner.reportFailures(LOGGER, "包类型注册", failures);
+                ChannelScanner.reportFailures(log, "包类型注册", failures);
                 registered = new Registered(clientbound, serverbound);
             }
             return registered;
@@ -85,13 +85,17 @@ public final class PayloadTypes {
     }
 
     /**
-     * 扫一遍包目录：按实现的接口分派到 {@link ClientboundPayload#register(Class)} /
+     * 取包目录（含子包）里的类：按实现的接口分派到 {@link ClientboundPayload#register(Class)} /
      * {@link ServerboundPayload#register(Class)}，顺带收好两边的 id 与类名。
+     *
+     * <p>类名由 {@link ScanService} 给出，<b>已按类名排序</b> —— 改造前是文件系统 / jar 条目顺序，
+     * 同一份代码在不同机器上可能不同。登记进 {@code PayloadTypeRegistry} 是按 id 建表，顺序不影响结果，
+     * 但排序后每次启动的日志与顺序完全一致。
      */
     private static void scan(Set<Identifier> clientbound, List<String> clientboundNames,
                              Set<Identifier> serverbound, List<String> serverboundNames,
                              List<ChannelScanner.Failure> failures) {
-        for (Class<?> candidate : PackageScanner.scan(PAYLOAD_PACKAGE, PayloadTypes.class,
+        for (Class<?> candidate : ScanService.loadClasses(PAYLOAD_PACKAGE, PayloadTypes.class,
                 (name, cause) -> failures.add(new ChannelScanner.Failure("包类型", name,
                         "类加载失败（扫包时被跳过），这个包不会生效", cause)))) {
             if (!SyncPayload.class.isAssignableFrom(candidate)

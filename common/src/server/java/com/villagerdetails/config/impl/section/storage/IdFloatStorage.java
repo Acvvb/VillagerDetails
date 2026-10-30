@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class IdFloatStorage {
 
-    private static final Logger LOGGER = LogManager.getLogger(IdFloatStorage.class);
+    private static final Logger log = LogManager.getLogger(IdFloatStorage.class);
 
     private final String section;
     private final Map<Identifier, Float> values = new ConcurrentHashMap<>();
@@ -104,7 +104,7 @@ public final class IdFloatStorage {
                 // 非法数值跳过
             }
         }
-        LOGGER.info("[{}] 已加载 {} 项", section, values.size());
+        log.info("[{}] 已加载 {} 项", section, values.size());
     }
 
     public void save() {

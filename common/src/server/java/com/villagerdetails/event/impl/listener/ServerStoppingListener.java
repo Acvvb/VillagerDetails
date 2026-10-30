@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 
 public class ServerStoppingListener implements ServerLifecycleEvents.ServerStopping, ServerEventRegisterServer {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger("VillagerDetails/ServerStopping");
+    private static final Logger log = LoggerFactory.getLogger("VillagerDetails/ServerStopping");
 
     /** 由统一注册类调用，外部不直接碰 SERVER_STOPPING.register */
     @Override
@@ -22,6 +22,6 @@ public class ServerStoppingListener implements ServerLifecycleEvents.ServerStopp
     public void onServerStopping(net.minecraft.server.@NonNull MinecraftServer server) {
         RuleConfig.onServerStopping(server);
         RuleCache.clearServer();
-        LOGGER.info("世界已卸载，配置已保存");
+        log.info("世界已卸载，配置已保存");
     }
 }
