@@ -18,6 +18,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 
@@ -34,7 +35,9 @@ import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
  * 判定这里是同一份结论，两边不会一个拦一个放。
  *
  * <p>命令业务：{@code /ec c PortalPiglinNoSpawn bind|show|view|delete|clear} 对应的
- * 区域增删查、消息拼装、客户端高亮推送都在这里。
+ * 区域增删查、消息拼装、客户端高亮推送都在这里，一律按 {@code #ID} 指代某一条区域。
+ * ID 由 {@link PortalPiglinNoSpawnConfig} 分配，只增不减、删除不回收，
+ * 所以不存在「序号在增删之后指到别人身上」的问题。
  *
  * <p>判定顺序和别的逐条规则一致：先看规则开关，再看区域表。
  * 规则关掉就等于对原版零影响，区域数据留着，下次开规则继续用。
@@ -115,23 +118,24 @@ public final class PortalPiglinNoSpawnHandler {
 
         PortalPiglinNoSpawnRegion region = PortalPiglinNoSpawnRegion.of(level.dimension(), pos1, pos2);
         boolean added = PortalPiglinNoSpawnConfig.INSTANCE.add(region);
-        // 列表里第几条（1 起）；重复绑定也能用它告诉玩家「已经绑过第几条了」
-        int displayIndex = PortalPiglinNoSpawnConfig.INSTANCE.snapshot().indexOf(region) + 1;
+        // 记录里那条（equals 不比较 ID，所以重复绑也能查出来），拿它的 ID 告诉玩家
+        PortalPiglinNoSpawnRegion stored = PortalPiglinNoSpawnConfig.INSTANCE.findByRegion(region);
+        String id = stored == null || stored.id() == null ? "?" : stored.id();
 
         if (!added) {
-            sendOrBroadcast(player, Component.translatable(K_BIND_EXISTS, String.valueOf(displayIndex)));
+            sendOrBroadcast(player, Component.translatable(K_BIND_EXISTS, id));
             return 1;
         }
 
         sendOrBroadcast(player, Component.translatable(K_BIND_SUCCESS,
                 dimensionName(region.dimension()),
                 formatCoords(region.min(), region.max()),
-                String.valueOf(displayIndex)));
+                id));
         return 1;
     }
 
     /**
-     * show：列出所有已绑定区域
+     * show：列出所有已绑定区域，每条以 {@code #ID} 开头
      */
     public static int show(ServerPlayer player) {
         List<PortalPiglinNoSpawnRegion> regions = PortalPiglinNoSpawnConfig.INSTANCE.snapshot();
@@ -141,8 +145,8 @@ public final class PortalPiglinNoSpawnHandler {
         }
 
         MutableComponent out = Component.translatable(K_SHOW_HEADER, String.valueOf(regions.size()));
-        for (int i = 0; i < regions.size(); i++) {
-            out.append("\n").append(entryComponent(i + 1, regions.get(i)));
+        for (PortalPiglinNoSpawnRegion region : regions) {
+            out.append("\n").append(entryComponent(region));
         }
         sendOrBroadcast(player, out);
         return regions.size();
@@ -151,12 +155,12 @@ public final class PortalPiglinNoSpawnHandler {
     /**
      * view：把某条区域推给客户端高亮
      *
-     * @param displayIndex 玩家输入的序号（1 起）
+     * @param id 玩家输入的 ID（{@code show} 里的 {@code #ID}）
      */
-    public static int view(ServerPlayer player, int displayIndex) {
-        PortalPiglinNoSpawnRegion region = PortalPiglinNoSpawnConfig.INSTANCE.get(displayIndex - 1);
+    public static int view(ServerPlayer player, String id) {
+        PortalPiglinNoSpawnRegion region = PortalPiglinNoSpawnConfig.INSTANCE.getById(id);
         if (region == null) {
-            sendOutOfRange(player, displayIndex);
+            sendOutOfRange(player, id);
             return 0;
         }
 
@@ -164,7 +168,7 @@ public final class PortalPiglinNoSpawnHandler {
         // （颜色沿用传送门高亮的主世界 / 地狱两套配置）。
         PortalViewSyncChannel.INSTANCE.syncTo(player, region.dimension(), region.min(), region.max());
 
-        sendOrBroadcast(player, Component.translatable(K_VIEW_SUCCESS, String.valueOf(displayIndex)));
+        sendOrBroadcast(player, Component.translatable(K_VIEW_SUCCESS, id));
         return 1;
     }
 
@@ -178,19 +182,19 @@ public final class PortalPiglinNoSpawnHandler {
      * 只清执行者一个人也不够（别人屏幕上那块框会一直留到下次 {@code view} / 断线，
      * 看着就像这条被删掉的区域还生效着）。所以统一广播一次清空。
      *
-     * @param displayIndex 玩家输入的序号（1 起）
+     * @param id 玩家输入的 ID（{@code show} 里的 {@code #ID}）
      */
-    public static int delete(ServerPlayer player, int displayIndex) {
-        PortalPiglinNoSpawnRegion removed = PortalPiglinNoSpawnConfig.INSTANCE.removeAt(displayIndex - 1);
+    public static int delete(ServerPlayer player, String id) {
+        PortalPiglinNoSpawnRegion removed = PortalPiglinNoSpawnConfig.INSTANCE.removeById(id);
         if (removed == null) {
-            sendOutOfRange(player, displayIndex);
+            sendOutOfRange(player, id);
             return 0;
         }
 
         // 这条区域已经不存在了：所有客户端都不该再画它的框
         PortalViewSyncChannel.INSTANCE.clearAll();
 
-        sendOrBroadcast(player, Component.translatable(K_DELETE_SUCCESS, String.valueOf(displayIndex)));
+        sendOrBroadcast(player, Component.translatable(K_DELETE_SUCCESS, id));
         return 1;
     }
 
@@ -216,29 +220,32 @@ public final class PortalPiglinNoSpawnHandler {
     // 内部工具
     // ============================================================
 
-    private static void sendOutOfRange(ServerPlayer player, int displayIndex) {
-        sendOrBroadcast(player, Component.translatable(K_FAILURE_OUT_OF_RANGE, String.valueOf(displayIndex)));
+    private static void sendOutOfRange(ServerPlayer player, @Nullable String id) {
+        sendOrBroadcast(player, Component.translatable(K_FAILURE_OUT_OF_RANGE, id == null ? "?" : id));
     }
 
     /**
-     * 一条区域一行：{@code [n] 维度 x,y,z ~ x,y,z [删除]}。
+     * 一条区域一行：{@code #<id> 维度 x,y,z ~ x,y,z [删除]}。
      *
-     * <p>坐标整行都能点：点了执行 {@code <前缀> view <n>}，把这条区域推去客户端高亮。
+     * <p>{@code #ID} 在最前面，玩家在聊天栏看到 {@code #3}，指令里就写 {@code delete 3}，
+     * 不用自己数第几条。坐标整行都能点：点了执行 {@code <前缀> view <id>}，把这条区域推去客户端高亮。
      */
-    private static MutableComponent entryComponent(int displayIndex, PortalPiglinNoSpawnRegion region) {
-        String viewCommand = CMD_PREFIX + " view " + displayIndex;
+    private static MutableComponent entryComponent(PortalPiglinNoSpawnRegion region) {
+        String id = region.id() == null ? "?" : region.id();
+
+        String viewCommand = CMD_PREFIX + " view " + id;
 
         Style viewStyle = Style.EMPTY
                 .withColor(TextColor.fromRgb(0xAAAAAA))
                 .withClickEvent(new ClickEvent.RunCommand(viewCommand))
                 .withHoverEvent(hover(K_HOVER_VIEW));
 
-        MutableComponent head = Component.literal(ENTRY_INDENT + "[" + displayIndex + "] ")
+        MutableComponent head = Component.literal(ENTRY_INDENT + "#" + id + " ")
                 .append(dimensionName(region.dimension()))
                 .append(Component.literal(" " + formatCoords(region.min(), region.max())))
                 .withStyle(viewStyle);
 
-        return head.append(" ".repeat(4)).append(deleteButton(CMD_PREFIX + " delete " + displayIndex));
+        return head.append(" ".repeat(4)).append(deleteButton(CMD_PREFIX + " delete " + id));
     }
 
     /**

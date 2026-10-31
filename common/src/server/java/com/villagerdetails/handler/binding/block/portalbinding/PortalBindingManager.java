@@ -21,8 +21,13 @@ public final class PortalBindingManager {
     private PortalBindingManager() {
     }
 
-    public void addBinding(BlockPos owMin, BlockPos owMax, BlockPos netherMin, BlockPos netherMax) {
-        PortalBindingConfig.INSTANCE.add(PortalBinding.of(
+    /**
+     * 写入一条绑定：维度固定为「主世界 ↔ 地狱」，坐标由调用方给出。
+     *
+     * @return 真的写进配置返回 {@code true}；重复 / 两端维度非法 / 占位坐标被拒返回 {@code false}
+     */
+    public boolean addBinding(BlockPos owMin, BlockPos owMax, BlockPos netherMin, BlockPos netherMax) {
+        return PortalBindingConfig.INSTANCE.add(PortalBinding.of(
                 Level.OVERWORLD, owMin, owMax,
                 Level.NETHER, netherMin, netherMax
         ));
@@ -48,11 +53,20 @@ public final class PortalBindingManager {
         return PortalBindingConfig.INSTANCE.snapshot();
     }
 
-    public PortalBinding getBinding(int index) {
-        return PortalBindingConfig.INSTANCE.get(index);
+    /**
+     * 按 ID 取一条；找不到返回 {@code null}。
+     *
+     * <p>指令一律走 ID：那个号只增不减、删除不回收，所以不会像序号那样
+     * 在别人增删之后指到别的条目上。
+     */
+    public PortalBinding getBinding(String id) {
+        return PortalBindingConfig.INSTANCE.getById(id);
     }
 
-    public PortalBinding removeBinding(int index) {
-        return PortalBindingConfig.INSTANCE.removeAt(index);
+    /**
+     * 按 ID 删除一条；找不到返回 {@code null}。
+     */
+    public PortalBinding removeBinding(String id) {
+        return PortalBindingConfig.INSTANCE.removeById(id);
     }
 }

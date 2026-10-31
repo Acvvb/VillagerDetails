@@ -2,7 +2,7 @@ package com.villagerdetails.command.c.impl.rule.rule;
 
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.command.c.impl.base.AbstractRuleCommand;
-import com.villagerdetails.command.c.impl.suggestion.EntityIdSuggestionServer;
+import com.villagerdetails.command.c.impl.util.EntityIdSuggestionServerImpl;
 import com.villagerdetails.config.impl.section.item.NoSqueezeConfig;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.resources.Identifier;
@@ -40,7 +40,7 @@ public final class NoSqueezeServerImpl extends AbstractRuleCommand {
 
     @Override
     protected SuggestionProvider<CommandSourceStack> idSuggester() {
-        return EntityIdSuggestionServer.ALL_ENTITY_ID_SUGGESTER;
+        return EntityIdSuggestionServerImpl.ALL_ENTITY_ID_SUGGESTER;
     }
 
     @Override

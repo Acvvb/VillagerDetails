@@ -14,60 +14,48 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * 「脏熔炉」判定：服务端扫描玩家附近已加载区块里的熔炉，算出哪些该高亮。
+ * 「脏熔炉」判定：扫一个区块里已加载的方块实体，算出哪些该高亮。
  *
  * <p>只判定输入槽（槽 0）：<b>非空、但按这个熔炉自己的配方表找不到能烧它的配方</b>就高亮。
  * 燃料槽与输出槽都不参与（燃料位不检测）。
  * 配方表按方块实体类型分派：普通熔炉 {@code SMELTING}、高炉 {@code BLASTING}、烟熏炉 {@code SMOKING}。
  *
- * <p><b>扫描方式</b>：只取玩家附近<b>已加载</b>的区块（{@code getChunkNow}，不加载、不生成），
- * 直接遍历区块自己的方块实体表 —— 不按方块坐标遍历，成本只和「半径内的方块实体数」有关。
- *
- * <p>不缓存任何东西：每次调用都是一次独立快照，规则关闭时不调用（事件里就 return 了）。
+ * <p><b>扫描粒度是区块</b>：{@link #scanChunk} 只遍历这个区块自己的方块实体表，
+ * 成本只和「区块里的方块实体数」有关。谁负责调、多久调一次、结果怎么下发，
+ * 全在 {@link FurnaceDirtyTracker}（全局脏表 + 按视距增量同步）里。
  */
 public final class FurnaceDirtyScanner {
 
     /**
-     * 输入槽
+     * 输入槽（私有：只有本类的判定用得到）
      */
-    public static final int SLOT_INPUT = 0;
+    private static final int SLOT_INPUT = 0;
 
     private FurnaceDirtyScanner() {
     }
 
     /**
-     * 扫一遍玩家附近的脏熔炉。
+     * 扫一个区块里的脏熔炉。
      *
-     * @param level  玩家所在的服务端世界
-     * @param center 扫描中心（一般传玩家脚下坐标）
-     * @param radius 半径（格），只在已加载区块里找
+     * @param level 区块所在的服务端世界（查配方要用）
+     * @param chunk 已加载的区块；{@code null} 返回空
      * @return 脏熔炉坐标；按坐标排序，保证同样的内容每次生成的包字节稳定
      */
-    public static List<BlockPos> scan(ServerLevel level, BlockPos center, int radius) {
-        int minChunkX = Math.floorDiv(center.getX() - radius, 16);
-        int maxChunkX = Math.floorDiv(center.getX() + radius, 16);
-        int minChunkZ = Math.floorDiv(center.getZ() - radius, 16);
-        int maxChunkZ = Math.floorDiv(center.getZ() + radius, 16);
-
+    public static List<BlockPos> scanChunk(ServerLevel level, LevelChunk chunk) {
+        if (level == null || chunk == null) {
+            return List.of();
+        }
+        var blockEntities = chunk.getBlockEntities();
+        if (blockEntities.isEmpty()) {
+            return List.of();
+        }
         List<BlockPos> dirty = new ArrayList<>();
-        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
-            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
-                // 只查已加载的区块：玩家没去过的地方不会因为扫描而被加载 / 生成
-                LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
-                if (chunk == null) {
-                    continue;
-                }
-                for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
-                    if (!(blockEntity instanceof AbstractFurnaceBlockEntity furnace) || blockEntity.isRemoved()) {
-                        continue;
-                    }
-                    if (!blockEntity.getBlockPos().closerThan(center, radius)) {
-                        continue;
-                    }
-                    if (isInputDirty(level, furnace)) {
-                        dirty.add(blockEntity.getBlockPos());
-                    }
-                }
+        for (BlockEntity blockEntity : blockEntities.values()) {
+            if (!(blockEntity instanceof AbstractFurnaceBlockEntity furnace) || blockEntity.isRemoved()) {
+                continue;
+            }
+            if (isInputDirty(level, furnace)) {
+                dirty.add(blockEntity.getBlockPos());
             }
         }
         dirty.sort(Comparator.comparingLong(BlockPos::asLong));
@@ -85,16 +73,12 @@ public final class FurnaceDirtyScanner {
         if (input.isEmpty()) {
             return false;
         }
-        if (furnace instanceof FurnaceBlockEntity) {
-            return !hasRecipe(level, RecipeType.SMELTING, input);
-        }
-        if (furnace instanceof BlastFurnaceBlockEntity) {
-            return !hasRecipe(level, RecipeType.BLASTING, input);
-        }
-        if (furnace instanceof SmokerBlockEntity) {
-            return !hasRecipe(level, RecipeType.SMOKING, input);
-        }
-        return false;
+        return switch (furnace) {
+            case FurnaceBlockEntity _ -> !hasRecipe(level, RecipeType.SMELTING, input);
+            case BlastFurnaceBlockEntity _ -> !hasRecipe(level, RecipeType.BLASTING, input);
+            case SmokerBlockEntity _ -> !hasRecipe(level, RecipeType.SMOKING, input);
+            default -> false;
+        };
     }
 
     /**

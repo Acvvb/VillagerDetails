@@ -20,7 +20,7 @@ import static com.villagerdetails.command.CommandConstants.RULE_ERROR_INVALID_ST
 /**
  * 客户端改规则状态：等价于 {@code /ec <规则> <状态>}。
  *
- * <p>包的收发定义在 {@code network.sync.serverbound.ServerRuleSetChannel}，这里只管收到之后干什么。
+ * <p>包的收发定义在 {@link ServerRuleSetPayload}，这里只管收到之后干什么。
  * 放在 {@code network.sync.receiver} 包下 = 自动注册。
  *
  * <p>权限只看 {@code /ec} 那道总权限，和界面显示、命令用的是同一套判定。

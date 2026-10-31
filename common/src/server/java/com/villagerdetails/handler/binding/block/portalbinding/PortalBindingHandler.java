@@ -31,9 +31,13 @@ import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
  * <ul>
  *     <li>{@code set} —— 把当前维度的 BB 选区缓存成这一侧的待绑定（主世界 / 地狱各一次）；</li>
  *     <li>{@code bind} —— 两侧都缓存好了才真正写入一条绑定，然后清掉缓存；</li>
- *     <li>{@code show / view / delete} —— 列出、高亮、删除已有绑定；</li>
+ *     <li>{@code show / view / delete} —— 列出、高亮、删除已有绑定（一律按 {@code #ID} 指代）；</li>
  *     <li>{@code refresh} —— 清掉某条绑定两侧缓存的门坐标并立即重扫（{@code show} 里也有按钮）。</li>
  * </ul>
+ *
+ * <p><b>按 ID 而不是按序号</b>：ID 由 {@link PortalBindingConfig} 分配，只增不减、删除不回收，
+ * 所以聊天栏里那个 {@code #3} 永远指向同一条绑定，别人在你看完列表之后增删也不会让它跑偏，
+ * 不需要再带「列表版本」去校验。
  *
  * <p>回给玩家的每条消息都走 {@link com.villagerdetails.util.SendMessengerUtils}：
  * 由它内部用 {@code ServerTranslations} 按服务端语言翻好再发，
@@ -46,11 +50,6 @@ public final class PortalBindingHandler {
     }
 
     private static final String CMD_PREFIX = COMMAND_BASE + " c PortalBinding";
-
-    /**
-     * 一条绑定的第二、三行缩进，对齐到第一行「[n] 」之后（个位数下标）
-     */
-    private static final String ENTRY_INDENT = "      ";
 
     // ============================================================
     // 翻译键
@@ -75,6 +74,7 @@ public final class PortalBindingHandler {
     private static final String K_FAILURE_UNSUPPORTED_DIMENSION = "command.portal_binding.failure.unsupported_dimension";
     private static final String K_FAILURE_NO_SELECTION = "command.portal_binding.failure.no_selection";
     private static final String K_FAILURE_INCOMPLETE = "command.portal_binding.failure.incomplete";
+    private static final String K_FAILURE_BIND_REJECTED = "command.portal_binding.failure.bind_rejected";
     private static final String K_FAILURE_OUT_OF_RANGE = "command.portal_binding.failure.out_of_range";
     private static final String K_FAILURE_REGION_TOO_LARGE = "command.portal_binding.failure.region_too_large";
 
@@ -119,6 +119,14 @@ public final class PortalBindingHandler {
             return 0;
         }
 
+        // 选区是「某个维度里」的坐标：玩家刚换维度、tick 巡检还没来得及清的话，
+        // 这里读到的会是上一个维度的旧选区。先把这种跨维度脏选区清掉再读，
+        // 否则会把主世界的坐标写进地狱缓存（bind 之后就是一条坐标跑错维度的绑定）。
+        if (BBSectionStateCache.clearIfDimensionChanged(player)) {
+            sendOrBroadcast(player, Component.translatable(K_FAILURE_NO_SELECTION));
+            return 0;
+        }
+
         BlockPos pos1 = BBSectionStateCache.getPos1(player);
         BlockPos pos2 = BBSectionStateCache.getPos2(player);
         if (pos1 == null || pos2 == null) {
@@ -151,29 +159,44 @@ public final class PortalBindingHandler {
 
     /**
      * bind：从缓存取出两侧并正式绑定
+     *
+     * <p>两道闸：
+     * <ol>
+     *     <li><b>两侧都必须 set 过</b> —— 缓存里没有就是 {@code null}，
+     *         提示「需要先在主世界和地狱各 set 一次」，一个字节都不写。
+     *         这里<b>只</b>看 null：{@link PortalSelectionCache} 已经保证「非 null 就是
+     *         玩家真实设置过的完整选区」，所以不再对坐标值做任何「占位」猜测
+     *         —— 否则选在 {@code (0,0,0)} 的玩家会被误伤；</li>
+     *     <li><b>写入结果要如实反馈</b> —— {@link PortalBindingService#bind} 只有真的落盘才返回
+     *         {@code true}；重复绑定 / 同维度被拒时提示「未写入」，绝不出现
+     *         「提示绑定成功但配置文件里什么都没有」。</li>
+     * </ol>
+     *
+     * <p>写入被拒时<b>不</b>清缓存：玩家可能只是重复绑了一次，改一侧再 bind 就能继续用。
      */
     public static int bind(ServerPlayer player) {
         PortalSelectionCache.Region ow = PortalSelectionCache.getOverworld(player.getUUID());
         PortalSelectionCache.Region ne = PortalSelectionCache.getNether(player.getUUID());
 
+        // 1) 判空：没 set / 只 set 了一侧。缓存层已把「半残 / 缺失」统一归一成 null
         if (ow == null || ne == null) {
             sendOrBroadcast(player, Component.translatable(K_FAILURE_INCOMPLETE));
             return 0;
         }
 
-        PortalBindingService.bind(
-                ow.pos1(), ow.pos2(),
-                ne.pos1(), ne.pos2()
-        );
+        // 2) 写入：只有真的新增了记录才算成功
+        if (!PortalBindingService.bind(ow.pos1(), ow.pos2(), ne.pos1(), ne.pos2())) {
+            sendOrBroadcast(player, Component.translatable(K_FAILURE_BIND_REJECTED));
+            return 0;
+        }
 
         PortalSelectionCache.clear(player.getUUID());
-
         sendOrBroadcast(player, Component.translatable(K_BIND_SUCCESS));
         return 1;
     }
 
     /**
-     * show：列出所有绑定（可点击）
+     * show：列出所有绑定（可点击），每条以 {@code #ID} 开头
      */
     public static int show(ServerPlayer player) {
         List<PortalBinding> bindings = PortalBindingManager.getInstance().getBindings();
@@ -182,14 +205,10 @@ public final class PortalBindingHandler {
             return 0;
         }
 
-        // 渲染这一刻的结构版本：写进每个条目的按钮，点的时候带回来校验。
-        // 增删 / 重载之后版本就变了，旧按钮点下去会被拒绝，不会按过期序号刷错删错。
-        int version = PortalBindingConfig.INSTANCE.structureVersion();
-
         MutableComponent out = Component.translatable(K_SHOW_HEADER,
                 String.valueOf(bindings.size()));
-        for (int i = 0; i < bindings.size(); i++) {
-            out.append("\n").append(bindingEntryComponent(i + 1, bindings.get(i), version));
+        for (PortalBinding binding : bindings) {
+            out.append("\n").append(bindingEntryComponent(binding));
         }
         sendOrBroadcast(player, out);
         return bindings.size();
@@ -198,13 +217,12 @@ public final class PortalBindingHandler {
     /**
      * view：把某条绑定的两侧都推给客户端高亮
      *
-     * @param displayIndex 玩家输入的序号（1 起）
+     * @param id 玩家输入的 ID（{@code show} 里的 {@code #ID}）
      */
-    public static int view(ServerPlayer player, int displayIndex) {
-        PortalBinding b = PortalBindingManager.getInstance().getBinding(displayIndex - 1);
+    public static int view(ServerPlayer player, String id) {
+        PortalBinding b = PortalBindingManager.getInstance().getBinding(id);
         if (b == null) {
-            sendOrBroadcast(player, Component.translatable(K_FAILURE_OUT_OF_RANGE,
-                    String.valueOf(displayIndex)));
+            sendOrBroadcast(player, Component.translatable(K_FAILURE_OUT_OF_RANGE, id));
             return 0;
         }
 
@@ -213,8 +231,7 @@ public final class PortalBindingHandler {
         PortalViewSyncChannel.INSTANCE.syncTo(player, b.dimA(), b.minA(), b.maxA());
         PortalViewSyncChannel.INSTANCE.syncTo(player, b.dimB(), b.minB(), b.maxB());
 
-        sendOrBroadcast(player, Component.translatable(K_VIEW_SUCCESS,
-                String.valueOf(displayIndex)));
+        sendOrBroadcast(player, Component.translatable(K_VIEW_SUCCESS, id));
         return 1;
     }
 
@@ -238,27 +255,25 @@ public final class PortalBindingHandler {
      * 只清执行删除的人，别人屏幕上那块框会一直留到下次 {@code view} / 断线 ——
      * 看着就像这条被删掉的绑定还生效着。
      *
-     * @param displayIndex 玩家输入的序号（1 起）
+     * @param id 玩家输入的 ID（{@code show} 里的 {@code #ID}）
      */
-    public static int delete(ServerPlayer player, int displayIndex) {
-        PortalBinding binding = PortalBindingManager.getInstance().getBinding(displayIndex - 1);
+    public static int delete(ServerPlayer player, String id) {
+        PortalBinding binding = PortalBindingManager.getInstance().getBinding(id);
         if (binding == null) {
-            sendOrBroadcast(player, Component.translatable(K_FAILURE_OUT_OF_RANGE,
-                    String.valueOf(displayIndex)));
+            sendOrBroadcast(player, Component.translatable(K_FAILURE_OUT_OF_RANGE, id));
             return 0;
         }
 
         // 1) 刷掉这一条的缓存门坐标（和 refresh 的清缓存同一步），落盘
         PortalBindingConfig.INSTANCE.clearCachedPortals(binding);
 
-        // 2) 删记录本身（removeAt 内部会再落一次盘）
-        PortalBindingManager.getInstance().removeBinding(displayIndex - 1);
+        // 2) 删记录本身（removeById 内部会再落一次盘）
+        PortalBindingManager.getInstance().removeBinding(id);
 
         // 3) 清掉所有客户端上这条绑定的高亮框，别让被删掉的区域还画在那儿
         PortalViewSyncChannel.INSTANCE.clearAll();
 
-        sendOrBroadcast(player, Component.translatable(K_DELETE_SUCCESS,
-                String.valueOf(displayIndex)));
+        sendOrBroadcast(player, Component.translatable(K_DELETE_SUCCESS, id));
         return 1;
     }
 
@@ -267,18 +282,21 @@ public final class PortalBindingHandler {
     // ============================================================
 
     /**
-     * 一条绑定占两行：
+     * 一条绑定占三行：
      * <pre>
-     *   [1] 主世界 100,64,200 ~ 110,70,210
-     *       地狱   12,60,25 ~ 14,62,27
-     *       [刷新]  [删除]
+     *   #1 主世界 100,64,200 ~ 110,70,210
+     *      地狱   12,60,25 ~ 14,62,27
+     *      [刷新]  [删除]
      * </pre>
      *
-     * <p>两行坐标<b>整行都能点</b>：点哪一行都是执行 {@code <前缀> view <n>} 把这条绑定的
+     * <p>{@code #ID} 在最前面：玩家看到列表里是 {@code #3}，指令里就写 {@code #3} 的那个数字
+     * （{@code /ec c PortalBinding delete 3}），两边对得上，不用自己数第几条。
+     *
+     * <p>两行坐标<b>整行都能点</b>：点哪一行都是执行 {@code <前缀> view <id>} 把这条绑定的
      * 两侧推去高亮 —— 所以不再单独摆一个 [高亮] 按钮，只留 [刷新] / [删除]。
      *
-     * <p>[刷新] 走 {@code <前缀> refresh <n>}，语义和 {@link #refresh} 完全一致：
-     * 清掉这条绑定两侧缓存的门坐标，再按当前区域状态重扫回写（点一下就等于手打一遍指令）。
+     * <p>[刷新] 走 {@code <前缀> refresh <id>}，[删除] 走 {@code <前缀> delete <id>}，
+     * 语义和手打指令完全一致。
      *
      * <p>每行是「维度 + 两个角点坐标」：两个角点就是选区的 min / max，
      * 维度名跟着<b>实际维度</b>走（不是按 A/B 位置硬写），所以手改过顺序的配置也不会标错。
@@ -286,41 +304,37 @@ public final class PortalBindingHandler {
      * <p>命令必须带 {@link #CMD_PREFIX}（{@code /ec c PortalBinding}）——
      * 规则命令全都挂在 {@code c} 下面，只写 {@code /ec view} 是解析不到的。
      *
-     * <p>两个按钮还各自多带一个「列表结构版本」（{@code structureVersion}）：
-     * 序号是位置，别人在你看到列表之后增删一条，序号就指到别的条目上了；
-     * 带上版本，命令执行时一对就能发现列表过期并拒绝，而不是刷错门 / 删错绑定。
-     *
      * <p>维度名、按钮文字、悬停提示全是翻译键，代码里不写死中文。
-     *
-     * @param structureVersion 渲染这一刻 {@code PortalBindingConfig#structureVersion()} 的值
      */
-    private static MutableComponent bindingEntryComponent(int displayIndex, PortalBinding b,
-                                                          int structureVersion) {
-        String viewCommand = CMD_PREFIX + " view " + displayIndex;
+    private static MutableComponent bindingEntryComponent(PortalBinding b) {
+        String id = b.id() == null ? "?" : b.id();
+
+        String viewCommand = CMD_PREFIX + " view " + id;
 
         Style viewStyle = Style.EMPTY
                 .withColor(TextColor.fromRgb(0xAAAAAA))
                 .withClickEvent(new ClickEvent.RunCommand(viewCommand))
                 .withHoverEvent(hover(K_HOVER_VIEW));
 
-        MutableComponent head = Component.literal("  [" + displayIndex + "] ")
+        // 第一行以 "  #<id> " 开头；第二行用等宽空格对齐到维度名那一列
+        String prefix = "  #" + id + " ";
+        MutableComponent head = Component.literal(prefix)
                 .append(dimensionName(b.dimA()))
                 .append(Component.literal(" " + formatCoords(b.minA(), b.maxA())))
                 .withStyle(viewStyle);
 
-        // 使用 " ".repeat(n) 优雅地生成空格
-        MutableComponent other = Component.literal(ENTRY_INDENT + " ".repeat(2))
+        MutableComponent other = Component.literal(" ".repeat(prefix.length() + 2))
                 .append(dimensionName(b.dimB()))
                 .append(Component.literal(" " + formatCoords(b.minB(), b.maxB())))
                 .withStyle(viewStyle);
 
         MutableComponent refreshBtn = button(
                 K_BUTTON_REFRESH, K_HOVER_REFRESH, COLOR_REFRESH,
-                CMD_PREFIX + " refresh " + displayIndex + " " + structureVersion);
+                CMD_PREFIX + " refresh " + id);
 
         MutableComponent deleteBtn = button(
                 K_BUTTON_DELETE, K_HOVER_DELETE, COLOR_DELETE,
-                CMD_PREFIX + " delete " + displayIndex + " " + structureVersion);
+                CMD_PREFIX + " delete " + id);
 
         return head.append("\n").append(other)
                 .append(" ".repeat(12)).append(refreshBtn)
@@ -346,10 +360,10 @@ public final class PortalBindingHandler {
      * <p>标签和悬停都只收翻译键；方括号写在语言文件里，
      * 免得别的语言想换个括号样式还得改代码。
      *
-     * @param labelKey  按钮文字的翻译键，例如 {@link #K_BUTTON_DELETE}
-     * @param hoverKey  悬停说明的翻译键，例如 {@link #K_HOVER_DELETE}
-     * @param color     文字颜色（{@code 0xRRGGBB}）
-     * @param command   点击后执行的完整指令（含 {@link #CMD_PREFIX}）
+     * @param labelKey 按钮文字的翻译键，例如 {@link #K_BUTTON_DELETE}
+     * @param hoverKey 悬停说明的翻译键，例如 {@link #K_HOVER_DELETE}
+     * @param color    文字颜色（{@code 0xRRGGBB}）
+     * @param command  点击后执行的完整指令（含 {@link #CMD_PREFIX}）
      */
     private static MutableComponent button(String labelKey, String hoverKey, int color, String command) {
         return Component.translatable(labelKey)
@@ -376,22 +390,21 @@ public final class PortalBindingHandler {
      * refresh：按当前区域状态重扫某条绑定两侧，并把结果写回缓存。
      *
      * <p>{@code show} 里那条 {@code [刷新]} 按钮点下去执行的就是
-     * {@code <前缀> refresh <n> <版本>}，最终也走到这里 —— 按钮和指令的行为完全一致。
+     * {@code <前缀> refresh <id>}，最终也走到这里 —— 按钮和指令的行为完全一致。
      *
      * <p>反馈只告诉玩家「这一侧有没有门」：坐标 / 暂无门 / 沿用原缓存，
      * 区域太大没扫全时再加一行提醒。底层是「扫到了 / 沿用 / 清空」哪种情况不需要玩家理解，
      * 细节留在日志里（{@link PortalBindingService.SideOutcome}）。
      *
-     * <p>三种失败各自一条消息：序号越界、绑定已被删掉、服务端不可用
+     * <p>三种失败各自一条消息：ID 不存在、绑定已被删掉、服务端不可用
      * （后两种由 {@link PortalBindingService#refreshCachedPortals} 返回 {@code null} 表示）。
      *
-     * @param displayIndex 玩家输入的序号（1 起）
+     * @param id 玩家输入的 ID（{@code show} 里的 {@code #ID}）
      */
-    public static int refresh(ServerPlayer player, int displayIndex) {
-        PortalBinding binding = PortalBindingManager.getInstance().getBinding(displayIndex - 1);
+    public static int refresh(ServerPlayer player, String id) {
+        PortalBinding binding = PortalBindingManager.getInstance().getBinding(id);
         if (binding == null) {
-            sendOrBroadcast(player, Component.translatable(K_REFRESH_OUT_OF_RANGE,
-                    String.valueOf(displayIndex)));
+            sendOrBroadcast(player, Component.translatable(K_REFRESH_OUT_OF_RANGE, id));
             return 0;
         }
 
@@ -407,8 +420,7 @@ public final class PortalBindingHandler {
         String lineA = sideLine(binding.dimA(), result.sideA());
         String lineB = sideLine(binding.dimB(), result.sideB());
 
-        MutableComponent message = Component.translatable(K_REFRESH_DONE,
-                String.valueOf(displayIndex), lineA, lineB);
+        MutableComponent message = Component.translatable(K_REFRESH_DONE, id, lineA, lineB);
 
         if (result.anyIncomplete()) {
             // 区域超出扫描预算：只提示「可能漏了」，不展开讲底层逻辑

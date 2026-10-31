@@ -10,15 +10,24 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 
 /**
- * 熔炉脏高亮的客户端侧：收包 → 落本地表；本地显示开关关着时，反过来告诉服务端别发了。
+ * 熔炉脏高亮的客户端侧：收<b>增量</b>包 → 落本地表；本地显示开关关着时，反过来告诉服务端别发了。
+ *
+ * <p>包只有三种语义：
+ * <ul>
+ *     <li>{@code isAdd=true}：把这批坐标加进「这个维度」的本地表；</li>
+ *     <li>{@code isAdd=false} 且列表非空：把这批坐标从该维度拿掉；</li>
+ *     <li>{@code isAdd=false} 且列表为空：<b>清空该维度</b>（换维度 / 规则关闭 / 重新订阅）。</li>
+ * </ul>
+ * 服务端按区块增量维护，客户端这里不做任何「距离过滤」——
+ * 收到什么就是什么，范围由服务端保证（见 {@code FurnaceDirtyTracker}）。
  *
  * <p>「服务端发、客户端画」是主链路；额外的一条是<b>客户端单方面关显示</b>：
  * <ul>
  *     <li>开关变化：每 tick 比对一次，变了就发通用的 {@code sync_subscription}（on / off），
- *         服务端收到后决定还发不发；</li>
+ *         服务端收到后丢掉该玩家的视距记录、不再发包；</li>
  *     <li>开关关着却仍然收到包（比如刚进服、服务端还不知道）：清空本地表，并立刻回一个 off；</li>
  *     <li>断线：本地表和「已通知状态」都由 {@code ClientSessionStates} 统一清掉，
- *         下次进服默认重新订阅。</li>
+ *         下次进服默认重新订阅；重新订阅后服务端会当成新玩家整批补发。</li>
  * </ul>
  */
 public final class FurnaceDirtyClientChannel implements ClientReceiver<FurnaceDirtySyncPayload> {
@@ -59,7 +68,17 @@ public final class FurnaceDirtyClientChannel implements ClientReceiver<FurnaceDi
             syncSubscription();
             return;
         }
-        FurnaceDirtyClientState.INSTANCE.replace(payload.dimension(), payload.positions());
+        if (payload.isAdd()) {
+            FurnaceDirtyClientState.INSTANCE.addAll(payload.dimension(), payload.positions());
+            return;
+        }
+        if (payload.positions().isEmpty()) {
+            // REMOVE + 空列表 = 清空「这个维度」：换维度、规则被关掉、服务端要求重新同步。
+            // 只清对应维度，旧维度的清空包晚到时不会误伤新维度刚收到的数据。
+            FurnaceDirtyClientState.INSTANCE.clear(payload.dimension());
+            return;
+        }
+        FurnaceDirtyClientState.INSTANCE.removeAll(payload.dimension(), payload.positions());
     }
 
     /**

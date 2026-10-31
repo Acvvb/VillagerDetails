@@ -11,14 +11,22 @@ import java.util.Objects;
 /**
  * 一对传送门绑定。
  *
- * <p>在原始 6 个字段之外，额外携带两端各自的「已解析门底坐标」缓存
- * （{@link #portalA()} / {@link #portalB()}），可为 null 表示尚未解析。
+ * <p>在原始 6 个字段之外，这里还带两样东西：
+ * <ul>
+ *     <li>{@link #id()} —— 展示 / 删除 / 刷新用的<b>自增数字 ID</b>（{@code "1"}、{@code "2"}…），
+ *         由 {@code PortalBindingConfig} 统一分配。新建时可以是 {@code null}（还没入库），
+ *         入库那一刻补上，之后<b>永远不变</b>：删掉别的条目也不会让谁的数字往前挪。</li>
+ *     <li>{@link #portalA()} / {@link #portalB()} —— 两端各自的「已解析门底坐标」缓存，
+ *         可为 null 表示尚未解析。</li>
+ * </ul>
  *
- * <p><b>重要</b>：equals/hashCode 只比较 6 个原始字段，<b>忽略缓存</b>——
- * 这是为了让 {@code PortalBindingConfig.add} 的去重、以及
- * {@code bindings.indexOf(binding)} 的定位不受缓存字段影响。
+ * <p><b>重要</b>：equals/hashCode 只比较 6 个原始坐标字段，<b>既不比较 ID、也不比较缓存</b>——
+ * 这是为了让 {@code PortalBindingConfig.add} 的去重、{@code bindings.indexOf(binding)}
+ * 的定位，以及「拿扫描前的旧副本去回写缓存」都不受 ID / 缓存字段影响。
+ * ID 只是给人和指令看的标签，<b>不是身份</b>；身份始终是「两端区域的 6 个坐标」。
  */
 public record PortalBinding(
+        @Nullable String id,
         ResourceKey<Level> dimA, BlockPos minA, BlockPos maxA,
         ResourceKey<Level> dimB, BlockPos minB, BlockPos maxB,
         @Nullable BlockPos portalA,
@@ -32,12 +40,23 @@ public record PortalBinding(
         if (dimA == null || dimB == null) {
             throw new IllegalArgumentException("PortalBinding 维度不能为 null");
         }
+        // 空串是「还没分配」，统一归一化成 null，省得外面还要区分 "" 和 null
+        if (id != null && id.isBlank()) {
+            id = null;
+        }
     }
 
-    /** 不带缓存的构造（原 6 字段版本）。 */
+    /** 不带 ID、不带缓存的构造。 */
     public PortalBinding(ResourceKey<Level> dimA, BlockPos minA, BlockPos maxA,
                          ResourceKey<Level> dimB, BlockPos minB, BlockPos maxB) {
-        this(dimA, minA, maxA, dimB, minB, maxB, null, null);
+        this(null, dimA, minA, maxA, dimB, minB, maxB, null, null);
+    }
+
+    /** 不带 ID、带两侧缓存的构造（缓存回写 / 反序列化用，ID 由 Config 后补）。 */
+    public PortalBinding(ResourceKey<Level> dimA, BlockPos minA, BlockPos maxA,
+                         ResourceKey<Level> dimB, BlockPos minB, BlockPos maxB,
+                         @Nullable BlockPos portalA, @Nullable BlockPos portalB) {
+        this(null, dimA, minA, maxA, dimB, minB, maxB, portalA, portalB);
     }
 
     // ==================== 区域尺寸上限 ====================
@@ -89,14 +108,19 @@ public record PortalBinding(
         return withinSizeLimits(minA, maxA) && withinSizeLimits(minB, maxB);
     }
 
-    /** 返回替换了 A 侧缓存的新副本（原对象不变）。 */
-    public PortalBinding withPortalA(@Nullable BlockPos pos) {
-        return new PortalBinding(dimA, minA, maxA, dimB, minB, maxB, pos, portalB);
+    /** 返回换了 ID 的新副本（原对象不变）；{@code null} 表示「还没分配」。 */
+    public PortalBinding withId(@Nullable String newId) {
+        return new PortalBinding(newId, dimA, minA, maxA, dimB, minB, maxB, portalA, portalB);
     }
 
-    /** 返回替换了 B 侧缓存的新副本（原对象不变）。 */
+    /** 返回替换了 A 侧缓存的新副本（原对象不变，ID 保留）。 */
+    public PortalBinding withPortalA(@Nullable BlockPos pos) {
+        return new PortalBinding(id, dimA, minA, maxA, dimB, minB, maxB, pos, portalB);
+    }
+
+    /** 返回替换了 B 侧缓存的新副本（原对象不变，ID 保留）。 */
     public PortalBinding withPortalB(@Nullable BlockPos pos) {
-        return new PortalBinding(dimA, minA, maxA, dimB, minB, maxB, portalA, pos);
+        return new PortalBinding(id, dimA, minA, maxA, dimB, minB, maxB, portalA, pos);
     }
 
     /**
@@ -118,9 +142,12 @@ public record PortalBinding(
 
     // ==================== 原 6 字段归一化 / 工具 ====================
 
+    /**
+     * 归一化构造：两个角点谁大谁小无所谓。<b>不带 ID</b> —— 入库时由配置层分配。
+     */
     public static PortalBinding of(ResourceKey<Level> dimA, BlockPos a1, BlockPos a2,
                                    ResourceKey<Level> dimB, BlockPos b1, BlockPos b2) {
-        return new PortalBinding(dimA, min(a1, a2), max(a1, a2),
+        return new PortalBinding(null, dimA, min(a1, a2), max(a1, a2),
                 dimB, min(b1, b2), max(b1, b2), null, null);
     }
 
@@ -155,7 +182,7 @@ public record PortalBinding(
                 Math.max(a.getY(), b.getY()), Math.max(a.getZ(), b.getZ()));
     }
 
-    // ==================== equals / hashCode：忽略缓存 ====================
+    // ==================== equals / hashCode：忽略 ID 与缓存 ====================
 
     @Override
     public boolean equals(Object o) {
@@ -172,7 +199,7 @@ public record PortalBinding(
 
     @Override
     public @NonNull String toString() {
-        return "PortalBinding{" + dimA.identifier() + " " + minA + "~" + maxA
+        return "PortalBinding{#" + id + " " + dimA.identifier() + " " + minA + "~" + maxA
                 + " <-> " + dimB.identifier() + " " + minB + "~" + maxB
                 + ", portalA=" + portalA + ", portalB=" + portalB + '}';
     }

@@ -13,6 +13,14 @@ import net.minecraft.server.level.ServerPlayer;
 
 import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
 
+/**
+ * {@code /ec c VillagerBatchBedBinding} —— 把当前选区内的床批量绑定给村民（{@code batchBedBinding}）。
+ *
+ * <p><b>字面量与规则注册名必须一致</b>：{@code RuleType.VILLAGER_BATCH_BED_RESET} 的
+ * {@code registerName} 是 {@code VillagerBatchBedBinding}，所以这里的字面量也用它。
+ * 以前这里写的是 {@code batchBedBinding}，导致 {@code /ec VillagerBatchBedBinding ...} 与
+ * {@code /ec c batchBedBinding} 成了两个名字（同物异名），启动期自检现在会对这种情况打 WARN。
+ */
 public class VillagerBatchBedBindingServerImpl implements RegisterServer {
 
     public static final VillagerBatchBedBindingServerImpl INSTANCE = new VillagerBatchBedBindingServerImpl();
@@ -22,7 +30,7 @@ public class VillagerBatchBedBindingServerImpl implements RegisterServer {
 
     @Override
     public LiteralArgumentBuilder<CommandSourceStack> register() {
-        return Commands.literal("batchBedBinding")
+        return Commands.literal("VillagerBatchBedBinding")
                 .executes(VillagerBatchBedBindingServerImpl::bindAreaBeds);
     }
 

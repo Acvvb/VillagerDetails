@@ -33,6 +33,15 @@ import java.util.stream.Stream;
  * {@code ClientFeatureScanner} 过去各自递归走一遍目录树 —— 专用服启动要扫 8 次、集成服/开发客户端要扫 11 次，
  * 而扫的是同一批根、同一批类。现在统一改成「走一次、按包分组、按需取用」。
  *
+ * <p><b>扫描范围是白名单</b>（{@link #SCAN_PACKAGES}）：只索引「注册单元」实际所在的几个包
+ * （会话状态 {@code cache.impl}、服务端事件 {@code event.impl}、网络 {@code network.sync.*}、
+ * 客户端 {@code client.network.sync} / {@code client.cache.impl} / {@code client.feature}）。
+ *
+ * <p>以前是直接走 {@code com.villagerdetails} 整棵树，把 {@code pojo} / {@code handler} / {@code mixin} /
+ * {@code command} / {@code rule} 甚至客户端的界面类全部索引进内存 —— 这些目录里没有任何「被扫包注册」的东西，
+ * 白白付出遍历 + 建立索引的启动开销，也让「扫包到底扫了什么」完全没法控制。
+ * 现在加包只需改 {@link #SCAN_PACKAGES} 一处；注册中心请求白名单以外的包会直接报 ERROR（而不是悄悄扫不到）。
+ *
  * <p><b>会连子包一起扫</b>：{@code classNames("a.b")} 拿到 {@code a.b} 与所有 {@code a.b.*} 的类，
  * 客户端那几个注册中心靠这一点省配置（{@code sync.event}、{@code feature.*}、{@code cache.impl}）。
  *
@@ -65,13 +74,35 @@ public final class ScanService {
 
     private static final String CLASS_SUFFIX = ".class";
 
-    /** 全量扫描的根包：项目自己的代码都在这下面 */
-    private static final String ROOT_PACKAGE = "com.villagerdetails";
+    /**
+     * 允许被索引的包（含子包）—— <b>白名单，只收「注册单元」所在的包</b>。
+     *
+     * <p>每一项都对应一个真实存在的注册中心；不在表里的包一律不索引、也不允许查询：
+     * <ul>
+     *     <li>{@code cache.impl} —— {@code ServerSessionStates}（{@code SessionState}）</li>
+     *     <li>{@code event.impl} —— {@code ServerEventManager}（{@code ServerEventRegisterServer}）</li>
+     *     <li>{@code network.sync} —— {@code ServerChannels} 的 5 行子包 + {@code PayloadTypes}</li>
+     *     <li>{@code client.network.sync} —— {@code ClientChannels}</li>
+     *     <li>{@code client.cache.impl} —— {@code ClientSessionStates}</li>
+     *     <li>{@code client.feature} —— {@code ClientFeatureScanner}</li>
+     * </ul>
+     *
+     * <p>加一个新的扫包注册中心时，把它的包名加进这里即可；忘了加会立刻在启动日志里看到 ERROR
+     * （见 {@link #classNames(String)}），不会是「扫到 0 个、功能静默失效」。
+     */
+    private static final List<String> SCAN_PACKAGES = List.of(
+            // 服务端
+            "com.villagerdetails.cache.impl",
+            "com.villagerdetails.event.impl",
+            "com.villagerdetails.network.sync",
+            // 客户端（物理服务端不索引，见 skipClient）
+            "com.villagerdetails.client.network.sync",
+            "com.villagerdetails.client.cache.impl",
+            "com.villagerdetails.client.feature"
+    );
 
     /** 物理客户端的专属子树；专用服不扫 */
     private static final String CLIENT_PACKAGE = "com.villagerdetails.client";
-
-    private static final String ROOT_PATH = ROOT_PACKAGE.replace('.', '/');
 
     private static volatile Index index;
 
@@ -79,14 +110,14 @@ public final class ScanService {
     }
 
     /**
-     * 一次扫描的结果：按<b>完整包名</b>分组的类名，外加本次扫描的统计（日志 / 体检用）。
+     * 一次扫描的结果：按<b>完整包名</b>分组的类名。
+     *
+     * <p>只保留取数必需的 {@code byPackage}：扫描耗时 / 根数量这些统计只在
+     * {@link #build()} 里打一行日志，没有任何外部读取方（原来的 {@code stats()} 入口已删除）。
      *
      * @param byPackage 完整包名 → 该包下的类名（不含子包；子包各自成 key）
-     * @param roots     实际走到的根数量
-     * @param classes   本次扫到的类总数
-     * @param millis    本次扫描耗时（毫秒）
      */
-    public record Index(Map<String, List<String>> byPackage, int roots, int classes, long millis) {
+    public record Index(Map<String, List<String>> byPackage) {
 
         /**
          * 取某个包（含其所有子包）的类名，<b>按类名排序</b>。
@@ -119,10 +150,35 @@ public final class ScanService {
     /**
      * 取某个包（含子包）的类名，不加载。
      *
+     * <p><b>只接受白名单内的包</b>：不在 {@link #SCAN_PACKAGES} 覆盖范围内的包名会直接报 ERROR
+     * 并返回空列表 —— 这样「新加了注册中心却忘了登记包」会在启动日志里一眼看到，
+     * 而不是安静地扫到 0 个、功能悄悄失效。
+     *
      * @param packageName 包名，例如 {@code com.villagerdetails.event.impl}
      */
     public static List<String> classNames(String packageName) {
+        if (!isCovered(packageName)) {
+            log.error("扫包包名不在白名单里：{}；允许的前缀 = {}。"
+                            + "请把它的包加进 ScanService.SCAN_PACKAGES，否则这段注册会扫到 0 个类",
+                    packageName, SCAN_PACKAGES);
+            return List.of();
+        }
         return index().under(packageName);
+    }
+
+    /**
+     * 这个包 / 类名是否被白名单覆盖（自身等于某个前缀，或位于某个前缀之下）。
+     */
+    private static boolean isCovered(String packageName) {
+        if (packageName == null || packageName.isBlank()) {
+            return false;
+        }
+        for (String pkg : SCAN_PACKAGES) {
+            if (packageName.equals(pkg) || packageName.startsWith(pkg + ".")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -150,13 +206,6 @@ public final class ScanService {
             }
         }
         return classes;
-    }
-
-    /**
-     * 本次扫描的统计；第一次调用会触发扫描并打一行 INFO。
-     */
-    public static Index stats() {
-        return index();
     }
 
     // ==============================================================
@@ -203,9 +252,13 @@ public final class ScanService {
             frozen.put(entry.getKey(), new ArrayList<>(entry.getValue()));
             classes += entry.getValue().size();
         }
-        Index built = new Index(frozen, rootCount, classes, millis);
-        log.info("扫包完成：一次扫描 {} 个类 / {} 个根（子包已含），耗时 {} ms{}",
-                classes, rootCount, millis, skipClient ? "，物理服务端已跳过 client 专属包" : "");
+        Index built = new Index(frozen);
+        log.info("扫包完成：一次扫描 {} 个类 / {} 个包 / {} 个根（白名单 {} 项，子包已含），耗时 {} ms{}",
+                classes, frozen.size(), rootCount, SCAN_PACKAGES.size(), millis,
+                skipClient ? "，物理服务端已跳过 client 专属包" : "");
+        if (classes == 0) {
+            log.error("扫包结果为空：白名单 {} 一个类都没扫到 —— 检查产物里有没有把源码包打进去", SCAN_PACKAGES);
+        }
         log.debug("扫包根：{}", roots);
         return built;
     }
@@ -283,33 +336,41 @@ public final class ScanService {
     /**
      * 第三路：类加载器的资源查找（兜底）。
      *
+     * <p>按白名单逐个包 {@code getResources(packagePath)}：只走注册单元所在的目录，
+     * 不再从 {@code com/villagerdetails} 这一层整棵树开走。
+     *
      * @return 是否真的从这里找到了根
      */
     private static boolean collectFromClassLoader(Map<String, Set<String>> out, boolean skipClient) {
         boolean found = false;
-        try {
-            ClassLoader loader = Thread.currentThread().getContextClassLoader();
-            if (loader == null) {
-                loader = ScanService.class.getClassLoader();
+        ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        if (loader == null) {
+            loader = ScanService.class.getClassLoader();
+        }
+        for (String packageName : SCAN_PACKAGES) {
+            if (skipClient && packageName.startsWith(CLIENT_PACKAGE)) {
+                continue;
             }
-            Enumeration<URL> urls = loader.getResources(ROOT_PATH);
-            while (urls.hasMoreElements()) {
-                URL url = urls.nextElement();
-                found = true;
-                switch (url.getProtocol()) {
-                    case "file" -> {
-                        Path dir = Path.of(url.toURI());
-                        if (Files.isDirectory(dir)) {
-                            walkDirectory(dir, out, skipClient);
+            try {
+                Enumeration<URL> urls = loader.getResources(packageName.replace('.', '/'));
+                while (urls.hasMoreElements()) {
+                    URL url = urls.nextElement();
+                    found = true;
+                    switch (url.getProtocol()) {
+                        case "file" -> {
+                            Path dir = Path.of(url.toURI());
+                            if (Files.isDirectory(dir)) {
+                                walkDirectory(dir, packageName, out, skipClient);
+                            }
+                        }
+                        case "jar" -> collectFromJarUrl(url, out, skipClient);
+                        default -> {
                         }
                     }
-                    case "jar" -> collectFromJarUrl(url, out, skipClient);
-                    default -> {
-                    }
                 }
+            } catch (Throwable t) {
+                log.debug("从类加载器扫 {} 失败：{}", packageName, t.toString());
             }
-        } catch (Throwable t) {
-            log.debug("从类加载器扫 {} 失败：{}", ROOT_PACKAGE, t.toString());
         }
         return found;
     }
@@ -320,6 +381,9 @@ public final class ScanService {
 
     /**
      * 一个根：可能是目录（开发环境），也可能是 jar 文件（打包后）
+     *
+     * <p>目录形态逐个白名单包定位子目录再走（<b>不</b>从 {@code com/villagerdetails} 整棵走）；
+     * jar 形态只能遍历条目，但只用前缀匹配白名单，其它条目连类名都不解析。
      */
     private static void collectFromRoot(Path root, Map<String, Set<String>> out, boolean skipClient) {
         if (root == null) {
@@ -327,9 +391,14 @@ public final class ScanService {
         }
         try {
             if (Files.isDirectory(root)) {
-                Path dir = root.resolve(ROOT_PATH);
-                if (Files.isDirectory(dir)) {
-                    walkDirectory(dir, out, skipClient);
+                for (String packageName : SCAN_PACKAGES) {
+                    if (skipClient && packageName.startsWith(CLIENT_PACKAGE)) {
+                        continue;
+                    }
+                    Path dir = root.resolve(packageName.replace('.', '/'));
+                    if (Files.isDirectory(dir)) {
+                        walkDirectory(dir, packageName, out, skipClient);
+                    }
                 }
             } else if (Files.isRegularFile(root)) {
                 try (JarFile jar = new JarFile(root.toFile())) {
@@ -342,16 +411,19 @@ public final class ScanService {
     }
 
     /**
-     * 走目录。{@code dir} 就是 {@code com/villagerdetails} 这一层。
+     * 走目录。{@code dir} 就是某个白名单包对应的目录（例如 {@code .../cache/impl}），
+     * 类名由「包路径 + 相对路径」拼出来。
      */
-    private static void walkDirectory(Path dir, Map<String, Set<String>> out, boolean skipClient) {
+    private static void walkDirectory(Path dir, String packageName, Map<String, Set<String>> out,
+                                      boolean skipClient) {
         if (dir == null || !Files.isDirectory(dir)) {
             return;
         }
+        String packagePath = packageName.replace('.', '/');
         try (Stream<Path> stream = Files.walk(dir)) {
             stream.filter(Files::isRegularFile).forEach(file -> {
                 String relative = dir.relativize(file).toString().replace(File.separatorChar, '/');
-                addClassName(ROOT_PATH + "/" + relative, out, skipClient);
+                addClassName(packagePath + "/" + relative, out, skipClient);
             });
         } catch (Throwable t) {
             log.debug("扫描目录 {} 失败：{}", dir, t.toString());
@@ -373,12 +445,25 @@ public final class ScanService {
     }
 
     private static void collectFromJarEntries(JarFile jar, Map<String, Set<String>> out, boolean skipClient) {
-        String prefix = ROOT_PATH + "/";
+        List<String> prefixes = new ArrayList<>(SCAN_PACKAGES.size());
+        for (String packageName : SCAN_PACKAGES) {
+            if (skipClient && packageName.startsWith(CLIENT_PACKAGE)) {
+                continue;
+            }
+            prefixes.add(packageName.replace('.', '/') + "/");
+        }
         Enumeration<JarEntry> entries = jar.entries();
         while (entries.hasMoreElements()) {
             String name = entries.nextElement().getName();
-            if (name.startsWith(prefix)) {
-                addClassName(name, out, skipClient);
+            if (!name.endsWith(CLASS_SUFFIX)) {
+                continue;
+            }
+            // 只认白名单前缀：其它条目不解析类名，省掉对整包 pojo/handler/mixin 的处理
+            for (String prefix : prefixes) {
+                if (name.startsWith(prefix)) {
+                    addClassName(name, out, skipClient);
+                    break;
+                }
             }
         }
     }
@@ -401,8 +486,8 @@ public final class ScanService {
             return;
         }
         String className = name.replace('/', '.');
-        // 只认自己的包
-        if (!className.startsWith(ROOT_PACKAGE + ".")) {
+        // 只认白名单里的包（含子包）
+        if (!isCovered(className)) {
             return;
         }
         // 物理服务端上的客户端专属子树直接丢掉
@@ -411,11 +496,7 @@ public final class ScanService {
         }
         int lastDot = className.lastIndexOf('.');
         String packageName = lastDot < 0 ? "" : className.substring(0, lastDot);
-        Set<String> bucket = out.get(packageName);
-        if (bucket == null) {
-            bucket = new LinkedHashSet<>();
-            out.put(packageName, bucket);
-        }
+        Set<String> bucket = out.computeIfAbsent(packageName, k -> new LinkedHashSet<>());
         bucket.add(className);
     }
 }

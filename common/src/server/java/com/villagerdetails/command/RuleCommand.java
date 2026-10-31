@@ -8,7 +8,6 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.villagerdetails.VillagerDetails;
 import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.command.c.server.StateSuggestionServer;
 import com.villagerdetails.rule.RuleChangeService;
 import com.villagerdetails.rule.RuleSwitches;
 import com.villagerdetails.rule.type.RuleCategoryType;
@@ -88,12 +87,17 @@ public class RuleCommand {
     private static final String K_TOGGLE_SUCCESS = "command.entity_binder.toggle.success";
 
     //补全
+    /**
+     * {@code /ec <rule>} 的补全：列<b>全部</b>规则名（{@link RuleType#allRegisterNames()}）。
+     *
+     * <p>这里刻意<b>不</b>按「有没有 {@code /ec c <规则>} 子命令」过滤：
+     * {@code /ec <规则> <状态>} 对每条规则都成立，只能开关、没有子命令的规则
+     * （如 {@code PortalBindingEnhanced}）也必须能补出来，否则玩家会以为它消失了。
+     * {@code /ec c <规则>} 那一层只列有命令对象的规则，两者的差集是设计如此；
+     * 两个名字在「有命令」的规则上由启动期自检保证一致（见 {@code CCommand#buildCSubcommand}）。
+     */
     private static final SuggestionProvider<CommandSourceStack> RULE_SUGGESTER = (_, builder) ->
-            SharedSuggestionProvider.suggest(
-                    Arrays.stream(RuleType.values())
-                            .map(RuleType::getRegisterName)
-                            .collect(Collectors.toList()),
-                    builder);
+            SharedSuggestionProvider.suggest(RuleType.allRegisterNames(), builder);
 
     private static final SuggestionProvider<CommandSourceStack> CATEGORY_SUGGESTER = (_, builder) ->
             SharedSuggestionProvider.suggest(
@@ -102,14 +106,18 @@ public class RuleCommand {
                             .collect(Collectors.toList()),
                     builder);
 
+    /**
+     * {@code /ec <rule> <state>} 的补全：规则自己声明的快捷开关
+     * （{@code ON_OFF} / {@code PERMISSIONS} / 数字档位……）。
+     *
+     * <p>只有一个参数：「状态」就是这条规则的可选值，没有更细的结构了。
+     * 以前这里还留着一个按规则定制的 {@code StateSuggestionServer} 通道，
+     * 但 41 条规则全部传 {@code null}，那段代码永远走不到，已删除。
+     */
     private static final SuggestionProvider<CommandSourceStack> STATE_SUGGESTER = (ctx, builder) -> {
         RuleType rule = RuleType.getRuleTypeByRegisterName(StringArgumentType.getString(ctx, "rule"));
         if (rule == null) {
             return builder.buildFuture();
-        }
-        StateSuggestionServer stateSuggester = rule.getStateSuggestionServer();
-        if (stateSuggester != null) {
-            return stateSuggester.getStateSuggester().getSuggestions(ctx, builder);
         }
         return SharedSuggestionProvider.suggest(rule.getQuickSwitches(), builder);
     };

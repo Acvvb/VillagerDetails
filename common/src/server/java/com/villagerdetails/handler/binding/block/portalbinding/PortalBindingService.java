@@ -27,7 +27,7 @@ import java.util.List;
  *   <li>{@link #bind} —— 写入一条绑定，并对两侧目标区域<b>预热</b>（区域已有门才写缓存）；</li>
  *   <li>{@link #resolve(Entity, BlockPos)} / {@link #resolve(ResourceKey, BlockPos)} —— 解析目标（方案 A 多命中仲裁）；</li>
  *   <li>{@link #cachePortal} —— 传送时扫描/建门成功后回写缓存；</li>
- *   <li>{@link #refreshCachedPortals} —— {@code /ec c PortalBinding refresh <序号>} 触发，
+ *   <li>{@link #refreshCachedPortals} —— {@code /ec c PortalBinding refresh <id>} 触发，
  *       两侧重扫后一次性写回（绑定已不存在 / 服务端不可用返回 {@code null}）。</li>
  * </ul>
  *
@@ -66,16 +66,37 @@ public final class PortalBindingService {
     /**
      * 执行绑定。四个坐标均为必填，两侧都是区域。
      *
+     * <p><b>只校验「有没有」，不校验「坐标值像不像垃圾」</b>：坐标缺失（{@code null}）直接拒绝并打
+     * WARN；除此之外任何坐标都是合法的 —— 选在 {@code (0,0,0)} 这种世界原点上的区域也照样能绑，
+     * 「未设置」的判定已经由 {@code PortalSelectionCache} 的 {@code null} 统一兜住，
+     * 这里再按数值猜「占位」只会误伤真实选区。
+     *
+     * <p>真正的落盘结果由 {@link PortalBindingConfig#add} 决定（重复 / 同维度会被拒），
+     * 所以返回 {@code false} 时调用方<b>不能</b>报「绑定成功」。
+     *
      * <p>写入后立即预热：目标区域<b>已存在门</b>时解析并写缓存；区域内没门或 chunk 未加载则跳过，
      * 不自动建门 —— 建门留给首次传送（玩家真正要用时）。
      *
      * <p>如果不希望预热（要求“每次传送看到最新区域状态”），把本方法末尾两次 {@code prewarm} 调用删掉即可，
      * 其它逻辑不受影响。
+     *
+     * @return 真的写入了一条新绑定返回 {@code true}
      */
-    public static void bind(BlockPos overworldMin, BlockPos overworldMax,
-                            BlockPos netherMin, BlockPos netherMax) {
+    public static boolean bind(BlockPos overworldMin, BlockPos overworldMax,
+                               BlockPos netherMin, BlockPos netherMax) {
+        if (overworldMin == null || overworldMax == null || netherMin == null || netherMax == null) {
+            log.warn("[PortalBinding] 拒绝绑定：坐标缺失（ow={}~{}，ne={}~{}）",
+                    overworldMin, overworldMax, netherMin, netherMax);
+            return false;
+        }
+
         PortalBindingManager manager = PortalBindingManager.getInstance();
-        manager.addBinding(overworldMin, overworldMax, netherMin, netherMax);
+        if (!manager.addBinding(overworldMin, overworldMax, netherMin, netherMax)) {
+            // 重复绑定 / 同维度 / 配置层拒写：这次没有新记录，别让上层误报成功
+            log.info("[PortalBinding] 未写入新绑定（重复或非法）：ow={}~{} ne={}~{}",
+                    overworldMin, overworldMax, netherMin, netherMax);
+            return false;
+        }
 
         // addBinding 内部已归一化，用 equals 反查（忽略缓存字段）拿到真实 binding
         PortalBinding probe = PortalBinding.of(
@@ -84,11 +105,12 @@ public final class PortalBindingService {
         PortalBinding binding = findCurrent(probe);
         if (binding == null) {
             log.warn("[PortalBinding] 绑定后找不到对应记录，跳过预热");
-            return;
+            return true;
         }
 
         prewarm(binding, binding.dimA(), binding.minA(), binding.maxA(), false);
         prewarm(binding, binding.dimB(), binding.minB(), binding.maxB(), true);
+        return true;
     }
 
     /**
@@ -264,7 +286,7 @@ public final class PortalBindingService {
     /**
      * 刷新一条绑定两侧的缓存：按当前区域状态重新扫描，再一次性覆盖写回。
      *
-     * <p>供 {@code /ec c PortalBinding refresh <序号>} 指令（以及 {@code show} 里那个
+     * <p>供 {@code /ec c PortalBinding refresh <id>} 指令（以及 {@code show} 里那个
      * {@code [刷新]} 按钮）调用。语义：
      * <b>重新按「离区域中心最近」选一次</b>，不保证换成玩家想要的那扇 ——
      * 想强制某扇门，请拆掉当前那扇，或把选区框到目标门附近。

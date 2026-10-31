@@ -207,13 +207,6 @@ public final class IdTranslationConfig implements ReloadableConfig {
         log.info("已加载交易索引：{} 个交易条目", nameToId.size());
     }
 
-    /**
-     * 重置为默认表（不写盘；写盘由调用方决定）
-     */
-    public static void resetToDefault() {
-        nameToId = reverse(DEFAULT_INDEX);
-    }
-
     private static Path getConfigPath(MinecraftServer server) {
         return ConfigPaths.world(server, SAVE_RELATIVE_PATH);
     }

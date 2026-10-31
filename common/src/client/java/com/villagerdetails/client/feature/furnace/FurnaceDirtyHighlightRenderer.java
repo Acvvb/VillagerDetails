@@ -18,21 +18,20 @@ import net.minecraft.core.BlockPos;
  * 线框、{@code setAlwaysOnTop()}、外扩 1/16 防止与方块表面共面闪烁，都是现成的。
  * 这里只负责「画哪些、用什么颜色」。
  *
+ * <p><b>渲染时不做距离判断，也不需要比较维度</b>：{@link FurnaceDirtyClientState} 按维度分桶，
+ * 每个维度里只装服务端认为「在视距内」的坐标（进入视距 ADD、离开视距 REMOVE），
+ * 直接取当前维度那一桶即可。
+ *
+ * <p>只留一个兜底判断：「区块还没加载」—— 区块刚卸载、REMOVE 还在路上时，
+ * 画一个没有方块的位置没有意义。
+ *
  * <p>开关有两层，任一层关掉都看不到框：
  * <ul>
- *     <li>服务端规则 → 关了就不发，客户端收到空列表自然清空（{@link FurnaceDirtyClientState}）；</li>
+ *     <li>服务端规则 → 关了就不发，并主动让客户端清空（{@code FurnaceDirtyTracker}）；</li>
  *     <li>客户端配置项 {@link ConfigEntryType#RENDER_FURNACE_DIRTY} → 关掉还会让服务端别再发包。</li>
  * </ul>
- *
- * <p>渲染前按 {@link #RENDER_DISTANCE} 剔除：高亮是给「自己家这一片」看的，
- * 没必要把远处看不见的熔炉也画出来。
  */
 public final class FurnaceDirtyHighlightRenderer implements ClientFeature {
-
-    /**
-     * 渲染距离（格）：超过这个距离的脏熔炉不画
-     */
-    private static final double RENDER_DISTANCE = 48.0D;
 
     private FurnaceDirtyHighlightRenderer() {
     }
@@ -49,26 +48,24 @@ public final class FurnaceDirtyHighlightRenderer implements ClientFeature {
         if (!ConfigEntryType.RENDER_FURNACE_DIRTY.getToggle()) {
             return;
         }
-        FurnaceDirtyClientState.Snapshot snapshot = FurnaceDirtyClientState.INSTANCE.snapshot();
-        if (snapshot.isEmpty()) {
-            return;
-        }
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel level = minecraft.level;
         LocalPlayer player = minecraft.player;
         if (level == null || player == null) {
             return;
         }
-        // 传送到别的维度后，上一维度的列表还没被服务端的新包覆盖：维度对不上就不画，避免同坐标的「幽灵框」
-        if (!level.dimension().identifier().toString().equals(snapshot.dimension())) {
+
+        // 按维度分桶：只取当前维度那一份，不用再比对快照维度
+        var positions = FurnaceDirtyClientState.INSTANCE.positions(level.dimension().identifier().toString());
+        if (positions.isEmpty()) {
             return;
         }
 
-        BlockPos eye = player.blockPosition();
         float lineWidth = (float) ConfigEntryType.FURNACE_DIRTY_LINE_WIDTH.getNumber();
         int argb = ColorUtil.toArgb(ConfigEntryType.FURNACE_DIRTY_COLOR.getColor());
-        for (BlockPos pos : snapshot.positions()) {
-            if (!pos.closerThan(eye, RENDER_DISTANCE)) {
+        for (BlockPos pos : positions) {
+            // 兜底：区块刚卸载、REMOVE 还在路上的那一帧
+            if (!level.getChunkSource().hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
                 continue;
             }
             HighlightBoxes.drawBlock(pos, argb, lineWidth);

@@ -9,7 +9,6 @@ import com.villagerdetails.command.c.impl.rule.region.PortalPiglinNoSpawnServerI
 import com.villagerdetails.command.c.impl.rule.rule.*;
 import com.villagerdetails.command.c.server.RegisterServer;
 import com.villagerdetails.command.c.server.RegisterTypeServer;
-import com.villagerdetails.command.c.server.StateSuggestionServer;
 import com.villagerdetails.config.ReloadableConfig;
 import com.villagerdetails.config.impl.section.item.*;
 import com.villagerdetails.event.type.ListenerType;
@@ -36,12 +35,12 @@ public enum RuleType implements RegisterTypeServer {
     /**
      * 模组语言设置，控制界面和消息的服务端翻译语言。
      */
-    SETTING_LANGUAGE("Language", "setting.language", "setting.language.desc", List.of(MOD_SETTING), new ArrayList<>(), null, () -> ServerLangConfig.INSTANCE, ServerLangConfig::preloadLanguageView, RuleConfigKind.NONE, "zh_cn", null),
+    SETTING_LANGUAGE("Language", "setting.language", "setting.language.desc", List.of(MOD_SETTING), new ArrayList<>(), null, () -> ServerLangConfig.INSTANCE, ServerLangConfig::preloadLanguageView, RuleConfigKind.NONE, "zh_cn"),
 
     /**
      * /ec 命令的全局权限管理（管理除 /ec c 以外的所有权限）。
      */
-    SETTING_EC_COMMAND_PERMISSION("RuleCommand", "setting.ec_command_permission", "setting.ec_command_permission.desc", List.of(MOD_SETTING), new ArrayList<>(), null, null, () -> SETTING_PERMISSIONS, RuleConfigKind.NONE, OWNER_STR, null),
+    SETTING_EC_COMMAND_PERMISSION("RuleCommand", "setting.ec_command_permission", "setting.ec_command_permission.desc", List.of(MOD_SETTING), new ArrayList<>(), null, null, () -> SETTING_PERMISSIONS, RuleConfigKind.NONE, OWNER_STR),
 
 
     // ==========================================
@@ -52,7 +51,7 @@ public enum RuleType implements RegisterTypeServer {
      * 全局移动提速防回弹。开启后，玩家自身或骑乘载具（如乐魂、模组飞行器）移动过快时，
      * 绕过服务端的速度校验，防止被拉回和刷屏警告。
      */
-    GLOBAL_SPEED_BYPASS("GlobalSpeedBypass", "setting.global_speed_bypass", "setting.global_speed_bypass.desc", List.of(FIX), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    GLOBAL_SPEED_BYPASS("GlobalSpeedBypass", "setting.global_speed_bypass", "setting.global_speed_bypass.desc", List.of(FIX), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
 
     // ==========================================
@@ -62,44 +61,44 @@ public enum RuleType implements RegisterTypeServer {
     /**
      * 无挤压。指定实体不参与实体挤压、不受到挤压伤害。实体名单由 /ec c NoSqueeze 维护。
      */
-    VILLAGER_NO_SQUEEZE("NoSqueeze", "setting.villager_no_squeeze", "setting.villager_no_squeeze.desc", List.of(ENTITY, VILLAGER), new ArrayList<>(), () -> NoSqueezeServerImpl.INSTANCE, () -> NoSqueezeConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR, null),
+    VILLAGER_NO_SQUEEZE("NoSqueeze", "setting.villager_no_squeeze", "setting.villager_no_squeeze.desc", List.of(ENTITY, VILLAGER), new ArrayList<>(), () -> NoSqueezeServerImpl.INSTANCE, () -> NoSqueezeConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR),
 
     /**
      * 禁止生成。阻止特定实体生成。实体名单由 /ec c MobNoSpawn 维护。
      */
-    MOB_NO_SPAWN("MobNoSpawn", "rule.entity.no_spawn", "rule.entity.no_spawn.desc", List.of(ENTITY, COMMAND), new ArrayList<>(), () -> MobNoSpawnServerImpl.INSTANCE, () -> MobNoSpawnConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR, null),
+    MOB_NO_SPAWN("MobNoSpawn", "rule.entity.no_spawn", "rule.entity.no_spawn.desc", List.of(ENTITY, COMMAND), new ArrayList<>(), () -> MobNoSpawnServerImpl.INSTANCE, () -> MobNoSpawnConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR),
 
     /**
      * 禁用地狱门刷僵尸猪灵。用命名为 tool 的拴绳左/右键选出地狱门方块区域，
      * 执行 {@code /ec c PortalPiglinNoSpawn bind} 绑定；绑定区域里的地狱门方块
      * 随机刻时不再刷出僵尸猪灵（区域表见 {@link PortalPiglinNoSpawnConfig}）。
      */
-    PORTAL_PIGLIN_NO_SPAWN("PortalPiglinNoSpawn", "rule.entity.portal_piglin_no_spawn", "rule.entity.portal_piglin_no_spawn.desc", List.of(ENTITY, COMMAND), List.of(ListenerType.BLOCK_RANGE_SELECTION), () -> PortalPiglinNoSpawnServerImpl.INSTANCE, () -> PortalPiglinNoSpawnConfig.INSTANCE, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR, null),
+    PORTAL_PIGLIN_NO_SPAWN("PortalPiglinNoSpawn", "rule.entity.portal_piglin_no_spawn", "rule.entity.portal_piglin_no_spawn.desc", List.of(ENTITY, COMMAND), List.of(ListenerType.BLOCK_RANGE_SELECTION), () -> PortalPiglinNoSpawnServerImpl.INSTANCE, () -> PortalPiglinNoSpawnConfig.INSTANCE, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 僵尸村民快速治愈。命名牌写 help 贴到僵尸村民，立刻走完治愈流程（保留职业/交易/声望）。
      */
-    ZOMBIE_VILLAGER_HELP("ZombieVillagerHelp", "setting.zombie_villager_help", "setting.zombie_villager_help.desc", List.of(VILLAGER, MONSTER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    ZOMBIE_VILLAGER_HELP("ZombieVillagerHelp", "setting.zombie_villager_help", "setting.zombie_villager_help.desc", List.of(VILLAGER, MONSTER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 猪灵金块交易。允许猪灵收金块，1个金块产出原版9次交易的物品。
      */
-    PIGLIN_GOLD_BLOCK_MULTIPLY("PiglinGoldBlockMultiply", "setting.piglin_gold_block_multiply", "setting.piglin_gold_block_multiply.desc", List.of(ENTITY), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    PIGLIN_GOLD_BLOCK_MULTIPLY("PiglinGoldBlockMultiply", "setting.piglin_gold_block_multiply", "setting.piglin_gold_block_multiply.desc", List.of(ENTITY), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 猪灵交易延迟。调整猪灵交易前欣赏金锭的等待时间。
      */
-    PIGLIN_BARTER_DELAY("PiglinBarterDelay", "setting.piglin_barter_delay", "setting.piglin_barter_delay.desc", List.of(ENTITY), new ArrayList<>(), null, null, () -> List.of("3", "6", "12"), RuleConfigKind.NONE, "6", null),
+    PIGLIN_BARTER_DELAY("PiglinBarterDelay", "setting.piglin_barter_delay", "setting.piglin_barter_delay.desc", List.of(ENTITY), new ArrayList<>(), null, null, () -> List.of("3", "6", "12"), RuleConfigKind.NONE, "6"),
 
     /**
      * 猪灵金块交易惩罚。如果给金块交易失败时的惩罚机制（如消耗数量）。
      */
-    PIGLIN_GOLD_BLOCK_MULTIPLY_PUNISHMENT("PiglinGoldBlockMultiplyPunishment", "setting.piglin_gold_block_multiply_punishment", "setting.piglin_gold_block_multiply_punishment.desc", List.of(ENTITY), new ArrayList<>(), null, null, () -> List.of("1", "3", "9"), RuleConfigKind.NONE, "9", null),
+    PIGLIN_GOLD_BLOCK_MULTIPLY_PUNISHMENT("PiglinGoldBlockMultiplyPunishment", "setting.piglin_gold_block_multiply_punishment", "setting.piglin_gold_block_multiply_punishment.desc", List.of(ENTITY), new ArrayList<>(), null, null, () -> List.of("1", "3", "9"), RuleConfigKind.NONE, "9"),
 
     /**
      * 乐魂飞行速度。调整玩家骑乘乐魂时的飞行速度（没人骑时恢复原版）。
      */
-    HAPPY_GHAST_SPEED("HappyGhastSpeed", "setting.happy_ghast_speed", "setting.happy_ghast_speed.desc", List.of(FIX), new ArrayList<>(), null, null, () -> List.of("0.05", "0.1", "0.2", "0.3", "0.5", "1.0"), RuleConfigKind.NONE, "0.05", null),
+    HAPPY_GHAST_SPEED("HappyGhastSpeed", "setting.happy_ghast_speed", "setting.happy_ghast_speed.desc", List.of(FIX), new ArrayList<>(), null, null, () -> List.of("0.05", "0.1", "0.2", "0.3", "0.5", "1.0"), RuleConfigKind.NONE, "0.05"),
 
 
     // ==========================================
@@ -109,7 +108,7 @@ public enum RuleType implements RegisterTypeServer {
     /**
      * 过门失智。怪物穿过下界传送门后失去 AI，变成无脑状态。
      */
-    NO_BRAIN_ON_PORTAL("NoBrainOnPortal", "setting.no_brain_on_portal", "setting.no_brain_on_portal.desc", List.of(MONSTER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    NO_BRAIN_ON_PORTAL("NoBrainOnPortal", "setting.no_brain_on_portal", "setting.no_brain_on_portal.desc", List.of(MONSTER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
 
     // ==========================================
@@ -119,7 +118,7 @@ public enum RuleType implements RegisterTypeServer {
     /**
      * 骨粉催熟花朵相关功能。
      */
-    VILLAGER_BONE_MEAL_FLOWER("VillagerBoneMealFlower", "villagerdetails.rule.villagerbonemealflower", "villagerdetails.rule.villagerbonemealflower.desc", List.of(PLANT), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    VILLAGER_BONE_MEAL_FLOWER("VillagerBoneMealFlower", "villagerdetails.rule.villagerbonemealflower", "villagerdetails.rule.villagerbonemealflower.desc", List.of(PLANT), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
 
     // ==========================================
@@ -129,7 +128,7 @@ public enum RuleType implements RegisterTypeServer {
     /**
      * 羊无限剪毛。剪羊毛后羊立即恢复有毛状态，可反复剪。
      */
-    INFINITE_SHEAR("InfiniteShear", "setting.infinite_shear", "setting.infinite_shear.desc", List.of(ANIMAL), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    INFINITE_SHEAR("InfiniteShear", "setting.infinite_shear", "setting.infinite_shear.desc", List.of(ANIMAL), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
 
     // ==========================================
@@ -143,7 +142,7 @@ public enum RuleType implements RegisterTypeServer {
      * 规则状态里，而是落在 {@code villagerdetails/config.json} 的 {@code PlayerHeadSitting} 节，
      * 见 {@link PlayerHeadSittingConfig}。
      */
-    PLAYER_HEAD_SITTING("PlayerHeadSitting", "setting.player_head_sitting", "setting.player_head_sitting.desc", List.of(PLAYER), new ArrayList<>(), null, () -> PlayerHeadSittingConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    PLAYER_HEAD_SITTING("PlayerHeadSitting", "setting.player_head_sitting", "setting.player_head_sitting.desc", List.of(PLAYER), new ArrayList<>(), null, () -> PlayerHeadSittingConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 坐在楼梯 / 半砖上。主手空手右键楼梯或半砖即可坐上去，按 Shift 起身。
@@ -153,7 +152,7 @@ public enum RuleType implements RegisterTypeServer {
      * （{@code PlayerBlockSitting}，默认开；<b>没装本 mod 的玩家也算开</b>），
      * 所以这条规则只有一开一关，没有细项配置节。
      */
-    PLAYER_BLOCK_SITTING("PlayerBlockSitting", "setting.player_block_sitting", "setting.player_block_sitting.desc", List.of(PLAYER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    PLAYER_BLOCK_SITTING("PlayerBlockSitting", "setting.player_block_sitting", "setting.player_block_sitting.desc", List.of(PLAYER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
 
     // ==========================================
@@ -163,77 +162,77 @@ public enum RuleType implements RegisterTypeServer {
     /**
      * 村民床编辑器。使用命名为 bed 的拴绳蹲下右键选择村民和床修改绑定床。
      */
-    VILLAGER_BED_RESET("VillagerBedBinding", "setting.villager_bed_reset", "setting.villager_bed_reset.desc", List.of(VILLAGER), List.of(ListenerType.ENTITY_BLOCK_SELECTION), null, null, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR, null),
+    VILLAGER_BED_RESET("VillagerBedBinding", "setting.villager_bed_reset", "setting.villager_bed_reset.desc", List.of(VILLAGER), List.of(ListenerType.ENTITY_BLOCK_SELECTION), null, null, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 村民工作方块编辑器。使用命名为 work 的拴绳修改村民绑定的工作方块。
      */
-    VILLAGER_WORK_BLOCK_RESET("VillagerWorkBlockBinding", "setting.villager_work_block_reset", "setting.villager_work_block_reset.desc", List.of(VILLAGER), List.of(ListenerType.ENTITY_BLOCK_SELECTION), null, null, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR, null),
+    VILLAGER_WORK_BLOCK_RESET("VillagerWorkBlockBinding", "setting.villager_work_block_reset", "setting.villager_work_block_reset.desc", List.of(VILLAGER), List.of(ListenerType.ENTITY_BLOCK_SELECTION), null, null, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 批量村民床编辑器。执行指令将范围内村民绑定到最近距离的床。
      */
-    VILLAGER_BATCH_BED_RESET("VillagerBatchBedBinding", "setting.villager_batch_bed_reset", "setting.villager_batch_bed_reset.desc", List.of(VILLAGER, COMMAND), List.of(ListenerType.BLOCK_RANGE_SELECTION), () -> VillagerBatchBedBindingServerImpl.INSTANCE, null, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR, null),
+    VILLAGER_BATCH_BED_RESET("VillagerBatchBedBinding", "setting.villager_batch_bed_reset", "setting.villager_batch_bed_reset.desc", List.of(VILLAGER, COMMAND), List.of(ListenerType.BLOCK_RANGE_SELECTION), () -> VillagerBatchBedBindingServerImpl.INSTANCE, null, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 自动刷新交易。用命名牌写目标附魔，右键图书管理员刷出满级附魔交易。
      */
-    VILLAGER_AUTO_TRADER("VillagerAutoTrader", "setting.villager_auto_trader", "setting.villager_auto_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    VILLAGER_AUTO_TRADER("VillagerAutoTrader", "setting.villager_auto_trader", "setting.villager_auto_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 神装工具刷新。使用 331a/331b 命名牌刷出三附魔钻石工具。
      */
-    VILLAGER_GOD_TOOLS("VillagerGodTools", "setting.villager_god_tools", "setting.villager_god_tools.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    VILLAGER_GOD_TOOLS("VillagerGodTools", "setting.villager_god_tools", "setting.villager_god_tools.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 陶瓦刷新。使用陶瓦名称命名牌刷出对应陶瓦和带釉陶瓦。
      */
-    VILLAGER_TERRACOTTA_TRADER("VillagerTerracottaTrader", "setting.villager_terracotta_trader", "setting.villager_terracotta_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    VILLAGER_TERRACOTTA_TRADER("VillagerTerracottaTrader", "setting.villager_terracotta_trader", "setting.villager_terracotta_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 自动锁定村民交易。使用自动刷新规则刷出的附魔书自动锁定该村民交易。
      */
-    VILLAGER_AUTO_LOCK_HIT_TRADER("VillagerAutoLockHitTrader", "setting.villager_auto_lock_hit_trader", "setting.villager_auto_lock_hit_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    VILLAGER_AUTO_LOCK_HIT_TRADER("VillagerAutoLockHitTrader", "setting.villager_auto_lock_hit_trader", "setting.villager_auto_lock_hit_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 无感村民交易刷新。使用自动刷新交易规则后自动移除命名名称。
      */
-    VILLAGER_SILENT_AUTO_REROLL_TRADER("VillagerSilentTrader", "setting.villager_silent_auto_reroll_trader", "setting.villager_silent_auto_reroll_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    VILLAGER_SILENT_AUTO_REROLL_TRADER("VillagerSilentTrader", "setting.villager_silent_auto_reroll_trader", "setting.villager_silent_auto_reroll_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 每 tick 刷新交易次数。调整自动刷新交易的单 tick 刷新次数。
      */
-    VILLAGER_ONE_TICK_TRADER_COUNT("VillagerOneTickTraderCount", "setting.villager_one_tick_trader_count", "setting.villager_one_tick_trader_count.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> List.of("50", "100", "500", "1000"), RuleConfigKind.NONE, "500", null),
+    VILLAGER_ONE_TICK_TRADER_COUNT("VillagerOneTickTraderCount", "setting.villager_one_tick_trader_count", "setting.villager_one_tick_trader_count.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> List.of("50", "100", "500", "1000"), RuleConfigKind.NONE, "500"),
 
     /**
      * 勤劳的村民。调整村民每次补货的数量（默认两倍补货）。
      */
-    VILLAGER_HARD_WORKING("VillagerHardWorking", "setting.villager_hard_working", "setting.villager_hard_working.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> List.of("1", "2", "5"), RuleConfigKind.NONE, "1", null),
+    VILLAGER_HARD_WORKING("VillagerHardWorking", "setting.villager_hard_working", "setting.villager_hard_working.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> List.of("1", "2", "5"), RuleConfigKind.NONE, "1"),
 
     /**
      * 无限交易。村民的交易永不耗尽。
      */
-    VILLAGER_INFINITE_TRADE("VillagerInfiniteTrade", "setting.villager_infinite_trade", "setting.villager_infinite_trade.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    VILLAGER_INFINITE_TRADE("VillagerInfiniteTrade", "setting.villager_infinite_trade", "setting.villager_infinite_trade.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 村民移动控制器。使用命名为 move 的拴绳控制村民移动到目的地。
      */
-    VILLAGER_MOVE_CONTROLLER("VillagerMoveController", "setting.villager_move_controller", "setting.villager_move_controller.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR, null),
+    VILLAGER_MOVE_CONTROLLER("VillagerMoveController", "setting.villager_move_controller", "setting.villager_move_controller.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 村民可兑换钻石。把工具匠的钻石换绿宝石改成绿宝石换钻石。
      */
-    VILLAGER_TOOLSMITH_EXCHANGE("VillagerToolsmithExchange", "setting.villager_toolsmith_exchange", "setting.villager_toolsmith_exchange.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    VILLAGER_TOOLSMITH_EXCHANGE("VillagerToolsmithExchange", "setting.villager_toolsmith_exchange", "setting.villager_toolsmith_exchange.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 绿宝石块自动拆解。允许使用绿宝石块支付村民交易，自动拆成绿宝石。
      */
-    VILLAGER_EMERALD_DECOMPOSE("VillagerEmeraldDecompose", "setting.villager_emerald_decompose", "setting.villager_emerald_decompose.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    VILLAGER_EMERALD_DECOMPOSE("VillagerEmeraldDecompose", "setting.villager_emerald_decompose", "setting.villager_emerald_decompose.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 书架自动拆解。允许使用书架支付村民交易，自动拆成书。
      */
-    VILLAGER_BOOKSHELF_DECOMPOSE("VillagerBookshelfDecompose", "setting.villager_bookshelf_decompose", "setting.villager_bookshelf_decompose.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    VILLAGER_BOOKSHELF_DECOMPOSE("VillagerBookshelfDecompose", "setting.villager_bookshelf_decompose", "setting.villager_bookshelf_decompose.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
 
     // ==========================================
@@ -243,32 +242,32 @@ public enum RuleType implements RegisterTypeServer {
     /**
      * 方块挖掘抗性。通过指令配置特定方块的挖掘抗性（数值）。
      */
-    BLOCK_MINING_RESISTANCE("BlockMiningResistance", "rule.block.mining_resistance", "rule.block.mining_resistance.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> BlockMiningResistanceServerImpl.INSTANCE, () -> BlockMiningResistanceConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR, null),
+    BLOCK_MINING_RESISTANCE("BlockMiningResistance", "rule.block.mining_resistance", "rule.block.mining_resistance.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> BlockMiningResistanceServerImpl.INSTANCE, () -> BlockMiningResistanceConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR),
 
     /**
      * 方块可采集。通过指令配置特定方块可被采集（哪怕原版不可采集）。
      */
-    BLOCK_COLLECTABLE("BlockCollectable", "rule.block.collectable", "rule.block.collectable.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> BlockCollectableServerImpl.INSTANCE, () -> BlockCollectableConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR, null),
+    BLOCK_COLLECTABLE("BlockCollectable", "rule.block.collectable", "rule.block.collectable.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> BlockCollectableServerImpl.INSTANCE, () -> BlockCollectableConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR),
 
     /**
      * 方块爆炸抗性。通过指令配置特定方块的爆炸抗性（数值）。
      */
-    BLOCK_EXPLOSION_RESISTANCE("BlockExplosionResistance", "rule.block.explosion_resistance", "rule.block.explosion_resistance.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> BlockExplosionResistanceServerImpl.INSTANCE, () -> BlockExplosionResistanceConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR, null),
+    BLOCK_EXPLOSION_RESISTANCE("BlockExplosionResistance", "rule.block.explosion_resistance", "rule.block.explosion_resistance.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> BlockExplosionResistanceServerImpl.INSTANCE, () -> BlockExplosionResistanceConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR),
 
     /**
      * 方块红石强充能。被配置的方块作为红石导体，传递红石信号。
      */
-    BLOCK_STRONG_POWER("BlockStrongPower", "rule.block.strong_power", "rule.block.strong_power.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> BlockStrongPowerServerImpl.INSTANCE, () -> BlockStrongPowerConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR, null),
+    BLOCK_STRONG_POWER("BlockStrongPower", "rule.block.strong_power", "rule.block.strong_power.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> BlockStrongPowerServerImpl.INSTANCE, () -> BlockStrongPowerConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR),
 
     /**
      * TNT不破坏掉落物。TNT爆炸时不破坏掉落的物品。
      */
-    TNT_NO_DESTROY_DROPS("TntNoDestroyDrops", "setting.tnt_no_destroy_drops", "setting.tnt_no_destroy_drops.desc", List.of(BLOCK), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    TNT_NO_DESTROY_DROPS("TntNoDestroyDrops", "setting.tnt_no_destroy_drops", "setting.tnt_no_destroy_drops.desc", List.of(BLOCK), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 箱子合成。
      */
-    BOX_CRAFTING("BoxCrafting", "setting.box_crafting", "setting.box_crafting.desc", List.of(BLOCK), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    BOX_CRAFTING("BoxCrafting", "setting.box_crafting", "setting.box_crafting.desc", List.of(BLOCK), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 传送门绑定。将特定范围内的方块绑定到传送门。
@@ -277,24 +276,35 @@ public enum RuleType implements RegisterTypeServer {
      * 和「禁用地狱门刷僵尸猪灵」一致：档位既是开关，也是「谁能触发这条绑定」的权限等级 ——
      * 设成 {@code ops} 就只有 OP 及以上进绑定区域才会被强制传送，普通玩家照常走原版。
      */
-    PORTAL_BINDING("PortalBinding", "setting.PortalBinding", "setting.PortalBinding.desc", List.of(BLOCK), List.of(ListenerType.BLOCK_RANGE_SELECTION), () -> PortalBindingServerImpl.INSTANCE, () -> PortalBindingConfig.INSTANCE, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR, null),
+    PORTAL_BINDING("PortalBinding", "setting.PortalBinding", "setting.PortalBinding.desc", List.of(BLOCK), List.of(ListenerType.BLOCK_RANGE_SELECTION), () -> PortalBindingServerImpl.INSTANCE, () -> PortalBindingConfig.INSTANCE, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 传送门绑定增强版。
+     *
+     * <p><b>纯开关，没有自己的命令对象</b>：它只决定 {@code PortalBinding} 执行绑定 / 传送时
+     * 走不走「跳过目标位置必须已有门」的增强路径（消费方在
+     * {@code EntityPortalMixin} 里读这个开关），具体操作仍然是
+     * {@code /ec c PortalBinding set|bind|show|view|delete|refresh} 那一套。
+     *
+     * <p>曾经这里填的是 {@code PortalBindingServerImpl.INSTANCE}（和上一项同一个对象），
+     * 结果两次 {@code register()} 都产出字面量 {@code PortalBinding}，被 Brigadier 静默合并：
+     * {@code /ec c PortalBindingEnhanced} 根本不存在，且这条规则的 requirement 被丢弃。
+     * 现在固定为 {@code null}（{@code CCommand} 直接跳过），开关照旧用
+     * {@code /ec PortalBindingEnhanced <state>} 切。
      */
-    PORTAL_BINDING_ENHANCED("PortalBindingEnhanced", "setting.PortalBindingEnhanced", "setting.PortalBindingEnhanced.desc", List.of(BLOCK), List.of(ListenerType.BLOCK_RANGE_SELECTION), () -> PortalBindingServerImpl.INSTANCE, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    PORTAL_BINDING_ENHANCED("PortalBindingEnhanced", "setting.PortalBindingEnhanced", "setting.PortalBindingEnhanced.desc", List.of(BLOCK), List.of(ListenerType.BLOCK_RANGE_SELECTION), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 末地门重力方块。配置的方块如果在末地传送门 5x5x5 范围内且悬空，会像沙子一样掉落。
      */
-    ENDER_PORTAL_GRAVITY_BLOCK("EndPortalGravityBlock", "rule.block.end_portal_gravity", "rule.block.end_portal_gravity.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> EndPortalGravityBlockServerImpl.INSTANCE, () -> EndPortalGravityBlockConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR, null),
+    ENDER_PORTAL_GRAVITY_BLOCK("EndPortalGravityBlock", "rule.block.end_portal_gravity", "rule.block.end_portal_gravity.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> EndPortalGravityBlockServerImpl.INSTANCE, () -> EndPortalGravityBlockConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR),
 
     /**
      * 熔炉脏东西高亮。熔炉的输入槽里有烧不了的东西、或者燃料槽里不是有效燃料时，
      * 在客户端把这个熔炉框成高亮（服务端判定，客户端只负责画）。
      * 扫描半径 / 间隔在 {@code villagerdetails/config.json} 的 {@code FurnaceDirtyHighlight} 节里配。
      */
-    FURNACE_DIRTY_HIGHLIGHT("FurnaceDirtyHighlight", "rule.block.furnace_dirty_highlight", "rule.block.furnace_dirty_highlight.desc", List.of(BLOCK), new ArrayList<>(), null, () -> FurnaceDirtyHighlightConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR, null),
+    FURNACE_DIRTY_HIGHLIGHT("FurnaceDirtyHighlight", "rule.block.furnace_dirty_highlight", "rule.block.furnace_dirty_highlight.desc", List.of(BLOCK), new ArrayList<>(), null, () -> FurnaceDirtyHighlightConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     ;
 
@@ -349,13 +359,7 @@ public enum RuleType implements RegisterTypeServer {
      */
     private final String state;
 
-    /**
-     * 状态参数的服务端补全器的延迟加载 Supplier。
-     */
-    private final Supplier<StateSuggestionServer> stateSuggestionServer;
-
-
-    RuleType(String registerName, String displayName, String displayInfo, List<RuleCategoryType> category, List<ListenerType> listenerType, Supplier<RegisterServer> commandClass, Supplier<ReloadableConfig> reloadableConfig, Supplier<List<String>> quickSwitches, RuleConfigKind configKind, String state, Supplier<StateSuggestionServer> stateSuggestionServer) {
+    RuleType(String registerName, String displayName, String displayInfo, List<RuleCategoryType> category, List<ListenerType> listenerType, Supplier<RegisterServer> commandClass, Supplier<ReloadableConfig> reloadableConfig, Supplier<List<String>> quickSwitches, RuleConfigKind configKind, String state) {
         this.listenerType = listenerType;
         this.reloadableConfig = reloadableConfig;
         this.quickSwitches = quickSwitches;
@@ -366,7 +370,6 @@ public enum RuleType implements RegisterTypeServer {
         this.commandObject = commandClass;
         this.configKind = configKind == null ? RuleConfigKind.NONE : configKind;
         this.state = state;
-        this.stateSuggestionServer = stateSuggestionServer;
     }
 
     public String getRegisterName() {
@@ -430,8 +433,21 @@ public enum RuleType implements RegisterTypeServer {
         return state;
     }
 
-    public StateSuggestionServer getStateSuggestionServer() {
-        return stateSuggestionServer != null ? stateSuggestionServer.get() : null;
+    /**
+     * 全部注册名，按枚举声明顺序 —— {@code /ec <rule>} 的补全就用这一份。
+     *
+     * <p><b>不要</b>拿「有命令对象的规则」来补这一层：{@code /ec <rule> <state>} 对
+     * 每条规则都成立（哪怕它没有 {@code /ec c <规则>} 子命令，也照样能开关），
+     * 只列有命令的会让人以为开关也一起没了。反过来 {@code /ec c <规则>} 只列
+     * {@link #getCommandObject()} 非空的规则，两边差集是<b>设计如此</b>：
+     * 有命令的规则名与命令字面量由启动期自检保证一一对应，不会再出现同物异名。
+     */
+    public static List<String> allRegisterNames() {
+        List<String> names = new ArrayList<>(values().length);
+        for (RuleType ruleType : values()) {
+            names.add(ruleType.getRegisterName());
+        }
+        return names;
     }
 
     public static RuleType getRuleTypeByRegisterName(String registerName) {

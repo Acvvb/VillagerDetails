@@ -14,8 +14,8 @@ import java.util.function.Consumer;
  *
  * <p>{@code com.villagerdetails.network.sync} 下<b>每个目录对应一个角色接口</b>，
  * 这里就按「目录 → 接口 → 初始化方法」一张表逐行取数、逐行调方法（见 {@link #ROLES}）：
- * 目录树只由 {@link com.villagerdetails.util.ScanService} 走一次，这五行只是按包名 + 角色过滤
- * （改造前是每行各自递归扫一遍，五行就是五遍）。
+ * 目录树只由 {@link com.villagerdetails.util.ScanService} 走一次，这几行只是按包名 + 角色过滤
+ * （改造前是每行各自递归扫一遍，几行就是几遍）。
  *
  * <table border="1">
  *     <caption>目录与角色接口</caption>
@@ -25,11 +25,13 @@ import java.util.function.Consumer;
  *     <tr><td>{@code payload.serverbound}</td><td>{@code ServerboundPayload}</td>
  *         <td>{@code static register(Class)}（由 {@link PayloadTypes} 调用）</td></tr>
  *     <tr><td>{@code clientbound}</td><td>{@link ClientboundChannel}</td><td>{@code register()}（自检包定义）</td></tr>
- *     <tr><td>{@code serverbound}</td><td>{@link ServerboundChannel}</td><td>{@code register()}（自检包定义）</td></tr>
  *     <tr><td>{@code receiver}</td><td>{@link ServerReceiver}</td><td>{@code registerServerReceiver()}</td></tr>
  *     <tr><td>{@code event}</td><td>{@link SyncEvents}</td><td>{@code registerEvents()}</td></tr>
- *     <tr><td>{@code other}</td><td>{@link SyncRegistrar}</td><td>{@code register()}</td></tr>
  * </table>
+ *
+ * <p>{@code serverbound} / {@code other} 两个预留空目录已经删除（它们只剩 {@code package-info}，
+ * 对应的 {@code ServerboundChannel} / {@code SyncRegistrar} 两个角色接口也没有任何实现）。
+ * 将来真要做「服务端显式 C→S 封装」或「兜底同步」时，再一起补：目录 + 角色接口 + 这里一行 Role。
  *
  * <p>扫包 / 实例化 / 失败汇总复用 main 的 {@link ChannelScanner}，和
  * {@code ClientChannels}、{@code ServerEventManager}、{@code ServerSessionStates} 同一套底座。
@@ -47,17 +49,15 @@ public final class ServerChannels {
     private static final String SYNC_PACKAGE = "com.villagerdetails.network.sync";
 
     private static final String CLIENTBOUND_PACKAGE = SYNC_PACKAGE + ".clientbound";
-    private static final String SERVERBOUND_PACKAGE = SYNC_PACKAGE + ".serverbound";
     private static final String RECEIVER_PACKAGE = SYNC_PACKAGE + ".receiver";
     private static final String EVENT_PACKAGE = SYNC_PACKAGE + ".event";
-    private static final String OTHER_PACKAGE = SYNC_PACKAGE + ".other";
 
     /**
      * 一条「目录 → 角色接口 → 初始化动作」的登记项。
      *
      * @param packageName 扫哪个目录
      * @param stage       日志 / 失败项里的阶段名
-     * @param required    这个目录允许不允许是空的（{@code .other} / {@code .serverbound} 现在就是空的）
+     * @param required    这个目录允许不允许是空的
      * @param role        只认实现了这个接口的类
      * @param initializer 对每个实例调它的初始化方法
      */
@@ -66,19 +66,15 @@ public final class ServerChannels {
     }
 
     /**
-     * 目录清单：顺序就是初始化顺序（包类型 → 通道自检 → 收包 → 事件 → 兜底）。
+     * 目录清单：顺序就是初始化顺序（包类型 → 通道自检 → 收包 → 事件）。
      */
     private static final List<Role> ROLES = List.of(
             new Role(CLIENTBOUND_PACKAGE, "S→C 通道", true, ClientboundChannel.class,
                     item -> ((ClientboundChannel<?>) item).register()),
-            new Role(SERVERBOUND_PACKAGE, "C→S 封装", false, ServerboundChannel.class,
-                    item -> ((ServerboundChannel<?>) item).register()),
             new Role(RECEIVER_PACKAGE, "服务端收包", true, ServerReceiver.class,
                     item -> ((ServerReceiver<?>) item).registerServerReceiver()),
             new Role(EVENT_PACKAGE, "服务端事件", true, SyncEvents.class,
-                    item -> ((SyncEvents) item).registerEvents()),
-            new Role(OTHER_PACKAGE, "兜底同步", false, SyncRegistrar.class,
-                    item -> ((SyncRegistrar) item).register()));
+                    item -> ((SyncEvents) item).registerEvents()));
 
     private static final AtomicBoolean REGISTERED = new AtomicBoolean();
 

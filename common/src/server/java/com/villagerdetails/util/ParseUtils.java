@@ -84,28 +84,4 @@ public final class ParseUtils {
         if ("false".equalsIgnoreCase(trimmed)) return false;
         return defaultValue;
     }
-
-    public static int toIntOrLog(String s, int defaultValue, String context) {
-        if (s == null) return defaultValue;
-        String trimmed = s.trim();
-        if (trimmed.isEmpty()) return defaultValue;
-        try {
-            return Integer.parseInt(trimmed);
-        } catch (NumberFormatException e) {
-            System.err.println("[ParseUtils] " + context + " 无法转为 int：" + s);
-            return defaultValue;
-        }
-    }
-
-    public static float toFloatOrLog(String s, float defaultValue, String context) {
-        if (s == null) return defaultValue;
-        String trimmed = s.trim();
-        if (trimmed.isEmpty()) return defaultValue;
-        try {
-            return Float.parseFloat(trimmed);
-        } catch (NumberFormatException e) {
-            System.err.println("[ParseUtils] " + context + " 无法转为 float：" + s);
-            return defaultValue;
-        }
-    }
 }

@@ -30,6 +30,18 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class RuleConfig implements ReloadableConfig {
 
+    /**
+     * <b>仅作为 {@code ConfigRegistry} 的注册门面，无法读取真实数据。</b>
+     *
+     * <p>它 {@code filePath == null}，{@code load() / save() / getBindingState()} 全是空操作：
+     * 真正带数据的是 {@link #getOrCreate(MinecraftServer)} 按 server 缓存的那个实例。
+     * 这个常量存在的唯一原因是注册表需要一个「名字 + reload 入口」，
+     * 而 {@link #reload(MinecraftServer)} 会转手调 {@code RuleChangeService.reload}，
+     * 由后者去拿真实实例。
+     *
+     * <p><b>要读 / 写规则的绑定状态，请一律走 {@link #getOrCreate(MinecraftServer)}</b>；
+     * 直接 {@code RuleConfig.INSTANCE.getBindingState(...)} 拿到的永远是默认值。
+     */
     public static final RuleConfig INSTANCE = new RuleConfig();
 
     private RuleConfig() {
@@ -41,9 +53,18 @@ public class RuleConfig implements ReloadableConfig {
         return "RuleConfig";
     }
 
+    /**
+     * 重载：把 {@code villager_details_binding.json} <b>重新从磁盘读一遍</b>，再回灌进规则缓存。
+     *
+     * <p>为什么先丢缓存实例：{@link #getOrCreate} 按 server 缓存实例，实例里的
+     * {@code bindingStates} 是「启动时读到的内存副本」；不丢掉它，手改配置后执行
+     * {@code /ec c reload} 只会把旧副本再应用一遍，等于没重载。丢掉前先 {@code save()}，
+     * 避免把还没落盘的改动弄丢。
+     */
     @Override
     public void reload(MinecraftServer server) {
-        // 走统一入口：改规则只认 RuleChangeService
+        onServerStopping(server);
+        // 走统一入口：改规则只认 RuleChangeService（它会 getOrCreate 一份新的 = 重新读盘）
         RuleChangeService.reload(server);
     }
 
