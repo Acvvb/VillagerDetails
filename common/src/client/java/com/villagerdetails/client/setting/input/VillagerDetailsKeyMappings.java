@@ -14,9 +14,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 快捷键：
@@ -27,6 +30,8 @@ import java.util.Map;
  * </ul>
  */
 public final class VillagerDetailsKeyMappings {
+
+    private static final Logger LOG = LogManager.getLogger(VillagerDetailsKeyMappings.class);
 
     /**
      * 打开设置界面的默认按键
@@ -58,10 +63,24 @@ public final class VillagerDetailsKeyMappings {
      */
     private static final Map<ConfigEntryType, Boolean> HOTKEY_DOWN = new EnumMap<>(ConfigEntryType.class);
 
+    /**
+     * tick 监听是否已经挂上。
+     *
+     * <p>重复挂载会让每个 tick 跑两遍：功能开关快捷键被切两次（等于没切）、
+     * 打开界面的键也会被处理两次。和 {@code ClientChannels} 那几个注册中心保持同一套「先抢位再干活」。
+     */
+    private static final AtomicBoolean REGISTERED = new AtomicBoolean();
+
     private VillagerDetailsKeyMappings() {
     }
 
     public static void register() {
+        if (!REGISTERED.compareAndSet(false, true)) {
+            // 防呆：全局只该有一个直接触发源（VillagerDetailsClient.onInitializeClient）
+            LOG.warn("检测到 VillagerDetailsKeyMappings.register() 被重复调用，本次已忽略。"
+                    + "请检查客户端入口是否重复注册！");
+            return;
+        }
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             migrateLegacyDefaultKey(client);
             while (OPEN_CONFIG.consumeClick()) {

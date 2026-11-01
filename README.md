@@ -154,6 +154,7 @@ Additionally, `/op <player> <0-4>` overrides a player's permission level: level 
 ### Client Features
 
 - **Config GUI** — press `J` (rebindable) to open the in-game config screen with toggles, render options, and key bindings
+- **Proportional UI scaling** — the config GUI is laid out for a 480-px wide logical space (= GUI Scale 4 on 1920×1080). When the logical width is narrower (GUI Scale 5 / 6) the whole screen is scaled down uniformly instead of shrinking individual controls, so every control, font size and gap keeps its original proportion and nothing overlaps
 - **Villager-bed line rendering** — draw a line between a villager and its bound bed; color warns when too far
 - **EB / BB selection highlight** — visualize entity-box and block-box selections
 - **Portal region highlight** — visualize both sides of a bound portal pair
@@ -443,6 +444,7 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 ### 客户端功能
 
 - **配置 GUI**：按 `J`（可自定义）打开模组配置界面，支持功能开关、渲染选项、按键绑定等
+- **界面等比缩放**：配置界面按 480 逻辑像素宽（相当于 1920×1080 + GUI Scale 4）设计；窗口逻辑宽度更窄时（GUI Scale 5 / 6）整块界面等比缩小，控件、字号、间距全部保持原始比例，不做任何局部压缩，也就不会重叠
 - **村民-床连线渲染**：在村民与其绑定的床之间绘制连线，距离过远时变色告警
 - **EB/BB 选区高亮**：可视化实体-方块选择器与方块-方块选择器的选中区域
 - **传送门区域高亮**：绑定传送门的两侧区域可视化

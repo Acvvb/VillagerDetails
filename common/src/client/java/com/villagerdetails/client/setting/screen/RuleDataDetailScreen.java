@@ -123,6 +123,20 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     private boolean addToggleOn;
 
     /**
+     * 新增行里「还没提交」的 id 文本。
+     *
+     * <p>删掉列表里的某一项会重建整页控件，输入框是重建时新建的 —— 没有它，
+     * 玩家一边新增一边删旧条目时，正在打的 id 会被无声清空。输入框的 responder 同步更新它，
+     * {@code buildAddRow} 重建时再填回去。
+     */
+    private String addIdText = "";
+
+    /**
+     * 新增行里「还没提交」的值文本（开关模式恒为空）
+     */
+    private String addValueText = "";
+
+    /**
      * @param parent 关闭后返回的那一页
      * @param row    这一页在编辑哪条规则的哪条数据
      */
@@ -176,6 +190,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
             if (id.isEmpty()) {
                 // id 都没填 = 作废这次添加，正常保存退出
                 this.adding = false;
+                clearAddText();
                 popup.reset();
             } else if (!flushAddRow()) {
                 // flushAddRow 内部已经把出错的输入框标红 + 弹窗提示，这里只要拦住关闭
@@ -368,6 +383,9 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
 
     /**
      * 最后一行：「+」添加按钮 / 点开后变成输入框
+     *
+     * <p>删掉某个条目会重建整页控件：重建时把玩家正在打的 id / 值 / 开关状态原样填回去
+     * （{@link #addIdText} / {@link #addValueText} / {@link #addToggleOn}）。
      */
     private List<RowListPage.Widget> buildAddRow(int y) {
         List<RowListPage.Widget> widgets = new ArrayList<>();
@@ -384,7 +402,12 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
                 Component.translatable("villagerdetails.ui.list.add"));
         idBox.setHint(Component.translatable("villagerdetails.ui.rule_data.add.hint"));
         idBox.setMaxLength(MAX_ADD_ID_LENGTH);
+        // 重建时把上一步没提交的内容填回去（放在 setResponder 之前，避免触发一次多余的预填 / 重算）
+        if (!addIdText.isEmpty()) {
+            idBox.setValue(addIdText);
+        }
         idBox.setResponder(text -> {
+            this.addIdText = text;
             popup.update(text, maxSuggestions(),
                     (query, limit) -> RuleAuxCache.INSTANCE.suggestions(rule.registerName(), query, limit));
             idBox.setTextColor(EditBox.DEFAULT_TEXT_COLOR);
@@ -393,6 +416,11 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         });
         this.addIdBox = idBox;
         widgets.add(RowListPage.at(addWidget(idBox)));
+        // 填回去的内容也要把候选列表恢复出来
+        if (!addIdText.isEmpty()) {
+            popup.update(addIdText, maxSuggestions(),
+                    (query, limit) -> RuleAuxCache.INSTANCE.suggestions(rule.registerName(), query, limit));
+        }
         requestFocus(idBox);
 
         if (isPlain()) {
@@ -405,19 +433,23 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
                 Component.translatable("villagerdetails.ui.rule_data.value"));
         valueBox.setMaxLength(MAX_VALUE_LENGTH);
         valueBox.setHint(Component.translatable("villagerdetails.ui.rule_data.value.hint"));
+        if (!addValueText.isEmpty()) {
+            valueBox.setValue(addValueText);
+        }
+        // 值也要跟着记下来：删条目会重建控件，没记就丢了
+        valueBox.setResponder(text -> this.addValueText = text);
         this.addValueBox = valueBox;
         widgets.add(RowListPage.at(addWidget(valueBox)));
         return widgets;
     }
 
     /**
-     * 开关模式新增行的「是 / 否」：默认「否」，填好 id 之后按那个 id 现在的状态摆。
+     * 开关模式新增行的「是 / 否」：新开一轮时默认「否」，填好 id 之后按那个 id 现在的状态摆；
+     * 重建控件时保留玩家已经拨好的值（{@link #addToggleOn}）。
      */
     private void buildAddToggle(int y, List<RowListPage.Widget> widgets) {
-        this.addToggleOn = false;
-
         SwitchButton toggle = ToggleSwitchButton.create(valueX(), y, RULE_DATA_VALUE_WIDTH, WIDGET_HEIGHT,
-                        false, () -> {
+                        addToggleOn, () -> {
                             this.addToggleOn = !this.addToggleOn;
                             applyToggleVisual(addToggle, addToggleOn);
                         })
@@ -447,13 +479,13 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     }
 
     /**
-     * 新一轮新增开始时，把上一轮留下的控件引用清干净
+     * 新一轮新增开始时，把上一轮留下的控件引用和暂存文本一起清干净
      */
     private void clearAddWidgets() {
         this.addIdBox = null;
         this.addValueBox = null;
         this.addToggle = null;
-        this.addToggleOn = false;
+        clearAddText();
         popup.reset();
     }
 
@@ -503,12 +535,20 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
      */
     private void startAdd() {
         this.adding = true;
+        // 新开一轮：清掉上一轮遗留的文本 / 开关状态
+        this.addIdText = "";
+        this.addValueText = "";
+        this.addToggleOn = false;
         popup.reset();
         rebuildWidgets();
     }
 
     /**
      * 删除某个 id 的条目（只动工作副本）
+     *
+     * <p>重建整页控件不会丢掉「新增行」里正在打的 id / 值和拨好的开关：
+     * 它们存在 {@link #addIdText} / {@link #addValueText} / {@link #addToggleOn} 上，
+     * {@code buildAddRow} 重建时会填回去。
      */
     private void deleteValue(String id) {
         values.remove(id);
@@ -528,6 +568,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         if (id.isEmpty()) {
             // 什么都没填 = 取消，不算错
             this.adding = false;
+            clearAddText();
             return false;
         }
         if (!RuleAuxCache.INSTANCE.knowsId(rule.registerName(), id)) {
@@ -560,9 +601,19 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
         }
 
         this.adding = false;
+        clearAddText();
         popup.reset();
         values.put(id, isPlain() ? value : normalizeValue(value));
         return true;
+    }
+
+    /**
+     * 清掉「新增行」的暂存内容（收下 / 取消 / 作废之后调）
+     */
+    private void clearAddText() {
+        this.addIdText = "";
+        this.addValueText = "";
+        this.addToggleOn = false;
     }
 
     /**
@@ -595,6 +646,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
             return;
         }
         this.adding = false;
+        clearAddText();
         popup.reset();
         rebuildWidgets();
     }
@@ -629,7 +681,8 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
      */
     @Override
     protected void drawOverlay(GuiGraphicsExtractor graphics) {
-        if (adding) {
+        // 新增那一行滚出画布时不再画弹窗：缩放模式下画布没有 scissor，弹在画布外会露出面板
+        if (adding && page.isRowVisible(values.size())) {
             popup.draw(graphics, this.font, popupBounds());
         }
     }
@@ -645,7 +698,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
      * 点击：命中补全候选就填进 id 输入框；否则点列表区空白处（不含输入框/开关自身）= 提交新增；其余交给原版
      */
     @Override
-    public boolean mouseClicked(@NonNull MouseButtonEvent event, boolean doubleClick) {
+    protected boolean mouseClickedScaled(@NonNull MouseButtonEvent event, boolean doubleClick) {
         if (adding) {
             int hit = popup.hitTest(popupBounds(), event.x(), event.y());
             if (hit >= 0) {
@@ -662,7 +715,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
                 return true;
             }
         }
-        return super.mouseClicked(event, doubleClick);
+        return super.mouseClickedScaled(event, doubleClick);
     }
 
     /**

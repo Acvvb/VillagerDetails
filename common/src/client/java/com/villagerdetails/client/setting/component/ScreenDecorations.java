@@ -66,8 +66,11 @@ public final class ScreenDecorations {
 
     /**
      * 居中画标题
+     *
+     * @param uiWidth 基准空间里的界面宽度（缩放后的界面不能用 {@code screen.width}，
+     *                那是真实逻辑宽度，会把标题居中到缩放前的位置上）
      */
-    public static void drawTitle(GuiGraphicsExtractor graphics, Screen screen, Component title) {
-        graphics.centeredText(screen.getFont(), title, screen.width / 2, TITLE_Y, COLOR_TITLE);
+    public static void drawTitle(GuiGraphicsExtractor graphics, Screen screen, Component title, int uiWidth) {
+        graphics.centeredText(screen.getFont(), title, uiWidth / 2, TITLE_Y, COLOR_TITLE);
     }
 }

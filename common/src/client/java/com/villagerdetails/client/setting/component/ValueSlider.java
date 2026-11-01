@@ -93,6 +93,35 @@ public class ValueSlider extends AbstractSliderButton {
         }
     }
 
+    /**
+     * 鼠标滚轮：滚一格 = 一个步长（向上加、向下减），并夹在 {@code [min, max]} 里。
+     *
+     * <p>为什么放在组件里：屏幕层只知道「鼠标在哪个控件上」，只有滑条自己知道步长 / 范围，
+     * 也只有它能走 {@code setValue → applyValue} 这条正规链路（顺带更新文字、回调写配置）。
+     *
+     * <p>返回值刻意表示<b>「这次滚轮归我管」</b>而不是「值真的变了」：鼠标停在滑条上时，
+     * 到边界后再滚也不该让背后的列表跟着滚 —— 否则玩家想微调数值，列表却跳了一屏。
+     * 想滚列表就把指针移开滑条（行内的标签 / 空白处都可以）。
+     *
+     * @param scrollY 滚轮方向（正数向上，负数向下）
+     * @return {@code true} = 这次滚轮已被滑条吃掉了
+     */
+    public boolean handleMouseScrolled(double scrollY) {
+        if (scrollY == 0.0D || step <= 0.0D || max <= min) {
+            // 没有步长 / 范围退化：交给别处处理（否则会把整个列表的滚动吞掉）
+            return false;
+        }
+        double before = getActualValue();
+        double target = Math.clamp(before + (scrollY > 0.0D ? step : -step), min, max);
+        setActualValue(target);
+        double after = getActualValue();
+        if (after != before && onCommit != null) {
+            // 滚轮每格都是一次确定的修改，直接落盘（不用等松手这种动作）
+            onCommit.run();
+        }
+        return true;
+    }
+
     private static double toRatio(double value, double min, double max) {
         if (max <= min) {
             return 0.0D;

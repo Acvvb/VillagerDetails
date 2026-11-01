@@ -51,10 +51,15 @@ public final class ClientRequests {
     }
 
     /**
-     * 要某条规则的「可选 id + 原版值」清单（打开它的详情页时发一次）
+     * 要某条规则的「可选 id + 原版值」清单（打开它的详情页时发一次）。
+     *
+     * <p><b>返回是否真的发出去了</b>：调用方（{@link com.villagerdetails.client.cache.impl.RuleAuxCache}）
+     * 靠它决定要不要记下「这条规则已经请求过」。如果对面没装 mod / 通道还没就绪，这里返回
+     * {@code false}，调用方就不会记，下次打开详情页会重试 —— 否则这次请求会永久丢失，
+     * 整局都拿不到补全与预填数据。
      */
-    public void requestRuleDataOptions(String registerName) {
-        ClientReceiver.send(new RuleDataOptionsRequestPayload(registerName));
+    public boolean requestRuleDataOptions(String registerName) {
+        return ClientReceiver.send(new RuleDataOptionsRequestPayload(registerName));
     }
 
     /**

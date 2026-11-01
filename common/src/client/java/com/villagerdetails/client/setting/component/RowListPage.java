@@ -80,9 +80,28 @@ public final class RowListPage {
 
     private ScrollBar scrollBar;
 
+    /**
+     * 是否「整行步进」（缩放后的界面用）。
+     *
+     * <p>为什么要它：界面整体等比缩放时不能再开 scissor 裁剪行画布 —— 26.x 的
+     * {@code enableScissor} 会把矩形按当前 pose 变换后入栈，而控件悬停用的鼠标坐标是「基准空间」的，
+     * 两套空间对不上会让 tooltip / 悬停高亮在画布里整体失效。
+     *
+     * <p>所以缩放时改为：滚动偏移取整到整行（不再有半行）、只画完整落在画布里的行、
+     * 绘制时不裁剪。观感从「连续平滑滚动」变成「整行步进」，但悬停、tooltip、点击全部正常。
+     */
+    private boolean snapToRows;
+
     public RowListPage(IntSupplier totalRows, int maxRowsPerPage) {
         this.totalRows = totalRows;
         this.maxRowsPerPage = maxRowsPerPage;
+    }
+
+    /**
+     * 切换「整行步进」模式（缩放后的界面必须打开，见 {@link #snapToRows}）
+     */
+    public void setSnapToRows(boolean snap) {
+        this.snapToRows = snap;
     }
 
     /**
@@ -142,8 +161,13 @@ public final class RowListPage {
 
     /**
      * 这一行现在该摆在哪个 y（带滚动偏移）
+     *
+     * <p>{@link #snapToRows} 打开时偏移量取整到整行，所以不会出现「半行」。
      */
     public float rowDrawY(int index) {
+        if (snapToRows) {
+            return rowY(index) - Math.round(scroll.scroll()) * ROW_HEIGHT;
+        }
         return rowY(index) - scroll.offsetPx(ROW_HEIGHT);
     }
 
@@ -235,14 +259,27 @@ public final class RowListPage {
     }
 
     /**
-     * 和画布有交集就画（上下允许露半个项，多出来的由 {@link #drawRows} 的画布裁掉）
+     * 这一行现在该不该画。
+     *
+     * <p>平滑模式：和画布有交集就画（上下允许露半个项，多出来的由 {@link #drawRows} 的画布裁掉）。
+     * 整行模式（缩放后的界面）：必须<b>整个</b>落在画布里 —— 没有裁剪，半行会露到画布外面去。
      *
      * <p>判据用的是 {@link #viewportBottom()}（整页高度）而不是面板底边：行数不足一页时面板贴着
      * 最后一行收边，但画布仍然是一整页 —— 详情页的补全弹窗就画在「添加」那一行下面那片空白里。
      */
     private boolean rowVisible(int index) {
         float y = rowDrawY(index);
+        if (snapToRows) {
+            return y >= rowsTop && y + WIDGET_HEIGHT <= viewportBottom();
+        }
         return y + WIDGET_HEIGHT > canvasTop() && y < viewportBottom();
+    }
+
+    /**
+     * 第 {@code index} 行现在画不画（不可见 = 滚出画布了）
+     */
+    public boolean isRowVisible(int index) {
+        return index >= 0 && index < rows.size() && rowVisible(index);
     }
 
     /**
@@ -269,6 +306,18 @@ public final class RowListPage {
     }
 
     /**
+     * 回到顶部（切一级 / 二级分类时调）。
+     *
+     * <p>滚动位置挂在 {@link RowScrollState} 上，而它是本组件的长生命周期字段 ——
+     * 切分类只重建控件、不动它，于是新分类会「继承」上一个分类的滚动位置：如果新分类内容更少，
+     * 玩家会看到一个已经被拉到中间/底部的列表，甚至一片空白（看起来像分类没内容）。
+     * 切分类是「换了一页内容」，理应回到顶部。
+     */
+    public void resetScroll() {
+        scroll.set(0.0D, totalRows.getAsInt(), rowsPerPage());
+    }
+
+    /**
      * 直接设到某一行，不做动画（拖滚动条 / 点轨道时用：要求「手到哪、内容到哪」）
      */
     public void setScroll(double row) {
@@ -286,10 +335,21 @@ public final class RowListPage {
     /**
      * 每帧推进一次滚动动画。
      *
+     * <p>整行模式（缩放后的界面）不做插值：直接吸附到目标行，避免出现半行。
+     *
      * @param frameTicks 这一帧经过了多少个 tick（60fps ≈ 0.33，20fps ≈ 1.0）
      * @return 位置有没有变（没变就不用重摆控件）
      */
     public boolean advance(float frameTicks) {
+        if (snapToRows) {
+            float target = scroll.target();
+            if (scroll.scroll() == target) {
+                return false;
+            }
+            scroll.set(target, totalRows.getAsInt(), rowsPerPage());
+            updatePositions();
+            return true;
+        }
         if (!scroll.advance(frameTicks)) {
             return false;
         }
@@ -307,16 +367,31 @@ public final class RowListPage {
     }
 
     /**
-     * 把行画在「一页」这块画布里：先开 scissor 当画布，再让每一行自己渲染。
+     * 把行画在「一页」这块画布里。
      *
-     * <p>滚动时上下两端那半个项照常渲染，超出画布的部分直接被裁掉 ——
-     * 看起来就是「列表被一个方框挡住」，而不是整行突然消失。画布下边界用的是整页高度
-     * （见 {@link #rowVisible}），所以详情页的补全弹窗能在最后一行下面那片空白里画全。
+     * <p>平滑模式：先开 scissor 当画布，滚动时上下两端那半个项照常渲染、超出部分被裁掉 ——
+     * 看起来就是「列表被一个方框挡住」。画布下边界用的是整页高度（见 {@link #rowVisible}），
+     * 所以详情页的补全弹窗能在最后一行下面那片空白里画全。
+     *
+     * <p>整行模式（缩放后的界面）：<b>不开 scissor</b>。缩放时 scissor 的矩形会被 pose 变换，
+     * 和悬停用的基准坐标对不上，一旦开启就会让画布里的 hover / tooltip 全部失效；这个模式下
+     * 滚动量取整到整行，只画完整落在画布里的行，所以本来也不需要裁剪。
      *
      * @param overlay 画在行控件上面、并且和它们一起被裁剪的内容（补全弹窗就是它）；没有就传 null
      */
     public void drawRows(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float frameTicks,
                          Runnable overlay) {
+        if (snapToRows) {
+            for (List<Widget> row : rows) {
+                for (Widget entry : row) {
+                    entry.widget().extractRenderState(graphics, mouseX, mouseY, frameTicks);
+                }
+            }
+            if (overlay != null) {
+                overlay.run();
+            }
+            return;
+        }
         graphics.enableScissor(panelLeft, canvasTop(), panelRight, viewportBottom());
         try {
             for (List<Widget> row : rows) {

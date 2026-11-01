@@ -73,12 +73,18 @@ public final class RuleAuxCache implements SessionState {
      *
      * <p>要的是<b>全量</b>清单（补全 / 校验 / 预填都靠它）。进服时那份
      * {@code rule_data_defaults} 只含配置过的 id，不能顶替它，所以这里照旧按规则请求一次。
+     *
+     * <p><b>先发、发成功才记</b>：以前是「先记后发」，一旦这次发送失败（对面没装 mod、
+     * 通道还没就绪），这条规则就会整局都被当成「已经请求过」，补全 / 校验 / 预填全部静默降级。
+     * 现在发送失败不记账，下次打开详情页会重试（和 {@code SyncSubscriptionClient} 的约定一致）。
      */
     public void requestOnce(String registerName) {
-        if (registerName == null || !requested.add(registerName)) {
+        if (registerName == null || requested.contains(registerName)) {
             return;
         }
-        ClientRequests.INSTANCE.requestRuleDataOptions(registerName);
+        if (ClientRequests.INSTANCE.requestRuleDataOptions(registerName)) {
+            requested.add(registerName);
+        }
     }
 
     /**

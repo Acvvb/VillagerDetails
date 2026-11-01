@@ -34,18 +34,35 @@ public final class SettingWidgets {
 
     /**
      * 数值输入框：绑定到某一行的数值，输入合法数字立即生效，生效后回调（用来刷新重置按钮）
+     *
+     * <p>校验在这一层做完：<b>非数字 / {@code NaN} / {@code Infinity} 一律忽略</b>（保持原值），
+     * 合法但超出范围的会被夹回 {@code [min, max]} —— 否则 {@code Double.parseDouble} 会把
+     * {@code NaN} / {@code Infinity} 直接写进配置，再传给渲染器（线宽变成 NaN）。
+     * 注意这里不回写输入框文字：玩家还在打字时抢着改文字会很难输入。
      */
     public static EditBox numberBox(int x, int y, int width, int height, ConfigRow row, Runnable onChanged) {
         EditBox box = new EditBox(Minecraft.getInstance().font, x, y, width, height, Component.empty());
         box.setMaxLength(EDIT_BOX_MAX_LENGTH);
         box.setValue(String.format(Locale.ROOT, "%." + NUMBER_DECIMALS + "f", row.getNumber()));
         box.setResponder(text -> {
+            double value;
             try {
-                row.setNumber(Double.parseDouble(text.trim()));
-                onChanged.run();
+                value = Double.parseDouble(text.trim());
             } catch (NumberFormatException ignored) {
                 // 还没输完 / 不是数字，就保持原值
+                return;
             }
+            if (!Double.isFinite(value)) {
+                // NaN / Infinity：绝不写进配置
+                return;
+            }
+            double min = row.minNumber();
+            double max = row.maxNumber();
+            if (min <= max) {
+                value = Math.clamp(value, min, max);
+            }
+            row.setNumber(value);
+            onChanged.run();
         });
         return box;
     }

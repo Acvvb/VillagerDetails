@@ -18,6 +18,7 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.CommonComponents;
@@ -49,8 +50,11 @@ import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
  *
  * <p>内容行的分页 / 平滑滚动 / 滚动条 / 画布裁剪都在 {@link RowListPage} 里，
  * 和两个详情页共用同一套。
+ *
+ * <p>界面按 {@code UiLayout.DESIGN_WIDTH}（480）设计；窗口更窄时（GUI Scale 5 / 6）由
+ * {@link ScaledScreen} 整块等比缩小，布局本身一个像素都不改。
  */
-public class BaseConfigScreen extends Screen {
+public class BaseConfigScreen extends ScaledScreen {
 
     /**
      * 按「完成」后返回的那一页
@@ -83,9 +87,27 @@ public class BaseConfigScreen extends Screen {
     private final Set<String> numericEditing = new HashSet<>();
 
     /**
+     * 本次重建要把焦点交给哪个数值输入框（<b>只有刚点齿轮切到输入态</b>时才设置）。
+     *
+     * <p>以前是「只要这一行在输入态就无条件抢焦点」，于是：玩家点搜索框打字时，下一个 tick 的重建
+     * 会把焦点拽到数值框上；窗口 resize / 服务端同步触发的重建也一样。现在只有「刚点齿轮」这一次
+     * 重建才抢，其余一律让给搜索框（见 {@code initScaled()} 末尾的清理）。
+     */
+    private String numericFocusTarget;
+
+    /**
      * 本次重建里添加的快捷键绑定框（抢在界面前面处理按键）
      */
     private final List<KeyBindButton> keyBindButtons = new ArrayList<>();
+
+    /**
+     * 重建前正在进行中的快捷键编辑：哪一行（注册名）+ 已经暂存的按键。
+     *
+     * <p>编辑是「先暂存、点空白处确认」，暂存值只能存在按钮里；重建会换掉按钮实例，
+     * 所以在 {@code initScaled()} 开头取下来、造完行再接到新按钮上（见 {@code captureListeningState}）。
+     */
+    private String listeningEntry;
+    private int[] listeningPendingKeys;
 
     /**
      * 全局搜索框实例（重建时复用，保证输入内容与光标不丢）
@@ -256,9 +278,12 @@ public class BaseConfigScreen extends Screen {
 
     /**
      * 内容区右边界（窗口右边缘留 MARGIN）
+     *
+     * <p>注意用 {@link #uiWidth()}：布局全部在「基准空间」里算，窗口比设计宽度窄时整块等比缩小
+     * （见 {@link ScaledScreen}），所以这里不能用真实的 {@code this.width}。
      */
     private int contentRight() {
-        return this.width - MARGIN;
+        return uiWidth() - MARGIN;
     }
 
     /**
@@ -434,17 +459,24 @@ public class BaseConfigScreen extends Screen {
      *
      * <p>注意行控件用 {@code addWidget} 而不是 {@code addRenderableWidget}：
      * 它们只进 children，由 {@link RowListPage#drawRows} 统一画在画布里（有裁剪）。
+     *
+     * <p>所有几何都在「基准空间」（{@link #uiWidth()} / {@link #uiHeight()}）里算：窗口比设计宽度窄时
+     * （GUI Scale 5 / 6）由 {@link ScaledScreen} 整块等比缩小，这里不做任何局部收缩。
      */
     @Override
-    protected void init() {
+    protected void initScaled() {
+        // 重建会换掉按钮实例：先把「正在编辑的快捷键」状态记下来，造完行再接到新按钮上
+        captureListeningState();
         keyBindButtons.clear();
         resetButtons.clear();
 
         // 先把几何交给列表组件：后面造行控件要用到 rowsRight()（它取决于「需不需要滚动条」）
         page.setGeometry(contentX(), contentRight(), CONTENT_TOP + FIRST_ROW_OFFSET,
-                footerButtonY(this.height) - ROW_SCROLL_MARGIN);
+                footerButtonY(uiHeight()) - ROW_SCROLL_MARGIN);
         page.setPanel(contentX() - PANEL_PADDING, CONTENT_TOP - PANEL_PADDING,
-                Math.min(contentRight() + PANEL_PADDING, this.width - PANEL_RIGHT_MARGIN));
+                Math.min(contentRight() + PANEL_PADDING, uiWidth() - PANEL_RIGHT_MARGIN));
+        // 缩放时不能再用 scissor 裁剪（它和悬停命中的坐标空间对不上）：改成整行步进 + 整行显隐
+        page.setSnapToRows(isScaled());
 
         // 左侧：一级分类（服务器没装本 mod / 自己一条规则都没权限看时不会包含「服务器」）
         // 结果缓存起来：判断「服务器装没装 mod」要查网络通道，没必要每帧都查一遍
@@ -466,8 +498,9 @@ public class BaseConfigScreen extends Screen {
                             selectedTabId = null;
                             tabs = ConfigTabs.build(main);
                             selectedTabId = tabs.isEmpty() ? null : tabs.getFirst().id();
-                            // 换了一级分类：二级分类滚动窗口回到第一页
+                            // 换了一级分类：二级分类滚动窗口回到第一页，内容行也回到顶部
                             subTabScrollNeedsReveal = true;
+                            page.resetScroll();
                             rememberSelection();
                             rebuildWidgets();
                         }
@@ -501,6 +534,8 @@ public class BaseConfigScreen extends Screen {
             addRenderableWidget(Button.builder(selectedLabel(tab.displayName(), selected), _ -> {
                         if (selectedTabId == null || !selectedTabId.equals(tab.id())) {
                             selectedTabId = tab.id();
+                            // 换了二级分类：内容行回到顶部（否则新分类会继承上一个分类的滚动位置）
+                            page.resetScroll();
                             rememberSelection();
                             rebuildWidgets();
                         }
@@ -550,6 +585,9 @@ public class BaseConfigScreen extends Screen {
         // 滚动条放在行控件之后添加，这样它画在行控件上面
         page.installScrollBar(this::addRenderableWidget);
 
+        // 把重建前的编辑状态接到新按钮上（否则按了键还没确认，一次重建就"变回请绑定"）
+        restoreListeningState();
+
         page.clamp();
         page.updatePositions();
 
@@ -558,16 +596,19 @@ public class BaseConfigScreen extends Screen {
                     ClientRenderConfig.get().resetToDefaults();
                     rebuildWidgets();
                 })
-                .bounds(footerLeftButtonX(this.width), footerButtonY(this.height),
+                .bounds(footerLeftButtonX(uiWidth()), footerButtonY(uiHeight()),
                         FOOTER_BUTTON_WIDTH, WIDGET_HEIGHT)
                 .build();
         globalResetButton.active = ClientRenderConfig.get().hasNonDefaultValues();
         addRenderableWidget(globalResetButton);
 
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, _ -> this.onClose())
-                .bounds(footerRightButtonX(this.width), footerButtonY(this.height),
+                .bounds(footerRightButtonX(uiWidth()), footerButtonY(uiHeight()),
                         FOOTER_BUTTON_WIDTH, WIDGET_HEIGHT)
                 .build());
+
+        // 「刚点齿轮」的焦点请求到这里就用掉了：下一次重建不该再抢焦点
+        numericFocusTarget = null;
     }
 
     /**
@@ -658,6 +699,13 @@ public class BaseConfigScreen extends Screen {
      * + 重置按钮。
      *
      * <p>快捷键绑完 / 按 ESC 清空后立刻落盘，别等关界面才存。
+     *
+     * <p>绑完还要<b>当场刷新两处状态</b>（不重建界面，免得把别的输入框里正在打的字冲掉）：
+     * <ul>
+     *     <li>本行的「重置」按钮 —— 快捷键也算非默认值，绑了键它就该亮起来；</li>
+     *     <li>所有行的快捷键冲突色 / 悬停提示 —— 冲突是相互的，A 刚绑成 {@code X+C}，
+     *         原来也是 {@code X+C} 的那一行必须立刻变红。</li>
+     * </ul>
      */
     private void addKeyBindAndReset(ConfigRow row, int y, List<RowListPage.Widget> out) {
         if (row instanceof ConfigEntryType entry && row.hasKeyBind()) {
@@ -666,11 +714,65 @@ public class BaseConfigScreen extends Screen {
                     entry, keys -> {
                         row.setKeyBind(keys);
                         row.save();
+                        refreshResetButtons();
+                        refreshKeyBindConflicts();
                     });
             keyBindButtons.add(bindButton);
             out.add(RowListPage.at(addWidget(bindButton)));
         }
         out.add(RowListPage.at(addWidget(createResetButton(row, y))));
+    }
+
+    /**
+     * 刷新所有行的快捷键冲突状态（颜色 + 悬停提示）。
+     *
+     * <p>某一行绑完键之后，别的行与它的冲突关系可能变了，所以整批刷一遍。
+     *
+     * <p>注意：它<b>不动按钮文字</b>，所以正在编辑、已经暂存了键的那一行不会被刷回「请按下按键」。
+     */
+    private void refreshKeyBindConflicts() {
+        for (KeyBindButton button : keyBindButtons) {
+            button.refreshConflict();
+        }
+    }
+
+    /**
+     * 记住「正在编辑的快捷键」这一格的状态（界面重建会换掉按钮实例）。
+     *
+     * <p>编辑是「先暂存、点空白处确认」，暂存的键只存在按钮内部；如果不搬过来，
+     * 玩家刚按完键、还没点空白处确认时，只要发生一次重建（服务端同步 / 切分类 / 窗口缩放），
+     * 那一格就会显示回旧值 —— 也就是「按下去又变回请绑定」。
+     */
+    private void captureListeningState() {
+        this.listeningEntry = null;
+        this.listeningPendingKeys = null;
+        for (KeyBindButton button : keyBindButtons) {
+            if (button.isListening()) {
+                this.listeningEntry = button.entryName();
+                this.listeningPendingKeys = button.pendingKeys();
+                return;
+            }
+        }
+    }
+
+    /**
+     * 把 {@link #captureListeningState()} 记下的状态接到重建后的按钮上
+     */
+    private void restoreListeningState() {
+        String entryName = this.listeningEntry;
+        int[] pending = this.listeningPendingKeys;
+        this.listeningEntry = null;
+        this.listeningPendingKeys = null;
+        if (entryName == null) {
+            return;
+        }
+        for (KeyBindButton button : keyBindButtons) {
+            if (entryName.equals(button.entryName())) {
+                button.restoreListening(pending);
+                return;
+            }
+        }
+        // 换到别的分类、那一行已经不在了：暂存值作废（不写入配置）
     }
 
     /**
@@ -702,17 +804,23 @@ public class BaseConfigScreen extends Screen {
      * 滑块行：标签 [⚙] [滑条 / 数值输入框] [重置]
      *
      * <p>按 ⚙ 在「滑条」和「直接填数值」之间切换；重置按钮恢复默认值。
+     *
+     * <p><b>焦点只给「刚点齿轮」的那一次重建</b>（{@link #numericFocusTarget}）：否则玩家点搜索框
+     * 打字时，下一个 tick 的重建就会把焦点拽到数值框上（窗口 resize / 服务端同步触发的重建也一样）。
      */
     private void addSliderRow(ConfigRow row, int y, List<RowListPage.Widget> out) {
         out.add(RowListPage.at(addWidget(labelWidget(row, y))));
-        boolean editing = numericEditing.contains(row.getRegisterName());
+        String name = row.getRegisterName();
+        boolean editing = numericEditing.contains(name);
 
         out.add(RowListPage.at(addWidget(SettingWidgets.gear(gearWithResetX(), y, GEAR_SIZE, WIDGET_HEIGHT, () -> {
-            if (numericEditing.contains(row.getRegisterName())) {
-                numericEditing.remove(row.getRegisterName());
+            if (numericEditing.contains(name)) {
+                numericEditing.remove(name);
                 row.save();
             } else {
-                numericEditing.add(row.getRegisterName());
+                numericEditing.add(name);
+                // 只有这一次重建把焦点交给数值框
+                numericFocusTarget = name;
             }
             rebuildWidgets();
         }))));
@@ -720,7 +828,9 @@ public class BaseConfigScreen extends Screen {
         if (editing) {
             EditBox box = SettingWidgets.numberBox(coloredValueX(), y, VALUE_WIDTH, WIDGET_HEIGHT, row, this::refreshResetButtons);
             out.add(RowListPage.at(addWidget(box)));
-            this.focusAfterInit = box;
+            if (name.equals(numericFocusTarget)) {
+                this.focusAfterInit = box;
+            }
         } else {
             out.add(RowListPage.at(addWidget(new ValueSlider(coloredValueX(), y, VALUE_WIDTH, WIDGET_HEIGHT,
                     row.minNumber(), row.maxNumber(), row.stepNumber(),
@@ -841,11 +951,14 @@ public class BaseConfigScreen extends Screen {
     }
 
     /**
-     * 按键：正在监听快捷键时先交给它（含 ESC：取消监听且不关闭界面），否则交给原版
+     * 按键：正在监听快捷键时先交给它（含 ESC：清空绑定且不关闭界面），否则交给原版。
+     *
+     * <p>绑定框用的是「依次按下」的 toggle 模型，不需要跟踪松键，所以这里也没有
+     * {@code keyReleased} 的转发。
      */
     @Override
     public boolean keyPressed(@NonNull KeyEvent event) {
-        // 正在监听快捷键时，先把按键交给它（含 ESC：取消监听且不关闭界面）
+        // 正在监听快捷键时，先把按键交给它（含 ESC：清空绑定且不关闭界面）
         for (KeyBindButton button : keyBindButtons) {
             if (button.isListening()) {
                 return button.keyPressed(event);
@@ -855,39 +968,61 @@ public class BaseConfigScreen extends Screen {
     }
 
     /**
-     * 松键：组合键要等所有键都松开才算绑定完成
+     * 字符输入：监听快捷键时直接吃掉。
+     *
+     * <p>绑定框刻意不抢焦点（否则原版会给聚焦的按钮画上高亮精灵，监听状态看起来多一圈框），
+     * 于是焦点可能还留在搜索框上 —— 不拦的话按 K 会一边暂存键位、一边往搜索框里打字。
      */
     @Override
-    public boolean keyReleased(@NonNull KeyEvent event) {
-        // 组合键要等所有键都松开才算绑定完成
+    public boolean charTyped(@NonNull CharacterEvent event) {
         for (KeyBindButton button : keyBindButtons) {
             if (button.isListening()) {
-                return button.keyReleased(event);
-            }
-        }
-        return super.keyReleased(event);
-    }
-
-    /**
-     * 点击：快捷键监听中左键点空白处 = 退出监听（和 ESC 一致），否则交给原版
-     */
-    @Override
-    public boolean mouseClicked(@NonNull MouseButtonEvent event, boolean doubleClick) {
-        // 监听中左键点空白处 = 和 ESC 一样退出监听
-        for (KeyBindButton button : keyBindButtons) {
-            if (button.isListening() && !button.isMouseOver(event.x(), event.y())) {
-                button.cancelListening();
                 return true;
             }
         }
-        return super.mouseClicked(event, doubleClick);
+        return super.charTyped(event);
     }
 
     /**
-     * 滚轮：鼠标在二级分类那一行上时翻分类；在内容区时平滑滚动配置项；否则交给原版
+     * 点击：有快捷键正在编辑时，<b>点到别处 = 确认这次编辑</b>（点了空白处 = 失焦），
+     * 然后这次点击继续派发下去。
+     *
+     * <p>编辑的语义（见 {@link KeyBindButton}）：
+     * <ul>
+     *     <li>已经暂存了按键 → 点空白处把它写回配置并刷新冲突 / 重置按钮；</li>
+     *     <li>还没按过任何键（只是点开看了一眼）→ 直接退出编辑，保持原绑定；</li>
+     *     <li>要清空绑定按 ESC（会立刻保存成「未绑定」），再点一下那一格则只是退出编辑。</li>
+     * </ul>
+     *
+     * <p>取消监听之后继续往下派发（而不是 {@code return true} 吃掉点击），这样一次点击就能完成
+     * 「确认上一格 + 触发这一下」——比如点另一格的快捷键框可以直接开始编辑它。
+     *
+     * <p>坐标已由 {@link ScaledScreen} 换算到基准空间，可以直接和控件坐标比较。
      */
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+    protected boolean mouseClickedScaled(@NonNull MouseButtonEvent event, boolean doubleClick) {
+        for (KeyBindButton button : keyBindButtons) {
+            if (button.isListening() && !button.isMouseOver(event.x(), event.y())) {
+                button.confirmListening();
+            }
+        }
+        return super.mouseClickedScaled(event, doubleClick);
+    }
+
+    /**
+     * 滚轮分发（按优先级）：悬停的滑条 → 二级分类那一行（翻分类）→ 内容区（平滑滚动）→ 原版。
+     *
+     * <p>滑条排在最前面：以前鼠标停在「粗细 / 距离」这些滑条上滚动，事件会落到底下的列表滚动上，
+     * 想微调数值列表却跳了。现在悬停在滑条上时滚轮交给它按步长调值，并把事件吃掉。
+     *
+     * <p>坐标已由 {@link ScaledScreen} 换算到基准空间。
+     */
+    @Override
+    protected boolean mouseScrolledScaled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        // 鼠标停在滑条上：滚轮 = 按步长增减该滑条的数值
+        if (scrollSliderAt(mouseX, mouseY, scrollY)) {
+            return true;
+        }
         // 鼠标在二级分类那一行上时，滚轮翻分类
         if (subTabScrollingNeeded()
                 && mouseY >= CONTENT_TOP && mouseY <= CONTENT_TOP + WIDGET_HEIGHT
@@ -900,7 +1035,7 @@ public class BaseConfigScreen extends Screen {
             page.scrollBy(scrollY > 0 ? -ROW_SCROLL_STEP : ROW_SCROLL_STEP);
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        return super.mouseScrolledScaled(mouseX, mouseY, scrollX, scrollY);
     }
 
     /**
@@ -917,24 +1052,24 @@ public class BaseConfigScreen extends Screen {
     // ==============================================================
 
     /**
-     * 背景之上再补一条顶 / 底分隔线
+     * 背景之上再补一条顶 / 底分隔线（基准空间，跟着布局一起缩放）
      */
     @Override
-    public void extractBackground(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-        super.extractBackground(graphics, mouseX, mouseY, partialTick);
-        ScreenDecorations.drawSeparators(graphics, this.width, this.height);
+    protected void extractScaledBackground(@NonNull GuiGraphicsExtractor graphics) {
+        ScreenDecorations.drawSeparators(graphics, uiWidth(), uiHeight());
     }
 
     /**
-     * 渲染一帧：先按这一帧的进度摆行（平滑滚动），再画左右面板 / 标题 / 分割线 / 行 / 其它控件
+     * 渲染一帧：先按这一帧的进度摆行（平滑滚动），再画左右面板 / 标题 / 分割线 / 行；
+     * 其它控件由 {@link ScaledScreen} 在本方法之后统一画（同样在缩放后的坐标系里）。
      */
     @Override
-    public void extractRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float frameTicks) {
+    protected void extractScaled(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float frameTicks) {
         // 先按这一帧的进度把行摆好，再画面板和控件（这样滚动是逐帧平滑的）
         page.advance(frameTicks);
 
         drawPanels(graphics);
-        ScreenDecorations.drawTitle(graphics, this, this.title);
+        ScreenDecorations.drawTitle(graphics, this, this.title, uiWidth());
         // 二级分类和内容之间那条分割线
         ScreenDecorations.drawSeparatorLine(graphics, contentX(), CONTENT_TOP + HEADER_LINE_OFFSET, rowWidth());
         // 一页放满时，面板下面再补一条同款分割线收尾
@@ -944,9 +1079,6 @@ public class BaseConfigScreen extends Screen {
 
         // 行控件自己画在一个「画布」里（见 RowListPage#drawRows）
         page.drawRows(graphics, mouseX, mouseY, frameTicks, null);
-
-        // 其余控件（左栏、二级分类、搜索框、滚动条、页脚按钮）照旧交给原版渲染
-        super.extractRenderState(graphics, mouseX, mouseY, frameTicks);
     }
 
     /**

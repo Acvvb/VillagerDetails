@@ -323,10 +323,15 @@ public final class ClientRenderConfig {
     // ==============================================================
 
     /**
-     * 取某项绑定的按键组合；未绑定返回空数组
+     * 取某项绑定的按键组合；未绑定（或配置里那串写法坏了）返回<b>一份新的空数组</b>。
+     *
+     * <p>{@link #parseKeys} 在解析不出东西时返回的是共享常量 {@link #NO_KEYS}，
+     * 直接把它交出去等于把内部常量暴露成可变数组的别名 —— 调用方（比如按键绑定框把当前绑定
+     * 暂存起来再改）一旦原地修改，就会把全局的「未绑定」常量改坏。这里统一克隆一份。
      */
     public int[] getKeyBind(String registerName) {
-        return parseKeys(keyBinds.get(registerName));
+        int[] keys = parseKeys(keyBinds.get(registerName));
+        return keys.length == 0 ? NO_KEYS.clone() : keys;
     }
 
     /**
@@ -408,10 +413,15 @@ public final class ClientRenderConfig {
      * 「全局重置」：所有配置项（含快捷键）恢复成 {@link ConfigEntryType}
      * 里声明的默认值，然后落盘。
      *
-     * <p>先 {@code values.clear()} 是为了顺带清掉已经从枚举里删掉的孤儿键。
+     * <p>三个容器都要先清空，才能顺带清掉<b>已经从枚举里删掉</b>的孤儿键：
+     * {@link #applyEntryDefaults()} 只覆盖当前枚举项，剩下的旧键没人管。
+     * 以前只清了 {@code values}，于是删项 / 改名之后 {@code lists} 和 {@code keyBinds}
+     * 里的旧键会永远留在配置里；更糟的是将来新项若复用了旧注册名，会静默继承那份旧值。
      */
     public void resetToDefaults() {
         values.clear();
+        lists.clear();
+        keyBinds.clear();
         applyEntryDefaults();
         save();
     }

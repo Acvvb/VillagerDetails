@@ -28,7 +28,7 @@ import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
  *
  * <p>分页滚动那一套在 {@link RowListPage}；补全弹窗在 {@link SuggestionPopup}。
  */
-public abstract class AbstractDetailScreen extends Screen {
+public abstract class AbstractDetailScreen extends ScaledScreen {
 
     /**
      * 按「完成」/「取消」后返回的那一页（通常是配置主界面）
@@ -110,14 +110,14 @@ public abstract class AbstractDetailScreen extends Screen {
      * 内容区宽度：取「子类声明的最大宽度」和「窗口宽度减左右边距」的较小值
      */
     protected int contentWidth() {
-        return Math.min(contentMaxWidth(), this.width - DETAIL_CONTENT_SIDE_MARGIN * 2);
+        return Math.min(contentMaxWidth(), uiWidth() - DETAIL_CONTENT_SIDE_MARGIN * 2);
     }
 
     /**
      * 内容区左边界（居中）
      */
     protected int contentX() {
-        return (this.width - contentWidth()) / 2;
+        return (uiWidth() - contentWidth()) / 2;
     }
 
     /**
@@ -145,11 +145,13 @@ public abstract class AbstractDetailScreen extends Screen {
      * 而它取决于「需不需要滚动条」，所以几何必须先于行控件交给列表组件。
      */
     @Override
-    protected void init() {
+    protected void initScaled() {
         // 先把几何交给列表组件，再造行控件（造行时要用到 rowsRight()，它取决于「需不需要滚动条」）
-        page.setGeometry(contentX(), contentRight(), rowsTop(), footerButtonY(this.height) - ROW_SCROLL_MARGIN);
+        page.setGeometry(contentX(), contentRight(), rowsTop(), footerButtonY(uiHeight()) - ROW_SCROLL_MARGIN);
         page.setPanel(contentX() - PANEL_PADDING, rowsTop() - PANEL_PADDING,
                 contentRight() + PANEL_PADDING);
+        // 缩放时不能再用 scissor 裁剪（和悬停命中的坐标空间对不上）：改成整行步进 + 整行显隐
+        page.setSnapToRows(isScaled());
 
         // 注意：子类<b>不要</b>在这里重新读配置 —— 工作副本要留着，重建界面（增删后刷新）不能把它冲掉
         page.clearRows();
@@ -163,12 +165,12 @@ public abstract class AbstractDetailScreen extends Screen {
 
         // 左：取消（丢掉这次改动）；右：完成（写回）
         addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, button -> cancel())
-                .bounds(footerLeftButtonX(this.width), footerButtonY(this.height),
+                .bounds(footerLeftButtonX(uiWidth()), footerButtonY(uiHeight()),
                         FOOTER_BUTTON_WIDTH, WIDGET_HEIGHT)
                 .build());
 
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> finish())
-                .bounds(footerRightButtonX(this.width), footerButtonY(this.height),
+                .bounds(footerRightButtonX(uiWidth()), footerButtonY(uiHeight()),
                         FOOTER_BUTTON_WIDTH, WIDGET_HEIGHT)
                 .build());
 
@@ -228,6 +230,18 @@ public abstract class AbstractDetailScreen extends Screen {
     /**
      * 补全弹窗的通用按键：回车 / Tab / 上下 / ESC。
      *
+     * <p><b>只在焦点落在补全输入框 {@code idBox} 上时才接管这些键</b>，否则会抢走其它输入框的按键：
+     * 值模式下新增行同时有「id」和「值」两个输入框，玩家在值框里按 ↑ / ↓ 是要移动光标的，
+     * 一旦被这里吃掉，光标就再也动不了（Tab 也换了不了焦点、回车行为也会变得莫名其妙）。
+     *
+     * <p>分流规则：
+     * <ul>
+     *     <li>ESC：随时放弃这次输入（不管焦点在哪）；</li>
+     *     <li>焦点不在 {@code idBox} 上 → 一律不拦；</li>
+     *     <li>焦点在 {@code idBox} 上：回车＝提交这次输入；有候选时 Tab＝补全、↑↓＝翻候选；
+     *         没有候选时 Tab / ↑↓ 仍然放行（它们只该动光标 / 换焦点）。</li>
+     * </ul>
+     *
      * @param idBox    补全要填进去的那个输入框
      * @param idValid  当前输入框里的 id 是不是已经合法（不合法且有候选 → 先用高亮那条补全）
      * @param onCommit 回车之后把输入收进工作副本
@@ -236,28 +250,47 @@ public abstract class AbstractDetailScreen extends Screen {
      */
     protected final boolean handleEditingKey(KeyEvent event, SuggestionPopup popup, EditBox idBox,
                                              boolean idValid, Runnable onCommit, Runnable onCancel) {
+        // ESC 永远有效：放弃这次输入（不管焦点在哪个框）
+        if (event.key() == InputConstants.KEY_ESCAPE) {
+            onCancel.run();
+            return true;
+        }
+
+        // 焦点不在补全输入框上（例如在「值」输入框里）→ 方向键 / 回车 / Tab 该给谁给谁
+        if (idBox == null || this.getFocused() != idBox) {
+            return false;
+        }
+
+        boolean hasCandidates = !popup.isEmpty();
         return switch (event.key()) {
             case InputConstants.KEY_RETURN, InputConstants.KEY_NUMPADENTER -> {
-                if (idBox != null && !idValid && !popup.isEmpty()) {
+                if (!idValid && hasCandidates) {
                     popup.acceptInto(idBox);
                 }
                 onCommit.run();
                 yield true;
             }
+            // 没有候选时 Tab 只该换焦点，不该被吃掉
             case InputConstants.KEY_TAB -> {
+                if (!hasCandidates) {
+                    yield false;
+                }
                 popup.acceptInto(idBox);
                 yield true;
             }
+            // 没有候选时上下键留给输入框（移光标），有候选才翻候选
             case InputConstants.KEY_DOWN -> {
+                if (!hasCandidates) {
+                    yield false;
+                }
                 popup.move(1);
                 yield true;
             }
             case InputConstants.KEY_UP -> {
+                if (!hasCandidates) {
+                    yield false;
+                }
                 popup.move(-1);
-                yield true;
-            }
-            case InputConstants.KEY_ESCAPE -> {
-                onCancel.run();
                 yield true;
             }
             default -> false;
@@ -269,31 +302,28 @@ public abstract class AbstractDetailScreen extends Screen {
     // ==============================================================
 
     /**
-     * 背景之上再补一条顶 / 底分隔线（和主配置界面观感一致）
+     * 背景之上再补一条顶 / 底分隔线（和主配置界面观感一致；基准空间，跟着布局一起缩放）
      */
     @Override
-    public void extractBackground(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float frameTicks) {
-        super.extractBackground(graphics, mouseX, mouseY, frameTicks);
-        ScreenDecorations.drawSeparators(graphics, this.width, this.height);
+    protected void extractScaledBackground(@NonNull GuiGraphicsExtractor graphics) {
+        ScreenDecorations.drawSeparators(graphics, uiWidth(), uiHeight());
     }
 
     /**
-     * 渲染一帧：先按这一帧的进度把行摆好（逐帧平滑），再画面板 / 标题 / 说明 / 行 / 其它控件。
+     * 渲染一帧：先按这一帧的进度把行摆好（逐帧平滑），再画面板 / 标题 / 说明 / 行；
+     * 滚动条与页脚按钮由 {@link ScaledScreen} 在本方法之后统一画（同样在缩放后的坐标系里）。
      */
     @Override
-    public void extractRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float frameTicks) {
+    protected void extractScaled(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float frameTicks) {
         // 先按这一帧的进度把行摆好（逐帧平滑），再画面板和控件
         page.advance(frameTicks);
 
         page.drawPanel(graphics);
-        ScreenDecorations.drawTitle(graphics, this, this.title);
+        ScreenDecorations.drawTitle(graphics, this, this.title, uiWidth());
         graphics.textWithWordWrap(this.font, description(),
                 contentX(), DETAIL_DESC_TOP, contentWidth(), ScreenDecorations.COLOR_HINT);
 
         page.drawRows(graphics, mouseX, mouseY, frameTicks, () -> drawOverlay(graphics));
-
-        // 滚动条 / 页脚按钮照旧交给原版渲染
-        super.extractRenderState(graphics, mouseX, mouseY, frameTicks);
     }
 
     /**

@@ -21,7 +21,7 @@ import static com.villagerdetails.client.setting.config.ui.UiLayout.*;
  * <p>控件都取自 {@code setting.component} 里的独立组件（{@link ValueSlider}、{@link ColorSwatch}、
  * {@link ColorValueBox}、{@link ResetButton}），这里只负责摆放和联动。
  */
-public class OptionDetailScreen extends Screen {
+public class OptionDetailScreen extends ScaledScreen {
 
     /**
      * 关闭后返回的那一页
@@ -87,9 +87,9 @@ public class OptionDetailScreen extends Screen {
      * 初始化：三条通道滑条、预览色块、色值框、重置按钮、完成按钮
      */
     @Override
-    protected void init() {
-        this.contentWidth = Math.min(DETAIL_CONTENT_MAX_WIDTH, this.width - DETAIL_CONTENT_SIDE_MARGIN * 2);
-        this.contentX = (this.width - contentWidth) / 2;
+    protected void initScaled() {
+        this.contentWidth = Math.min(DETAIL_CONTENT_MAX_WIDTH, uiWidth() - DETAIL_CONTENT_SIDE_MARGIN * 2);
+        this.contentX = (uiWidth() - contentWidth) / 2;
 
         int y = DETAIL_SLIDER_TOP;
         this.redSlider = channelSlider(y, "red", 16);
@@ -110,13 +110,13 @@ public class OptionDetailScreen extends Screen {
         addRenderableWidget(hexBox);
         y += WIDGET_HEIGHT + DETAIL_ROW_GAP;
 
-        int buttonY = Math.min(y + DETAIL_BUTTON_GAP, this.height - DETAIL_BUTTON_BOTTOM_MARGIN);
-        this.resetButton = ResetButton.forEntry(entry, footerLeftButtonX(this.width), buttonY,
+        int buttonY = Math.min(y + DETAIL_BUTTON_GAP, uiHeight() - DETAIL_BUTTON_BOTTOM_MARGIN);
+        this.resetButton = ResetButton.forEntry(entry, footerLeftButtonX(uiWidth()), buttonY,
                 FOOTER_BUTTON_WIDTH, WIDGET_HEIGHT, this::rebuildWidgets);
         addRenderableWidget(resetButton);
 
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, _ -> this.onClose())
-                .bounds(footerRightButtonX(this.width), buttonY, FOOTER_BUTTON_WIDTH, WIDGET_HEIGHT)
+                .bounds(footerRightButtonX(uiWidth()), buttonY, FOOTER_BUTTON_WIDTH, WIDGET_HEIGHT)
                 .build());
     }
 
@@ -220,25 +220,43 @@ public class OptionDetailScreen extends Screen {
     }
 
     /**
-     * 背景之上再补一条顶 / 底分隔线
+     * 滚轮分发（按优先级）：
+     * <ol>
+     *     <li>十六进制色值输入框上 → <b>吃掉</b>。原版 {@link EditBox} 会把滚轮当成「横向滚动输入内容」，
+     *         鼠标一划过 {@code #FF4D4D} 这种刚好占满宽度的色值，滚轮就能把文字滚出可视区；</li>
+     *     <li>三条 RGB 滑条上 → 交给滑条<b>按步长调数值</b>（一格 = 1），并吃掉事件；</li>
+     *     <li>其它地方 → 照常往下传。</li>
+     * </ol>
+     *
+     * <p>坐标已经是 {@link ScaledScreen} 换算过的基准空间，直接和控件坐标比较即可，不要再去乘 / 除缩放因子。
      */
     @Override
-    public void extractBackground(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-        super.extractBackground(graphics, mouseX, mouseY, partialTick);
-        ScreenDecorations.drawSeparators(graphics, this.width, this.height);
+    protected boolean mouseScrolledScaled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (this.hexBox != null && this.hexBox.isMouseOver(mouseX, mouseY)) {
+            return true;
+        }
+        if (scrollSliderAt(mouseX, mouseY, scrollY)) {
+            return true;
+        }
+        return super.mouseScrolledScaled(mouseX, mouseY, scrollX, scrollY);
     }
 
     /**
-     * 渲染一帧：标题 + 说明 + 交给组件的滑条 / 色块 / 色值框 / 按钮
+     * 背景之上再补一条顶 / 底分隔线（基准空间，跟着布局一起缩放）
      */
     @Override
-    public void extractRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-        ScreenDecorations.drawTitle(graphics, this, this.title);
+    protected void extractScaledBackground(@NonNull GuiGraphicsExtractor graphics) {
+        ScreenDecorations.drawSeparators(graphics, uiWidth(), uiHeight());
+    }
+
+    /**
+     * 渲染一帧：标题 + 说明；滑条 / 色块 / 色值框 / 按钮由 {@link ScaledScreen} 在这之后统一画
+     */
+    @Override
+    protected void extractScaled(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+        ScreenDecorations.drawTitle(graphics, this, this.title, uiWidth());
 
         graphics.textWithWordWrap(this.font, entry.getDisplayInfo(),
                 contentX, DETAIL_DESC_TOP, contentWidth, ScreenDecorations.COLOR_HINT);
-
-        // 色块、色值框、滑条、重置按钮都由各自组件渲染
-        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
     }
 }

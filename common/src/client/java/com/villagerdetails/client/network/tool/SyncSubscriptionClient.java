@@ -7,8 +7,8 @@ import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.sync.payload.serverbound.SyncSubscriptionPayload;
 import net.minecraft.resources.Identifier;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 客户端侧的「通道订阅」通用助手：把「这条通道要不要发给我」告诉服务端。
@@ -37,9 +37,14 @@ public final class SyncSubscriptionClient implements SessionState {
     /**
      * 通道 id → 上次已成功通知服务端的状态
      *
-     * <p>只在客户端主线程读写（收包回调、tick 回调都切回客户端线程了）
+     * <p><b>必须是并发安全的容器</b>：写入发生在客户端主线程（tick 回调 / 收包回调），
+     * 而 {@link #clearSession()} 由 {@code ClientSessionStates.clearAll()} 在<b>断线回调里</b>执行 ——
+     * Fabric 的 {@code ClientPlayConnectionEvents.DISCONNECT} 是从
+     * {@code ConnectionMixin#disconnectAddon}（netty 线程）同步触发的，所以清空和写入会并发。
+     * 普通 {@code HashMap} 在这种交错下可能丢更新甚至把桶链表弄坏，表现为「已通知过」的记录
+     * 残留到下一次会话 —— 服务端以为你退订了，通道类功能在新会话里一直收不到包。
      */
-    private final Map<Identifier, Boolean> notified = new HashMap<>();
+    private final Map<Identifier, Boolean> notified = new ConcurrentHashMap<>();
 
     private SyncSubscriptionClient() {
     }
@@ -58,6 +63,7 @@ public final class SyncSubscriptionClient implements SessionState {
         if (last != null && last == enabled) {
             return;
         }
+        // 发送成功才记录：对面没装 mod / 没连上时不记，下个 tick 会自动重试
         if (ClientReceiver.send(new SyncSubscriptionPayload(id, enabled))) {
             notified.put(id, enabled);
         }

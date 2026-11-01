@@ -77,6 +77,15 @@ public class ListDetailScreen extends AbstractDetailScreen {
     private EditBox addBox;
 
     /**
+     * 添加行里「还没提交」的文本。
+     *
+     * <p>存在的理由：删掉列表里的某一项会重建整页控件，而输入框是重建时新建的 ——
+     * 没有它，玩家一边新增一边删旧条目时，正在打的字会被无声清空。
+     * 输入框的 responder 会同步更新它，{@code buildAddRow} 重建时再填回去。
+     */
+    private String addText = "";
+
+    /**
      * @param parent 关闭后返回的那一页
      * @param source 值列表的来源（本机配置项 / 服务器规则名单）
      */
@@ -128,6 +137,7 @@ public class ListDetailScreen extends AbstractDetailScreen {
             if (text.isEmpty()) {
                 // 什么都没填 = 作废这次添加，正常保存退出
                 this.adding = false;
+                this.addText = "";
                 popup.reset();
             } else if (!source.isValidId(text)) {
                 // 非法：输入框标红 + 弹窗提示，拦住「完成」，留在这一页
@@ -197,12 +207,16 @@ public class ListDetailScreen extends AbstractDetailScreen {
 
     /**
      * 最后一行：没在输入时是「+」按钮，输入时是一个 id 输入框
+     *
+     * <p>输入框的内容挂在 {@link #addText} 上：删掉一行会重建整页控件，重建后要把玩家正在打的字
+     * 原样填回去（否则「删除某一项」会顺手把没提交的新值一起清掉）。
      */
     private List<RowListPage.Widget> buildAddRow(int y) {
         List<RowListPage.Widget> widgets = new ArrayList<>();
 
         if (!adding) {
             this.addBox = null;
+            this.addText = "";
             popup.reset();
             widgets.add(RowListPage.at(addWidget(Button.builder(Component.literal("+"), button -> startAdd())
                     .bounds(contentX(), y, rowsRight() - contentX(), WIDGET_HEIGHT)
@@ -214,13 +228,22 @@ public class ListDetailScreen extends AbstractDetailScreen {
                 Component.translatable("villagerdetails.ui.list.add"));
         box.setHint(Component.translatable("villagerdetails.ui.list.add.hint"));
         box.setMaxLength(MAX_VALUE_LENGTH);
+        // 重建时把上一步没提交的内容填回去（放在 setResponder 之前，避免触发一次多余的重算）
+        if (!addText.isEmpty()) {
+            box.setValue(addText);
+        }
         // 输入变化时才重算补全（本机来源要遍历整张 id 表，服务器来源要扫一遍服务端给的清单）
         box.setResponder(text -> {
+            this.addText = text;
             popup.update(text, maxSuggestions(), source::suggestions);
             box.setTextColor(EditBox.DEFAULT_TEXT_COLOR);
         });
         this.addBox = box;
         widgets.add(RowListPage.at(addWidget(box)));
+        // 填回去的内容也要把候选列表恢复出来
+        if (!addText.isEmpty()) {
+            popup.update(addText, maxSuggestions(), source::suggestions);
+        }
         requestFocus(box);
         return widgets;
     }
@@ -251,6 +274,7 @@ public class ListDetailScreen extends AbstractDetailScreen {
      */
     private void startAdd() {
         this.adding = true;
+        this.addText = "";
         popup.reset();
         rebuildWidgets();
     }
@@ -271,6 +295,7 @@ public class ListDetailScreen extends AbstractDetailScreen {
         if (text.isEmpty()) {
             // 什么都没填 = 取消，不算错
             this.adding = false;
+            this.addText = "";
             return false;
         }
         if (!source.isValidId(text)) {
@@ -282,6 +307,7 @@ public class ListDetailScreen extends AbstractDetailScreen {
             return false;
         }
         this.adding = false;
+        this.addText = "";
         popup.reset();
         // 只加到工作副本里；真正写回配置要等按「完成」。
         // 收进来之前先规范化：服务器规则的 id 要写成注册表里的规范形式，
@@ -310,12 +336,16 @@ public class ListDetailScreen extends AbstractDetailScreen {
             return;
         }
         this.adding = false;
+        this.addText = "";
         popup.reset();
         rebuildWidgets();
     }
 
     /**
      * 删除第 index 个值（只改工作副本）
+     *
+     * <p>重建整页控件不会丢掉「添加行」里正在打的字：那段文本存在 {@link #addText} 上，
+     * {@code buildAddRow} 重建时会填回去（见那里的注释）。
      */
     private void deleteValue(int index) {
         if (index < 0 || index >= values.size()) {
@@ -335,7 +365,8 @@ public class ListDetailScreen extends AbstractDetailScreen {
      */
     @Override
     protected void drawOverlay(GuiGraphicsExtractor graphics) {
-        if (adding) {
+        // 新增那一行滚出画布时不再画弹窗：缩放模式下画布没有 scissor，弹在画布外会露出面板
+        if (adding && page.isRowVisible(values.size())) {
             popup.draw(graphics, this.font, popupBounds());
         }
     }
@@ -344,7 +375,7 @@ public class ListDetailScreen extends AbstractDetailScreen {
      * 点击：命中补全候选就填进输入框；否则点列表区空白处 = 提交本次输入；其余交给原版
      */
     @Override
-    public boolean mouseClicked(@NonNull MouseButtonEvent event, boolean doubleClick) {
+    protected boolean mouseClickedScaled(@NonNull MouseButtonEvent event, boolean doubleClick) {
         if (adding) {
             // 点补全候选 = 把它填进输入框（还需再确认一次才会存）
             int hit = popup.hitTest(popupBounds(), event.x(), event.y());
@@ -361,7 +392,7 @@ public class ListDetailScreen extends AbstractDetailScreen {
                 return true;
             }
         }
-        return super.mouseClicked(event, doubleClick);
+        return super.mouseClickedScaled(event, doubleClick);
     }
 
     /**
