@@ -329,13 +329,24 @@ public class RuleCommand {
 
         // 校验 + 写入：和收包端（客户端界面改规则）走同一个入口，两边不会一个拦一个放
         RuleSwitches.Canonical result = RuleChangeService.change(rule, state, context.getSource());
-        if (result instanceof RuleSwitches.Canonical.BadState(String raw)) {
-            sendOrBroadcast(player, Component.translatable(RULE_ERROR_INVALID_STATE, raw));
-            return 0;
-        }
-        if (result instanceof RuleSwitches.Canonical.BadOption(String option)) {
-            sendOrBroadcast(player, Component.translatable(RULE_ERROR_INVALID_OPTION, option));
-            return 0;
+        switch (result) {
+            case RuleSwitches.Canonical.BadState(String raw) -> {
+                sendOrBroadcast(player, Component.translatable(RULE_ERROR_INVALID_STATE, raw));
+                return 0;
+            }
+            case RuleSwitches.Canonical.BadOption(String option) -> {
+                sendOrBroadcast(player, Component.translatable(RULE_ERROR_INVALID_OPTION, option));
+                return 0;
+            }
+
+            // 规则自己的取值范围 / 格式校验没过（例如乐魂速度必须是 0.0~5.0 的数字）：
+            // 这条必须在下面的 (Canonical.Ok) 强转之前，否则会 ClassCastException
+            case RuleSwitches.Canonical.Rejected rejected -> {
+                sendOrBroadcast(player, Component.translatable(rejected.messageKey(), rejected.args()));
+                return 0;
+            }
+            default -> {
+            }
         }
         String canonical = ((RuleSwitches.Canonical.Ok) result).state();
 

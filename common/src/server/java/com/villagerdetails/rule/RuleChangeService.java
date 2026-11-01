@@ -24,12 +24,29 @@ public final class RuleChangeService {
 
     /**
      * 带操作来源的修改入口（用于指令和 UI）。
+     *
+     * <p>三道校验，顺序固定：
+     * <ol>
+     *     <li>{@link RuleSwitches#canonicalize}：空值 / 预定义列表命中；</li>
+     *     <li>{@link RuleType#getStateValidator()}：规则自己的格式 / 范围要求
+     *         （例如乐魂速度必须是 0.0 ~ 5.0 的数字）。<b>必须在这里、写缓存之前</b>拦，
+     *         命令和收包端才会给出同一句提示，非法值也进不了 {@link RuleCache}；</li>
+     *     <li>写入 + 落盘 + 触发回调与监听器。</li>
+     * </ol>
      */
     public static RuleSwitches.Canonical change(RuleType rule, String rawState, @Nullable CommandSourceStack source) {
         Objects.requireNonNull(rule, "rule");
         RuleSwitches.Canonical canonical = RuleSwitches.canonicalize(rule.getQuickSwitches(), rawState);
 
         if (canonical instanceof RuleSwitches.Canonical.Ok(String state)) {
+            RuleStateValidator validator = rule.getStateValidator();
+            if (validator != null) {
+                RuleStateValidator.ValidationError error = validator.validate(state);
+                if (error != null) {
+                    // 直接返回：不写内存、不落盘、不触发回调 —— 被拒的修改必须一点痕迹都不留
+                    return new RuleSwitches.Canonical.Rejected(state, error.messageKey(), error.args());
+                }
+            }
             RuleChangeContext.setSource(source);
             try {
                 RuleCache.setState(rule, state);

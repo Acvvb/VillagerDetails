@@ -66,17 +66,30 @@ public final class ServerRuleSetReceiver implements ServerReceiver<ServerRuleSet
                 ? RuleChangeService.reset(type, source)
                 : RuleChangeService.change(type, payload.state(), source);
 
-        if (result instanceof RuleSwitches.Canonical.BadState(String raw)) {
-            player.sendSystemMessage(Component.translatable(RULE_ERROR_INVALID_STATE, raw));
-            log.warn("玩家 {} 给规则 {} 传了非法状态：{}",
-                    player.getName().getString(), type.getRegisterName(), raw);
-            return;
-        }
-        if (result instanceof RuleSwitches.Canonical.BadOption(String option)) {
-            player.sendSystemMessage(Component.translatable(RULE_ERROR_INVALID_OPTION, option));
-            log.warn("玩家 {} 给规则 {} 传了非法选项：{}",
-                    player.getName().getString(), type.getRegisterName(), option);
-            return;
+        switch (result) {
+            case RuleSwitches.Canonical.BadState(String raw) -> {
+                player.sendSystemMessage(Component.translatable(RULE_ERROR_INVALID_STATE, raw));
+                log.warn("玩家 {} 给规则 {} 传了非法状态：{}",
+                        player.getName().getString(), type.getRegisterName(), raw);
+                return;
+            }
+            case RuleSwitches.Canonical.BadOption(String option) -> {
+                player.sendSystemMessage(Component.translatable(RULE_ERROR_INVALID_OPTION, option));
+                log.warn("玩家 {} 给规则 {} 传了非法选项：{}",
+                        player.getName().getString(), type.getRegisterName(), option);
+                return;
+            }
+
+            // 规则自己的取值范围 / 格式校验没过：说明客户端界面没有拦住（或有人直接手搓包），
+            // 这里把同一句提示发回去，并且不推同步 —— 服务端状态一个字节都没动。
+            case RuleSwitches.Canonical.Rejected(String state, String messageKey, Object[] args) -> {
+                player.sendSystemMessage(Component.translatable(messageKey, args));
+                log.warn("玩家 {} 给规则 {} 传了越界/非法值：{}（已拒绝）",
+                        player.getName().getString(), type.getRegisterName(), state);
+                return;
+            }
+            default -> {
+            }
         }
 
         // setState 会触发监听器广播，这里再补一次，保证发起者立刻看到最新状态

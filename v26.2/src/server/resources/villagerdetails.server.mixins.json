@@ -41,6 +41,7 @@
     "entity.villager.trader.infiniteTrade.MerchantOfferMixin",
     "fix.move.EntityUUIDWarningMixin",
     "fix.move.GlobalSpeedBypassMixin",
+    "fix.move.VehicleMoveTrustMixin",
     "monster.noBrainOnPortal.MobInterfaceMixin",
     "monster.zombieVillager.ZombieVillagerInvoker",
     "plant.GrassBlockBoneMealMixin",

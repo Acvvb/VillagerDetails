@@ -21,8 +21,8 @@ VillagerDetails is a Fabric mod that provides a large collection of behavior fix
 |------|-------------|
 | Language | Mod language setting — controls server-side translations for UI and messages |
 | RuleCommand | Global `/ec` permissions — manages permissions for all `/ec` commands (except `/ec c`) |
-| GlobalSpeedBypass | Global speed bypass — bypasses server speed checks to prevent rubberbanding when moving too fast (self or riding vehicles) |
-| HappyGhastSpeed | Happy Ghast flight speed — adjusts the flying speed when riding a Happy Ghast |
+| GlobalSpeedBypass | Movement-check bypass — skips the server movement check **only** for the player moving on their own (elytra / modded flight) and for a Happy Ghast the player is controlling. ⚠ Those two paths are unchecked while it is on: enable it temporarily on a controlled server only. It only affects vanilla `moved too quickly` / `moved wrongly` handling — external anti-cheats (NoCheatPlus etc.) are unaffected. Boats, minecarts, other modded vehicles and player-head-sitting are **no longer** bypassed. |
+| HappyGhastSpeed | Happy Ghast flight speed — adjusts the flying speed when riding a Happy Ghast. A custom value must be a number within `0.0 – 5.0`; out-of-range, non-numeric, `NaN` or `Infinity` input is **rejected before it is written** (the server still clamps as a backstop). Pair it with `GlobalSpeedBypass` if you raise the speed |
 
 #### Villagers
 
@@ -313,8 +313,8 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 |--------|------|
 | Language | 模组语言设置 — 控制界面和消息的服务端翻译语言 |
 | RuleCommand | `/ec` 全局权限管理 — 管理除 `/ec c` 以外的所有权限档位 |
-| GlobalSpeedBypass | 全局移速防回弹 — 绕过服务端速度校验，防止移速过快（自身或骑乘载具）时被拉回和刷屏警告 |
-| HappyGhastSpeed | 乐魂飞行速度 — 调整玩家骑乘乐魂时的飞行速度 |
+| GlobalSpeedBypass | 移速防回弹 — **仅**对「玩家自身移动（含鞘翅 / 模组飞行器）」和「玩家控制着的乐魂」跳过服务端移速校验。⚠ 开启期间这两类位移不受校验，仅建议在受控服务器临时开启、用完关掉；它只影响原版 `moved too quickly` / `moved wrongly` 判定，外部反作弊（NoCheatPlus 等）不受影响。船 / 矿车 / 其他模组载具 / 头顶乘坐**已不再**放行。 |
+| HappyGhastSpeed | 乐魂飞行速度 — 调整玩家骑乘乐魂时的飞行速度。自定义值必须是 `0.0 – 5.0` 之间的数字；超限、非数字、`NaN`、`Infinity` 都会在**写入前被拒绝**（服务端仍保留 clamp 兜底）。调高速度时建议同时开启 `GlobalSpeedBypass` |
 
 #### 村民
 

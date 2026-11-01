@@ -47,7 +47,7 @@ public final class RuleSwitches {
      * <p>把「为什么被拒」也作为返回值交出去，调用方（命令 / 收包端）就能给出同一套提示，
      * 而不是一个 {@code null} 各自猜原因。
      */
-    public sealed interface Canonical permits Canonical.Ok, Canonical.BadState, Canonical.BadOption {
+    public sealed interface Canonical permits Canonical.Ok, Canonical.BadState, Canonical.BadOption, Canonical.Rejected {
 
         /**
          * 校验通过：{@code state} 是规范写法（预定义列表里那一项的原文）
@@ -65,6 +65,20 @@ public final class RuleSwitches {
          * 预定义列表里没有这一项
          */
         record BadOption(String option) implements Canonical {
+        }
+
+        /**
+         * 形态合法，但被规则自己的 {@link RuleStateValidator} 拒了。
+         *
+         * <p>和 {@link BadOption} 的区别：{@code BadOption} 是「列表里没有这个选项」，
+         * 而这里说的是「这条规则的状态值本身有取值范围 / 格式要求」（例如乐魂速度必须是
+         * 0.0 ~ 5.0 的数字）。文案键和参数由校验器给，命令与收包端共用同一句提示。
+         *
+         * @param state      被拒的值（规范化后的形态，写日志 / 回显用）
+         * @param messageKey 语言键
+         * @param args       语言键参数
+         */
+        record Rejected(String state, String messageKey, Object[] args) implements Canonical {
         }
     }
 
@@ -132,16 +146,4 @@ public final class RuleSwitches {
         return SwitchComponentType.displayNameOf(state);
     }
 
-    /**
-     * 当前状态是不是它自己声明的默认状态（是的话重置按钮置灰）。
-     *
-     * <p>状态由调用方传进来（服务端从规则缓存取），这里不依赖规则表。
-     */
-    public static boolean isDefaultState(String currentState, String defaultState) {
-        return normalize(currentState).equalsIgnoreCase(normalize(defaultState));
-    }
-
-    private static String normalize(String state) {
-        return state == null ? "" : state.trim();
-    }
 }

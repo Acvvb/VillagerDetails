@@ -13,6 +13,7 @@ import com.villagerdetails.config.ReloadableConfig;
 import com.villagerdetails.config.impl.section.item.*;
 import com.villagerdetails.event.type.ListenerType;
 import com.villagerdetails.lang.ServerTranslations;
+import com.villagerdetails.rule.RuleStateValidator;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 
@@ -48,8 +49,20 @@ public enum RuleType implements RegisterTypeServer {
     // ==========================================
 
     /**
-     * 全局移动提速防回弹。开启后，玩家自身或骑乘载具（如乐魂、模组飞行器）移动过快时，
-     * 绕过服务端的速度校验，防止被拉回和刷屏警告。
+     * 移动提速防回弹。开启后，<b>只</b>在下面两种情况绕过服务端的速度校验，
+     * 防止被拉回和刷屏警告：
+     * <ul>
+     *     <li>玩家自身移动（没骑任何载具，含鞘翅 / 模组飞行器 / 创造飞行）；</li>
+     *     <li>玩家控制着的乐魂。</li>
+     * </ul>
+     *
+     * <p><b>副作用警告</b>：开启期间上面这两类位移的服务端校验是关掉的，玩家在这些场景里
+     * 不会被移速校验拦住；<b>仅建议在受控服务器临时开启</b>，用完关掉。它只影响原版的
+     * 「moved too quickly / moved wrongly」判定，<b>不影响外部反作弊</b>
+     * （NoCheatPlus、Matrix、服务端专属反作弊插件等仍按自己的规则判定）。
+     *
+     * <p>船 / 矿车 / 其他模组载具 / 玩家头顶乘坐<b>不再</b>被这条规则放行（历史版本是全局放行，
+     * 已于收窄中移除）。实现在 {@code GlobalSpeedBypassMixin#villagerdetails$isBypassAllowed()}。
      */
     GLOBAL_SPEED_BYPASS("GlobalSpeedBypass", "setting.global_speed_bypass", "setting.global_speed_bypass.desc", List.of(FIX), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
@@ -97,8 +110,26 @@ public enum RuleType implements RegisterTypeServer {
 
     /**
      * 乐魂飞行速度。调整玩家骑乘乐魂时的飞行速度（没人骑时恢复原版）。
+     *
+     * <p><b>取值被夹在 {@code [0.0, 5.0]}</b>（原版的 0 ~ 100 倍）：这条规则的 quickSwitches
+     * 全是数字，{@code SwitchComponentType.isCustomList} 因此把它当成"自定义列表"，
+     * {@code /ec HappyGhastSpeed 1000} 这类任意文本都会被放行。现在有<b>两道关</b>：
+     * <ol>
+     *     <li>写入前由 {@link RuleStateValidator#numericRange}（见最后一个构造参数）拒绝
+     *         非数字 / {@code NaN} / {@code Infinity} / 越界值，命令与收包端都会给出红字提示，
+     *         非法值根本进不了 {@link RuleCache}；</li>
+     *     <li>消费侧（{@code HappyGhastSpeedHandler}）仍然 clamp，用来兜住绕过界面直接发包、
+     *         或手改配置文件这类情况。</li>
+     * </ol>
+     *
+     * <p><b>与 {@link #GLOBAL_SPEED_BYPASS} 的耦合</b>：两条规则相互独立，只开速度不开 bypass
+     * 照样生效，但移速过快时仍可能被服务端拉回、并刷 {@code moved too quickly} 日志。
+     * 所以调高速度前建议同时开启 GlobalSpeedBypass（代码只提示、不自动开启）。
+     *
+     * <p>骑乘中改规则会立即生效；still-timeout / 取下挽具 / 控制者变成非玩家后，
+     * 每秒一次的巡检会把速度回滚到原版。
      */
-    HAPPY_GHAST_SPEED("HappyGhastSpeed", "setting.happy_ghast_speed", "setting.happy_ghast_speed.desc", List.of(FIX), new ArrayList<>(), null, null, () -> List.of("0.05", "0.1", "0.2", "0.3", "0.5", "1.0"), RuleConfigKind.NONE, "0.05"),
+    HAPPY_GHAST_SPEED("HappyGhastSpeed", "setting.happy_ghast_speed", "setting.happy_ghast_speed.desc", List.of(FIX), new ArrayList<>(), null, null, () -> List.of("0.05", "0.1", "0.2", "0.3", "0.5", "1.0"), RuleConfigKind.NONE, "0.05", RuleStateValidator.numericRange(0.0, 20.0)),
 
 
     // ==========================================
@@ -359,7 +390,20 @@ public enum RuleType implements RegisterTypeServer {
      */
     private final String state;
 
+    /**
+     * 状态值的<b>前置校验器</b>；{@code null} = 不校验（绝大多数规则，取值由 quickSwitches 兜着）。
+     *
+     * <p>只有「状态值是任意文本」的规则才需要它：{@code /ec <规则> <任意文本>} 会先被
+     * {@code RuleSwitches.canonicalize} 放行，再由这里判断格式 / 范围是否合法。
+     */
+    private final RuleStateValidator stateValidator;
+
     RuleType(String registerName, String displayName, String displayInfo, List<RuleCategoryType> category, List<ListenerType> listenerType, Supplier<RegisterServer> commandClass, Supplier<ReloadableConfig> reloadableConfig, Supplier<List<String>> quickSwitches, RuleConfigKind configKind, String state) {
+        this(registerName, displayName, displayInfo, category, listenerType, commandClass, reloadableConfig,
+                quickSwitches, configKind, state, null);
+    }
+
+    RuleType(String registerName, String displayName, String displayInfo, List<RuleCategoryType> category, List<ListenerType> listenerType, Supplier<RegisterServer> commandClass, Supplier<ReloadableConfig> reloadableConfig, Supplier<List<String>> quickSwitches, RuleConfigKind configKind, String state, RuleStateValidator stateValidator) {
         this.listenerType = listenerType;
         this.reloadableConfig = reloadableConfig;
         this.quickSwitches = quickSwitches;
@@ -370,6 +414,7 @@ public enum RuleType implements RegisterTypeServer {
         this.commandObject = commandClass;
         this.configKind = configKind == null ? RuleConfigKind.NONE : configKind;
         this.state = state;
+        this.stateValidator = stateValidator;
     }
 
     public String getRegisterName() {
@@ -431,6 +476,16 @@ public enum RuleType implements RegisterTypeServer {
 
     public String getState() {
         return state;
+    }
+
+    /**
+     * 状态值的前置校验器；{@code null} = 这条规则不需要额外校验。
+     *
+     * <p>由 {@code RuleChangeService.change} 统一调用（命令和收包端都走那里），
+     * 校验不过就<b>不写</b>规则缓存。
+     */
+    public RuleStateValidator getStateValidator() {
+        return stateValidator;
     }
 
     /**
