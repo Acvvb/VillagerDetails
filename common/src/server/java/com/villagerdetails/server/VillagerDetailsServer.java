@@ -2,6 +2,7 @@ package com.villagerdetails.server;
 
 import com.villagerdetails.cache.ServerSessionStates;
 import com.villagerdetails.command.RuleCommand;
+import com.villagerdetails.concurrent.ServerThreadManager;
 import com.villagerdetails.config.ConfigRegistry;
 import com.villagerdetails.event.ServerEventManager;
 import com.villagerdetails.network.ServerChannels;
@@ -38,6 +39,10 @@ public final class VillagerDetailsServer implements ModInitializer, DedicatedSer
     }
 
     private static void init() {
+
+        // 服务端线程池：必须在一切事件 / 规则之前就绪（区块卸载的村民交易快照要用它）
+        // 内部会挂 SERVER_STARTED / SERVER_STOPPING，单人反复换存档时能自动重建 / 关闭
+        ServerThreadManager.init();
 
         //配置注册
         ConfigRegistry.registerStartedHook();

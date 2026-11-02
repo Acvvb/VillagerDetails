@@ -71,6 +71,14 @@ public final class IdTranslationConfig implements ReloadableConfig {
      */
     private static volatile Map<String, String> nameToId = reverse(DEFAULT_INDEX);
 
+    /**
+     * 正查表：id → 第一个叫法（用作展示名，例如 {@code mending → 经验修补}）。
+     *
+     * <p>{@link #nameToId} 是「多对一」（一个 id 可以有多个叫法），没法反向取；
+     * 村民交易查询需要按 id 找展示名，所以单独维护一份。和 {@code nameToId} 同源、同时整体替换。
+     */
+    private static volatile Map<String, String> idToName = firstNames(DEFAULT_INDEX);
+
     private static Map<String, List<String>> defaultIndex() {
         Map<String, List<String>> map = new LinkedHashMap<>();
 
@@ -181,7 +189,7 @@ public final class IdTranslationConfig implements ReloadableConfig {
     public static void loadFrom(Path file) {
         if (!Files.exists(file)) {
             write(file, DEFAULT_INDEX);
-            nameToId = reverse(DEFAULT_INDEX);
+            applyIndex(DEFAULT_INDEX);
             log.info("已生成默认交易索引：{}", file);
             return;
         }
@@ -191,7 +199,7 @@ public final class IdTranslationConfig implements ReloadableConfig {
             parsed = parse(JsonIO.readObject(file));
         } catch (Exception e) {
             log.error("读取交易索引失败，回落默认表：{}", file, e);
-            nameToId = reverse(DEFAULT_INDEX);
+            applyIndex(DEFAULT_INDEX);
             return;
         }
 
@@ -203,7 +211,7 @@ public final class IdTranslationConfig implements ReloadableConfig {
             write(file, cleaned.index());
         }
 
-        nameToId = reverse(cleaned.index());
+        applyIndex(cleaned.index());
         log.info("已加载交易索引：{} 个交易条目", nameToId.size());
     }
 
@@ -294,6 +302,28 @@ public final class IdTranslationConfig implements ReloadableConfig {
     }
 
     /**
+     * 正查表：id → 第一个叫法。没有叫法的 id 不进来。
+     */
+    private static Map<String, String> firstNames(Map<String, List<String>> index) {
+        Map<String, String> names = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> entry : index.entrySet()) {
+            List<String> aliases = entry.getValue();
+            if (aliases != null && !aliases.isEmpty()) {
+                names.put(entry.getKey(), aliases.getFirst());
+            }
+        }
+        return Collections.unmodifiableMap(names);
+    }
+
+    /**
+     * 两张表一起替换，避免出现「反查表是新的、正查表还是旧的」的中间状态。
+     */
+    private static void applyIndex(Map<String, List<String>> index) {
+        nameToId = reverse(index);
+        idToName = firstNames(index);
+    }
+
+    /**
      * 按「id → 叫法列表」写文件
      */
     private static void write(Path file, Map<String, List<String>> index) {
@@ -339,6 +369,36 @@ public final class IdTranslationConfig implements ReloadableConfig {
 
         // 2) 直接当 id 用（英文 / 带命名空间的 id）
         return parseId(trimmed);
+    }
+
+    /**
+     * 取某个 id 的展示叫法（第一个别名），没有配置返回 {@code null}。
+     *
+     * <p>给「村民交易查询」这类<b>只读展示</b>用：玩家在 {@code trade_index.json} 里给
+     * {@code mending} 配了「经验修补」，这里就返回「经验修补」；没配的返回 {@code null}，
+     * 调用方再退回原版语言表 / 注册 id。
+     *
+     * <p>文件中 key 通常不带命名空间（{@code mending}），而注册表里的 id 带命名空间
+     * （{@code minecraft:mending}），所以两者都查一遍。
+     */
+    public static String displayNameOf(Identifier id) {
+        if (id == null) {
+            return null;
+        }
+        String direct = idToName.get(id.toString());
+        if (direct != null) {
+            return direct;
+        }
+        return "minecraft".equals(id.getNamespace()) ? idToName.get(id.getPath()) : null;
+    }
+
+    /**
+     * 文本形态的 id 重载（{@code minecraft:mending} 或 {@code mending}）。
+     *
+     * @return 解析不出来或没有叫法时返回 {@code null}
+     */
+    public static String displayNameOf(String idText) {
+        return displayNameOf(parseId(idText));
     }
 
     /**

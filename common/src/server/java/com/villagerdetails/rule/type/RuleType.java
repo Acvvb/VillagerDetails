@@ -7,6 +7,7 @@ import com.villagerdetails.command.c.impl.rule.resistance.BlockMiningResistanceS
 import com.villagerdetails.command.c.impl.rule.region.PortalBindingServerImpl;
 import com.villagerdetails.command.c.impl.rule.region.PortalPiglinNoSpawnServerImpl;
 import com.villagerdetails.command.c.impl.rule.rule.*;
+import com.villagerdetails.command.c.impl.rule.villager.TradeSearchCommand;
 import com.villagerdetails.command.c.server.RegisterServer;
 import com.villagerdetails.command.c.server.RegisterTypeServer;
 import com.villagerdetails.config.ReloadableConfig;
@@ -244,6 +245,25 @@ public enum RuleType implements RegisterTypeServer {
      * 无限交易。村民的交易永不耗尽。
      */
     VILLAGER_INFINITE_TRADE("VillagerInfiniteTrade", "setting.villager_infinite_trade", "setting.villager_infinite_trade.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
+
+    /**
+     * 村民交易查询。允许玩家用 {@code /ec c TradeSearch <关键词>} 搜索全存档里
+     * <b>已锁定交易</b>的村民能卖什么。
+     *
+     * <p>实现上不在查询时遍历世界（那会卡主线程），而是：
+     * <ol>
+     *     <li>区块卸载时（实体被移出追踪的 {@code ENTITY_UNLOAD}，以及整区块兜底的
+     *         {@code CHUNK_UNLOAD}），主线程把村民深拷贝成纯字符串快照
+     *         （UUID / 坐标 / 维度 / 商品名，不持有任何原版对象）；</li>
+     *     <li>快照交给 {@code ServerThreadManager} 的服务端线程池异步解析；</li>
+     *     <li>解析结果写进 {@code VillagerTradeCache}（{@code ConcurrentHashMap}），查询只读内存；</li>
+     *     <li>村民死亡（{@code AFTER_DEATH}）时主线程清掉对应缓存。</li>
+     * </ol>
+     *
+     * <p>缓存<b>不落盘</b>，停服 / 规则关闭即清空，下次进服靠区块卸载重新积累。
+     * 已知边界：交易刚锁定但区块一直没卸载时，缓存要等下一次区块卸载才会更新。
+     */
+    VILLAGER_TRADE_SEARCH("TradeSearch", "setting.villager_trade_search", "setting.villager_trade_search.desc", List.of(VILLAGER, COMMAND), new ArrayList<>(), () -> TradeSearchCommand.INSTANCE, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
      * 村民移动控制器。使用命名为 move 的拴绳控制村民移动到目的地。
