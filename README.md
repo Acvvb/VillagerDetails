@@ -43,6 +43,7 @@ VillagerDetails is a Fabric mod that provides a large collection of behavior fix
 | VillagerBookshelfDecompose | Auto bookshelf decomposition — bookshelves auto-decompose into books when used as payment |
 | VillagerEmeraldDecompose | Auto emerald block decomposition — emerald blocks auto-decompose into emeralds when used as payment |
 | VillagerOneTickTraderCount | Adjust trades refreshed per tick |
+| VillagerTradeSearch | Villager trade search — locked trades are snapshotted when a chunk unloads (item strings are copied on the main thread, parsed on the server thread pool) and kept in a memory-only index; `/ec c TradeSearch <keyword>` searches that index without touching the world. Results show up to 10 villagers with a clickable `[Teleport]` button |
 
 #### Entities & Mobs
 
@@ -142,6 +143,26 @@ again and use the new button.
 
 The old literal `/ec c batchBedBinding` was renamed to `/ec c VillagerBatchBedBinding` to match the
 rule name — the old spelling no longer parses.
+
+#### Villager trade search
+
+`VillagerTradeSearch` keeps a **memory-only** index of villagers whose trades are already locked. The
+index is filled when a villager is unloaded with its chunk (`ServerEntityEvents.ENTITY_UNLOAD`, plus a
+whole-chunk fallback on `ServerChunkEvents.CHUNK_UNLOAD`): the main thread copies UUID, position,
+dimension and the **strings** of every result item (no `Villager` / `MerchantOffer` / `ItemStack` ever
+crosses a thread boundary), and the server thread pool turns them into `VillagerTradeInfo` and stores
+them in `VillagerTradeCache`. Villagers are removed from the cache on
+`ServerLivingEntityEvents.AFTER_DEATH`.
+
+```
+/ec TradeSearch true|false              # enable / disable the rule
+/ec c TradeSearch <keyword>             # search item name / id / enchantment / coordinates / dimension / UUID
+/ec c TradeSearch teleport <uuid>       # teleport to that villager (the [Teleport] button runs this)
+```
+
+Results are capped at 10 villagers (6 offers per villager are shown). The cache is not persisted: it
+is cleared on server stop and when the rule is turned off, and it rebuilds as chunks unload. A trade
+locked while its chunk stays loaded therefore appears only after the chunk unloads.
 
 `/ec c reload` reloads **whole files** — every section of `villagerdetails/config.json`,
 `villager_details_binding.json` and `trade_index.json` — so hand edits take effect without a
@@ -336,6 +357,7 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 | VillagerBookshelfDecompose | 书架自动拆解 — 用书架支付时自动拆成书 |
 | VillagerEmeraldDecompose | 绿宝石块自动拆解 — 用绿宝石块支付时自动拆成绿宝石 |
 | VillagerOneTickTraderCount | 每 tick 刷新交易次数调整 |
+| VillagerTradeSearch | 村民交易查询 — 区块卸载时把「已锁定交易」的村民快照收录到内存（物品名在主线程深拷贝成字符串，解析在服务端线程池里做），之后用 `/ec c TradeSearch <关键词>` 直接搜内存缓存，不遍历世界。每次最多显示 10 条，结果里的 `[传送]` 可以直接传送到村民身边 |
 
 #### 实体与怪物
 
@@ -433,6 +455,24 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 
 旧写法 `/ec c batchBedBinding` 已改名为 `/ec c VillagerBatchBedBinding`（与规则名对齐），
 旧拼写不再能解析。
+
+#### 村民交易查询
+
+`VillagerTradeSearch` 维护一份**只存在于内存**的「已锁定交易」村民索引。索引在村民随区块卸载时
+填充（主入口是 `ServerEntityEvents.ENTITY_UNLOAD`，另有 `ServerChunkEvents.CHUNK_UNLOAD` 的整区块
+兜底）：主线程只拷贝 UUID、坐标、维度和每件结果物品的**字符串**（`Villager` / `MerchantOffer` /
+`ItemStack` 绝不跨线程传递），服务端线程池再组装成 `VillagerTradeInfo` 存进
+`VillagerTradeCache`；村民死亡时由 `ServerLivingEntityEvents.AFTER_DEATH` 清掉对应条目。
+
+```
+/ec TradeSearch true|false              # 开启 / 关闭规则
+/ec c TradeSearch <关键词>             # 搜物品名 / id / 附魔 / 坐标 / 维度 / UUID
+/ec c TradeSearch teleport <uuid>       # 传送到该村民（结果里的 [传送] 按钮就是执行它）
+```
+
+每次最多显示 10 个村民（每个村民最多列 6 件商品）。缓存不落盘：停服、关闭规则都会清空，
+进服后随区块卸载重新积累；因此「交易已锁定但区块一直没卸载」时，要等下一次区块卸载才会出现在
+查询结果里。
 
 `/ec c reload` 以**物理文件**为单位整份重读：`villagerdetails/config.json` 的所有 section、
 `villager_details_binding.json` 和 `trade_index.json` 一起重新加载，手改配置不用重启就生效；
