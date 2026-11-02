@@ -6,11 +6,13 @@ import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.command.SwitchComponentType;
 import com.villagerdetails.config.ReloadableConfig;
 import com.villagerdetails.config.impl.util.ConfigPaths;
-import com.villagerdetails.config.impl.util.JsonIO;
 import com.villagerdetails.lang.ServerTranslations;
 import com.villagerdetails.rule.RuleChangeService;
 import com.villagerdetails.rule.RuleStateValidator;
 import com.villagerdetails.rule.type.RuleType;
+import com.villagerdetails.util.io.AbstractAsyncConfig;
+import com.villagerdetails.util.io.AsyncConfigManager;
+import com.villagerdetails.util.io.JsonIO;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
@@ -21,6 +23,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
@@ -34,12 +37,12 @@ import java.util.regex.Pattern;
  * · 不依赖 NBT / Codec / DataFixTypes
  * · 需要自己管理加载、保存、服务器关闭时的刷盘
  */
-public class RuleConfig implements ReloadableConfig {
+public class RuleConfig extends AbstractAsyncConfig implements ReloadableConfig {
 
     /**
      * <b>仅作为 {@code ConfigRegistry} 的注册门面，无法读取真实数据。</b>
      *
-     * <p>它 {@code filePath == null}，{@code load() / save() / getBindingState()} 全是空操作：
+     * <p>它 {@code filePath == null}，{@code load() / flush() / getBindingState()} 全是空操作：
      * 真正带数据的是 {@link #getOrCreate(MinecraftServer)} 按 server 缓存的那个实例。
      * 这个常量存在的唯一原因是注册表需要一个「名字 + reload 入口」，
      * 而 {@link #reload(MinecraftServer)} 会转手调 {@code RuleChangeService.reload}，
@@ -64,12 +67,19 @@ public class RuleConfig implements ReloadableConfig {
      *
      * <p>为什么先丢缓存实例：{@link #getOrCreate} 按 server 缓存实例，实例里的
      * {@code bindingStates} 是「启动时读到的内存副本」；不丢掉它，手改配置后执行
-     * {@code /ec c reload} 只会把旧副本再应用一遍，等于没重载。丢掉前先 {@code save()}，
+     * {@code /ec c reload} 只会把旧副本再应用一遍，等于没重载。丢掉前先 {@code flush()}，
      * 避免把还没落盘的改动弄丢。
+     *
+     * <p><b>写是异步的</b>：{@code flush()} 只是把内容提交给写线程，所以这里必须再用
+     *  等这份文件真正落地 —— 否则下面重新读盘读到的还是
+     * 写之前的旧内容，等于把玩家刚改的规则回滚掉了。
      */
     @Override
     public void reload(MinecraftServer server) {
         onServerStopping(server);
+        if (server != null) {
+            AsyncConfigManager.awaitFile(ConfigPaths.world(server, FILE_NAME), RELOAD_AWAIT_MS);
+        }
         // 走统一入口：改规则只认 RuleChangeService（它会 getOrCreate 一份新的 = 重新读盘）
         RuleChangeService.reload(server);
     }
@@ -87,21 +97,43 @@ public class RuleConfig implements ReloadableConfig {
     private static final String FILE_NAME = "villager_details_binding.json";
 
     /**
+     * 重载前等待异步写落地的上限（毫秒）。
+     *
+     * <p>只作用于玩家主动执行的 {@code /ec c reload}：等的是本地一次小文件写，正常毫秒级。
+     */
+    private static final long RELOAD_AWAIT_MS = 5000L;
+
+    /**
      * 按服务器实例缓存，避免每次调用都读盘
      */
     private static final Map<MinecraftServer, RuleConfig> INSTANCES = new ConcurrentHashMap<>();
 
     private final Path filePath;
     private final Map<String, String> bindingStates = new HashMap<>();
-    private boolean dirty = false;
-
-    /**
-     * 批量改动期间为 true：只记脏标记，不落盘
-     */
-    private boolean batching = false;
 
     private RuleConfig(Path filePath) {
         this.filePath = filePath;
+    }
+
+    // ------------------------------------------------------------------
+    //  AbstractAsyncConfig：只回答「写哪个文件 / 写什么」
+    //
+    //  dirty / batching / markDirty / flush / batch 全部由基类提供，
+    //  本类不再自己维护任何保存状态。
+    // ------------------------------------------------------------------
+
+    @Override
+    protected Path getFilePath() {
+        return filePath;
+    }
+
+    /**
+     * 直接交 {@code bindingStates} 本身：Gson 会把它序列化成 {@code {"规则名": "状态"}}，
+     * 结构和以前手拼 {@code JsonObject} 完全一致。
+     */
+    @Override
+    protected Object getDataToSave() {
+        return bindingStates;
     }
 
     // ------------------------------------------------------------------
@@ -118,12 +150,28 @@ public class RuleConfig implements ReloadableConfig {
     }
 
     /**
-     * 在服务器停止事件里调用，把未落盘的改动写回文件
+     * 停服收尾：把某个服务器实例的未落盘改动提交给写线程，并把实例摘掉。
+     *
+     * <p>摘实例是为了让静态 map 不再攥住已停服的 {@link MinecraftServer}（单人反复换存档即泄漏）。
      */
     public static void onServerStopping(MinecraftServer server) {
         RuleConfig config = INSTANCES.remove(server);
         if (config != null) {
-            config.save();
+            config.flush();
+        }
+    }
+
+    /**
+     * 停服收尾（<b>不依赖 server 引用</b>）：把所有缓存实例的改动都提交给写线程。
+     *
+     * <p>给 {@code ServerThreadManager} 的 pre-shutdown 钩子用 —— 那个钩子没有 server 参数，
+     * 而且必须跑在 {@link AsyncConfigManager#flushAndShutdown} <b>之前</b>：
+     * 原来这份刷盘挂在 {@code ServerStoppingListener}（比关池更晚），异步化之后就会变成
+     * 「写线程已经排干并关掉了，规则配置才入队」—— 最后一次改动直接丢。
+     */
+    public static void flushAllAndClear() {
+        for (MinecraftServer server : List.copyOf(INSTANCES.keySet())) {
+            onServerStopping(server);
         }
     }
 
@@ -146,46 +194,6 @@ public class RuleConfig implements ReloadableConfig {
         } catch (Exception e) {
             log.error("读取绑定配置失败：{}", filePath, e);
         }
-    }
-
-    /**
-     * 把一组改动合成一次落盘。
-     *
-     * <p>为什么需要它：{@link #setBindingState} 每次都整份重写 JSON，而配置回灌时每条规则都会走一遍 ——
-     * 30 条规则就是 30 次整份写盘。这里期间只留脏标记（{@link #markDirty} 已经置上），结束后写一次。
-     *
-     * <p>嵌套调用由最外层收尾；{@code action} 抛异常也会在 {@code finally} 里把已经应用的改动落盘。
-     */
-    public void batch(Runnable action) {
-        if (batching) {
-            action.run();
-            return;
-        }
-        batching = true;
-        try {
-            action.run();
-        } finally {
-            batching = false;
-            if (dirty && filePath != null) {
-                log.info("批量写入绑定配置：一次落盘（{} 项）", bindingStates.size());
-            }
-            save();
-        }
-    }
-
-    public void save() {
-        // 批量过程中不写：脏标记已经置上，batch 结束时统一落盘
-        if (batching) return;
-        if (!dirty || filePath == null) return;
-
-        JsonObject obj = new JsonObject();
-        bindingStates.forEach(obj::addProperty);
-        JsonIO.safeWrite(filePath, obj);
-        dirty = false;
-    }
-
-    private void markDirty() {
-        this.dirty = true;
     }
 
     // ------------------------------------------------------------------
@@ -216,7 +224,7 @@ public class RuleConfig implements ReloadableConfig {
         }
         if (changed) {
             markDirty();
-            save();
+            flush();
         }
     }
 
@@ -281,11 +289,6 @@ public class RuleConfig implements ReloadableConfig {
         // 一次落盘：下面每条规则的 setState 都会走到 setBindingState，逐条写就是 N 次整份重写
         batch(() -> {
             RuleCache.syncRules(syncMap);
-            // ★ 必须在回灌之后再把默认值写一次：RuleCache.setState 成功时会 persist →
-            // setBindingState，而它有一条「值等于默认值就把 key 删掉」的剪枝逻辑，
-            // 会把上面强制写入的默认值又抹掉（内存里原本不是默认值时就会走到这条）。
-            // 这里绕开它直接写底层 map，保证文件里留下的是字面量默认值
-            // （"HappyGhastSpeed": "0.05" / "GlobalSpeedBypass": "false"），而不是该 key 消失。
             reapplyForcedDefaults(forcedDefaults);
         });
     }
@@ -367,7 +370,7 @@ public class RuleConfig implements ReloadableConfig {
      * <p>原因：{@code RuleCache.setState} 成功时会 {@code persist → setBindingState}，而它带着
      * 「值等于默认值就把 key 删掉」的剪枝 —— 内存里原本是别的值（比如上次合法加载的 {@code 0.3}）
      * 时，刚被 {@link #forceWriteDefault} 写进去的默认值会被它抹掉。这里直接写底层 map，
-     * 由 {@link #batch} 末尾那次 {@code save()} 一次性落盘。
+     * 由 {@link #batch} 末尾那次 {@link #flush()} 一次性提交。
      */
     private void reapplyForcedDefaults(Map<String, String> forcedDefaults) {
         if (forcedDefaults.isEmpty()) {

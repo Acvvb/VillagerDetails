@@ -35,15 +35,15 @@ import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
 /**
  * 规则管理命令的注册与执行。
  *
- * <p>命令树：
+ * <p>命令树（根字面量取自 {@code VillagerDetails.BASE_COMMAND}，即 {@code /ec}）：
  * <pre>
- *   /vd                             显示分类帮助
- *   /vd list                        列出全部规则
- *   /vd list &lt;category&gt;          按分类列出规则
- *   /vd list enable|disable         按启用/禁用状态列出规则
- *   /vd &lt;rule&gt;                    显示某条规则的当前状态与快捷开关
- *   /vd &lt;rule&gt; &lt;state&gt;          修改某条规则的状态
- *   /vd c ...                       子命令（由 {@link com.villagerdetails.command.c.CCommand} 提供）
+ *   /ec                             显示分类帮助
+ *   /ec list                        列出全部规则
+ *   /ec list &lt;category&gt;          按分类列出规则
+ *   /ec list enable|disable         按启用/禁用状态列出规则
+ *   /ec &lt;rule&gt;                    显示某条规则的当前状态与快捷开关
+ *   /ec &lt;rule&gt; &lt;state&gt;          修改某条规则的状态
+ *   /ec c ...                       子命令（由 {@link com.villagerdetails.command.c.CCommand} 提供）
  * </pre>
  *
  * <p>所有写操作都走 {@link RuleChangeService#change}，与客户端界面改规则共用同一个入口。
@@ -196,7 +196,7 @@ public class RuleCommand {
     // ============================================================
 
     /**
-     * 按启用/禁用状态列出规则（{@code /vd list enable}、{@code /vd list disable}）。
+     * 按启用/禁用状态列出规则（{@code /ec list enable}、{@code /ec list disable}）。
      *
      * <p>只保留状态匹配的规则；没有匹配项时发一条空列表提示。
      *
@@ -223,7 +223,7 @@ public class RuleCommand {
     }
 
     /**
-     * 根命令（{@code /vd}）的默认行为：显示分类帮助。
+     * 根命令（{@code /ec}）的默认行为：显示分类帮助。
      *
      * <p>只发一行分类按钮列表，玩家点击即可跳到对应分类的规则列表。
      */
@@ -234,7 +234,7 @@ public class RuleCommand {
     }
 
     /**
-     * 列出全部规则（{@code /vd list}）。
+     * 列出全部规则（{@code /ec list}）。
      *
      * <p>等价于不带分类参数的 {@link #listRulesByCategory(CommandContext, RuleCategoryType)}。
      */
@@ -243,7 +243,7 @@ public class RuleCommand {
     }
 
     /**
-     * 按分类列出规则（{@code /vd list <category>}）。
+     * 按分类列出规则（{@code /ec list <category>}）。
      *
      * <p>解析分类名 → 委托给双参版本；分类名不识别时发一条错误提示并返回 0。
      */
@@ -298,7 +298,7 @@ public class RuleCommand {
     // ============================================================
 
     /**
-     * 显示或修改某条规则的状态（{@code /vd <rule>}、{@code /vd <rule> <state>}）。
+     * 显示或修改某条规则的状态（{@code /ec <rule>}、{@code /ec <rule> <state>}）。
      *
      * <ul>
      *     <li>{@code state == null}：只展示当前状态、分类、描述和快捷开关按钮，不修改；</li>

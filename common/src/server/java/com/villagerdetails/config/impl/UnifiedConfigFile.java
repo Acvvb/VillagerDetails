@@ -4,8 +4,11 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.villagerdetails.config.ReloadableConfig;
 import com.villagerdetails.config.impl.util.ConfigPaths;
-import com.villagerdetails.config.impl.util.JsonIO;
 import com.villagerdetails.rule.type.RuleType;
+import com.villagerdetails.util.io.AbstractAsyncConfig;
+import com.villagerdetails.util.io.AsyncConfigManager;
+import com.villagerdetails.util.io.AsyncConfigWriter;
+import com.villagerdetails.util.io.JsonIO;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -14,6 +17,29 @@ import org.jspecify.annotations.Nullable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+/**
+ * 统一配置文件（存档内 {@code villagerdetails/config.json}）。
+ *
+ * <h2>写入模型：脏标记 + 定期合并落盘</h2>
+ *
+ * <p>每个子配置改一项就调一次 {@link #markDirty()}，<b>只置脏标记、不碰磁盘</b>；
+ * 真正落盘统一由 {@link #flush()} 完成，它由两处驱动：
+ * <ul>
+ *     <li>{@code END_SERVER_TICK} —— 同一 tick 里的 N 次修改合并成 1 次写；</li>
+ *     <li>停服收尾（{@code ServerThreadManager} 的 pre-shutdown 钩子）—— 把最后一次改动刷出去。</li>
+ * </ul>
+ *
+ * <p>为什么改：以前 {@code save()} 是「改一项 → 整份重写一次」。迁移一次要连写 4 次、
+ * 批量入名单是 N 次、传送门回写会在玩家传送的那一帧做整份文件写盘。现在这些全部收敛成「每 tick 最多一次」。
+ *
+ * <p><b>树仍然只允许在主线程碰</b>：{@link #getSection} 会把内部 {@link JsonObject} 直接交出去
+ * （{@code ServerLangConfig} 等会原地改它），而 Gson 的树不是线程安全的。
+ * 所以 {@link #markDirty()} / {@link #flush()} /  都是 {@code synchronized}。
+ *
+ * <p><b>I/O 已经移出主线程</b>：{@link #flush()} 只做主线程内的「序列化成 String」，
+ * 真正的写盘交给 {@link AsyncConfigWriter} 的专职单写者线程。因此 {@code flush()} 里
+ * <b>不允许</b>再出现任何文件操作 —— 那会重新把 I/O 拉回 tick 里。
+ */
 public final class UnifiedConfigFile implements ReloadableConfig {
 
     private UnifiedConfigFile() {
@@ -25,6 +51,14 @@ public final class UnifiedConfigFile implements ReloadableConfig {
     private static final String SAVE_PATH = "villagerdetails/config.json";
 
     /**
+     * 重载前等待异步写落地的上限。
+     *
+     * <p>只作用于玩家主动执行的 {@code /ec c reload}（低频命令），等的是本地几次小文件写的完成，
+     * 正常情况下是毫秒级；超时只记 ERROR 并继续，不会把命令卡死。
+     */
+    private static final long RELOAD_AWAIT_MS = 5000L;
+
+    /**
      * 配置版本标记的键名：写在 root 顶层，和各个子配置的 section 平级。
      *
      * <p>双下划线包起来是为了不和任何 section 名撞车；真实版本由
@@ -34,7 +68,45 @@ public final class UnifiedConfigFile implements ReloadableConfig {
 
     private static volatile MinecraftServer server;
     private static volatile boolean loaded;
+
+    /**
+     * 内存里的配置树（含全部 section）。只在主线程访问，且全程在类锁里。
+     */
     private static JsonObject root = new JsonObject();
+
+    /**
+     * 保存状态机（脏标记 / 防抖 / 批量 / 提交）的<b>组合</b>实例。
+     *
+     * <p>本类是全 {@code static} 的工具门面，<b>没法继承</b>
+     * {@link com.villagerdetails.util.io.AbstractAsyncConfig}（所有调用点都写
+     * {@code UnifiedConfigFile.markDirty()} / {@code flush()}，改成实例方法会波及
+     * 十几个子配置、迁移器和事件类）。所以这里<b>组合</b>一个匿名子类实例：
+     * 状态机逻辑全部由基类提供，本类只回答「写哪个文件 / 写什么」。
+     *
+     * <p>并发约定与改造前一致：静态方法 {@link #markDirty()} / {@link #flush()} /
+     * {@link #getSection} / {@link #setSection} 都拿类锁，因此序列化 {@code root} 时
+     * 不会有别的线程在改它（实际上全在主线程）。
+     */
+    private static final AbstractAsyncConfig WRITER = new AbstractAsyncConfig() {
+
+        /**
+         * 目标路径。{@code server} 还没挂上（启动前 / 停服后）时返回 {@code null}：
+         * 基类会原样保留脏标记并直接返回，不写盘。
+         */
+        @Override
+        protected Path getFilePath() {
+            MinecraftServer s = server;
+            return s == null ? null : ConfigPaths.world(s, SAVE_PATH);
+        }
+
+        /**
+         * 直接交整棵内存树：Gson 在<b>调用线程</b>（主线程）上立刻把它序列化成 String。
+         */
+        @Override
+        protected Object getDataToSave() {
+            return root;
+        }
+    };
 
     @Override
     public String configName() {
@@ -46,7 +118,7 @@ public final class UnifiedConfigFile implements ReloadableConfig {
      * <ol>
      *   <li>先把整份文件读进内存（幂等）；</li>
      *   <li>依次驱动每个子配置从内存 root 加载；</li>
-     *   <li>最后写一次盘，保证文件存在、骨架完整。</li>
+     *   <li>标脏，交给本 tick 末尾的 {@link #flush()} 落盘（保证文件存在、骨架完整）。</li>
      * </ol>
      *
      * <p>启动期走这里：{@link #ensureLoaded} 会在「同一个 server」时短路，
@@ -57,7 +129,8 @@ public final class UnifiedConfigFile implements ReloadableConfig {
     public void reload(MinecraftServer server) {
         ensureLoaded(server);
         reloadChildren(server);
-        save();
+        // 以前这里直接 save()：每次开服无条件整份写一次。现在只标脏，和迁移 / 子配置补默认值合并成一次
+        markDirty();
     }
 
     /**
@@ -67,13 +140,21 @@ public final class UnifiedConfigFile implements ReloadableConfig {
      * <ul>
      *     <li>跳过 {@link #ensureLoaded} 的「同一 server 直接 return」短路，<b>真的去读文件</b>；</li>
      *     <li>读完把新的 root 灌进所有子配置，玩家手改的内容才会生效；</li>
-     *     <li><b>不在末尾 save()</b> —— 否则刚读进来的内容会立刻被整份写回去，
-     *         手改等于白改；子配置自己补默认值时各按各的脏标记 save（写的也是刚读到的内容，安全）。</li>
+     *     <li><b>不在末尾标脏</b> —— 否则刚读进来的内容会立刻被整份写回去，
+     *         手改等于白改；子配置自己补默认值时各按各的脏标记，最后合并落盘。</li>
      * </ul>
+     *
+     * <p>读盘<b>之前</b>先 {@link #flush()}：否则「刚改完还没到 tick 末尾」的那次改动会被
+     * 这轮读盘直接覆盖掉，等于玩家白改（以前是同步写，改动早就在盘上了）。
      */
     public static synchronized void reloadFromDisk(MinecraftServer server) {
+        flush();
         // load() 读的是静态 server 字段，先把目标服务器挂上
         UnifiedConfigFile.server = server;
+        // 文件写是异步的：不等它落地就回读，读到的还是写之前的内容（等于这次重载白做）
+        if (server != null) {
+            AsyncConfigManager.awaitFile(ConfigPaths.world(server, SAVE_PATH), RELOAD_AWAIT_MS);
+        }
         load();
         if (server == null) {
             log.warn("reloadFromDisk 收到 null server：只重置了内存 root，没有读盘");
@@ -87,7 +168,7 @@ public final class UnifiedConfigFile implements ReloadableConfig {
     /**
      * 让所有「规则侧子配置」重新从内存 root 应用一遍；单份失败不影响其它份。
      *
-     * <p>刻意不在这里 save：正常重载路径由 {@link #reload(MinecraftServer)} 收尾落盘，
+     * <p>刻意不在这里标脏：正常重载路径由 {@link #reload(MinecraftServer)} 标脏，
      * 从磁盘重载路径则希望磁盘内容保持不变（直到下一次真正的修改）。
      */
     private static void reloadChildren(MinecraftServer server) {
@@ -100,9 +181,19 @@ public final class UnifiedConfigFile implements ReloadableConfig {
         }
     }
 
+    /**
+     * 清空内存态（停服用）。
+     *
+     * <p><b>先刷盘再清</b>：{@code server} 一旦置空，{@link #flush()} 就找不到存档路径了，
+     * 之后任何标脏都只能被丢弃。
+     *
+     * <p>清完 root 之后要显式把脏标记也清掉，否则「作废的旧内容」会在下次开服时被写出去。
+     */
     public static synchronized void reset() {
+        flush();
         server = null;
         loaded = false;
+        WRITER.clearDirty();
         root = new JsonObject();
     }
 
@@ -124,6 +215,43 @@ public final class UnifiedConfigFile implements ReloadableConfig {
 
     public static synchronized void setSection(String name, JsonElement value) {
         root.add(name, value);
+    }
+
+    // ==============================================================
+    // 落盘：脏标记 + 合并写
+    // ==============================================================
+
+    /**
+     * 标记「配置有改动，需要落盘」。状态由 {@link com.villagerdetails.util.io.AbstractAsyncConfig} 维护。
+     *
+     * <p>这是<b>所有子配置修改后的统一出口</b>。它不碰磁盘，同一 tick 内被调多少次都只会在
+     * {@link #flush()} 里提交一次。
+     */
+    public static synchronized void markDirty() {
+        WRITER.markDirty();
+    }
+
+    /**
+     * 把累积的改动<b>提交给异步写线程</b>；没有改动时是空操作。
+     *
+     * <p>由 tick 末尾和停服收尾调用，<b>必须在主线程</b>（它会遍历整棵 {@code root}）。
+     *
+     * <p>主线程只做序列化（纯 CPU），磁盘 I/O 由 {@code AsyncConfigWriter} 的单写者线程完成 ——
+     * 本方法<b>不会阻塞在磁盘上</b>。
+     *
+     * <p>失败处理：序列化 / 提交失败都保留脏标记，下一 tick 重试；
+     * 真正写盘失败由 {@code AsyncConfigWriter} 记 ERROR 并计数（不重试）。
+     *
+     * <p><b>本方法绝不向外抛异常</b>：它在 {@code END_SERVER_TICK} 里被直接调用，
+     * 抛出去就会顺着 tick 事件链把服务器掀翻。连「解析存档路径」都算在内。
+     */
+    public static synchronized void flush() {
+        try {
+            WRITER.flush();
+        } catch (Exception e) {
+            // getFilePath() 在停服收尾阶段可能因为存档目录不可用而抛；保留脏标记，下轮重试
+            log.error("提交统一配置写盘失败，保留待写入标记，下一 tick 重试：", e);
+        }
     }
 
     // ==============================================================
@@ -166,7 +294,7 @@ public final class UnifiedConfigFile implements ReloadableConfig {
     }
 
     /**
-     * 写入配置版本（只改内存；是否落盘由调用方决定）。
+     * 写入配置版本（只改内存；是否落盘由调用方 {@link #markDirty()} 决定）。
      */
     public static synchronized void setConfigVersion(String version) {
         root.addProperty(CONFIG_VERSION_KEY, version);
@@ -189,12 +317,6 @@ public final class UnifiedConfigFile implements ReloadableConfig {
             }
         }
         return false;
-    }
-
-    public static synchronized void save() {
-        MinecraftServer s = server;
-        if (s == null) return;
-        JsonIO.safeWrite(ConfigPaths.world(s, SAVE_PATH), root);
     }
 
     private static void load() {

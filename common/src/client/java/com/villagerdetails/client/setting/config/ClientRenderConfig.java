@@ -6,7 +6,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.villagerdetails.client.setting.type.ConfigEntryType;
 import com.villagerdetails.client.setting.util.ColorUtil;
-import com.villagerdetails.config.impl.util.JsonIO;
+import com.villagerdetails.util.io.AsyncConfigManager;
 import net.fabricmc.loader.api.FabricLoader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -259,17 +259,17 @@ public final class ClientRenderConfig {
     }
 
     /**
-     * 落盘（保存前会先做一次范围修正）
+     * 落盘（保存前会先做一次范围修正）。
+     *
+     * <p>走和服务端完全同一套 IO 基建：<b>当前线程只做序列化</b>（拖动滑条时这里会被高频调用，
+     * 绝不能在渲染/客户端主线程上做磁盘 I/O），写盘交给后台单写者线程。
+     *
+     * <p>客户端<b>不需要写任何"退出时保存"的代码</b>：直接关窗口 / 结束进程时，
+     * {@code AsyncConfigWriter} 自带的 JVM 关机钩子会兜底排干。
      */
     public void save() {
         clamp();
-        Path file = path();
-        try {
-            // 和存档里的配置走同一套原子写：中途崩游戏不会把这份配置截成半截
-            JsonIO.writeString(file, GSON.toJson(this));
-        } catch (Exception e) {
-            log.error("保存客户端渲染配置失败：{}", file, e);
-        }
+        AsyncConfigManager.save(path(), this);
     }
 
     // ==============================================================

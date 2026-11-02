@@ -247,7 +247,7 @@ public class RuleCache {
         try {
             RuleConfig cfg = RuleConfig.getOrCreate(s);
             cfg.setBindingState(type.getRegisterName(), state);
-            cfg.save();
+            cfg.flush();
         } catch (Exception e) {
             log.error("[RuleCache] 持久化失败 {}: {}", type.getRegisterName(), e);
         }

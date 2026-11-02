@@ -49,22 +49,22 @@ public final class IdSetStorage {
 
     public void add(Identifier id) {
         ids.add(id);
-        save();
+        markDirty();
     }
 
     public void addAll(Set<Identifier> more) {
         if (more.isEmpty()) return;
         ids.addAll(more);
-        save();
+        markDirty();
     }
 
     public void remove(Identifier id) {
-        if (ids.remove(id)) save();
+        if (ids.remove(id)) markDirty();
     }
 
     public void reset() {
         ids.clear();
-        save();
+        markDirty();
     }
 
     // ==============================================================
@@ -118,10 +118,16 @@ public final class IdSetStorage {
         log.info("[{}] 已加载 {} 项", section, ids.size());
     }
 
-    public void save() {
+    /**
+     * 把内存里的集合写进内存 root（{@code setSection}）并<b>标脏</b>。
+     *
+     * <p><b>只标脏、不落盘</b>：真正的文件写入由 {@code UnifiedConfigFile.flush()} 在
+     * tick 末尾 / 停服时合并完成，所以一次命令里改几项都只写一次文件。
+     */
+    public void markDirty() {
         JsonObject sec = new JsonObject();
         ids.forEach(id -> sec.addProperty(id.toString(), true));
         UnifiedConfigFile.setSection(section, sec);
-        UnifiedConfigFile.save();
+        UnifiedConfigFile.markDirty();
     }
 }

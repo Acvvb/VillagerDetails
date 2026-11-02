@@ -31,7 +31,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * 那边存的是<b>规则开关</b>，这里存的是<b>坐标数据</b>。
  *
  * <p>数据源就在这个类里（不是内存里另存一份），所以「改过但忘了落盘」不存在：
- * 指令 {@code /ec PortalBinding bind} 走 {@link #add}，加完立刻写文件。
+ * 指令 {@code /ec PortalBinding bind} 走 {@link #add}，加完立刻标脏，
+ * 本 tick 末尾由 {@code UnifiedConfigFile.flush()} 统一写文件。
  *
  * <p>一条绑定就是<b>一个对象</b>：键是两端的维度 id，值是该维度里的坐标区域
  * （{@code max} 省略时按单格区域算，{@code min}/{@code max} 顺序写反了会被归一化）。
@@ -173,7 +174,8 @@ public final class PortalBindingConfig implements ReloadableConfig {
     }
 
     /**
-     * 按 ID 删除一条并立刻落盘；找不到返回 {@code null}。
+     * 按 ID 删除一条并<b>标脏</b>（真正的写盘由 {@code UnifiedConfigFile.flush()} 在本 tick 末尾合并完成）；
+     * 找不到返回 {@code null}。
      *
      * <p>ID 只增不回退：删掉的号不会分给别人，所以「别人手里那个 ID 突然指到新条目」
      * 这种情况从根上不存在，不需要再做列表版本校验。
@@ -188,7 +190,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
                 continue;
             }
             PortalBinding removed = bindings.remove(i);
-            save();
+            markDirty();
             log.info("[{}] 已删除 #{} 绑定：{}", SECTION, id, describe(removed));
             return removed;
         }
@@ -196,7 +198,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
     }
 
     /**
-     * 加一条并立刻落盘，ID 由本类分配（{@code 最大 ID + 1}）。
+     * 加一条并<b>标脏</b>，ID 由本类分配（{@code 最大 ID + 1}）。
      *
      * <p>已经有一模一样的（{@link PortalBinding#of} 会归一化角点顺序，所以角点反着填也算同一条）
      * 就什么都不做，免得重复 {@code bind} 把文件写出一堆重复项。
@@ -224,7 +226,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         }
         PortalBinding stored = binding.withId(allocateId());
         bindings.add(stored);
-        save();
+        markDirty();
         log.info("[{}] 已写入 #{} 绑定：{}", SECTION, stored.id(), describe(stored));
         return true;
     }
@@ -240,7 +242,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
     }
 
     /**
-     * 清空全部绑定并落盘。
+     * 清空全部绑定并<b>标脏</b>。
      *
      * <p>{@link #nextId} <b>不</b>重置：清空之后新绑的还是接着最大的号往上走，
      * 和「删除不回收号」是同一个约定。
@@ -251,12 +253,12 @@ public final class PortalBindingConfig implements ReloadableConfig {
         }
         int removed = bindings.size();
         bindings.clear();
-        save();
+        markDirty();
         log.info("[{}] 已清空 {} 条绑定", SECTION, removed);
     }
 
     /**
-     * 回写某侧「已解析门底坐标」缓存并立刻落盘。
+     * 回写某侧「已解析门底坐标」缓存并<b>标脏</b>。
      *
      * <p>定位依赖 {@link PortalBinding#equals} —— 它<b>只比较 6 个原始字段、忽略 ID 与缓存</b>，
      * 所以传入的 {@code binding} 即使是「扫描前拿到的旧副本」，也能精确命中原条目。
@@ -282,22 +284,22 @@ public final class PortalBindingConfig implements ReloadableConfig {
         PortalBinding old = bindings.get(idx);
         BlockPos oldCached = targetIsB ? old.portalB() : old.portalA();
         if (Objects.equals(portalPos, oldCached)) {
-            // 已是该值：不落盘，避免每次传送都触发一次 IO
+            // 已是该值：不标脏，避免每次传送都产生一次待写入的改动
             return false;
         }
         PortalBinding updated = targetIsB ? old.withPortalB(portalPos) : old.withPortalA(portalPos);
         bindings.set(idx, updated);
-        save();
+        markDirty();
         log.debug("[{}] 回写缓存（{}）：{}", SECTION,
                 targetIsB ? "B 侧" : "A 侧", format(portalPos));
         return true;
     }
 
     /**
-     * 一次性覆盖某条绑定<b>两侧</b>的缓存门坐标并落盘（{@code refresh} 专用）。
+     * 一次性覆盖某条绑定<b>两侧</b>的缓存门坐标并<b>标脏</b>（{@code refresh} 专用）。
      *
      * <p>等价于「先 {@link #clearCachedPortals} 清空、再对两侧各调一次
-     * {@link #updateCachedPortal}」，但中间不会落盘：整份配置文件只写一次。
+     * {@link #updateCachedPortal}」，但中间不重复标脏：整个刷新只算一次改动。
      * 刷新一次要连续改三条记录（清缓存 + A 侧 + B 侧），走老路子会连写三次文件。
      *
      * <p>语义与刷新一致：<b>完全覆盖</b>，{@code portalA} / {@code portalB} 传 {@code null}
@@ -306,7 +308,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
      * @param binding 要更新的绑定（equals 匹配，ID / 缓存字段不参与）
      * @param portalA 新的 A 侧门底坐标；{@code null} 表示该侧无缓存
      * @param portalB 新的 B 侧门底坐标；{@code null} 表示该侧无缓存
-     * @return 真的改动了返回 true；找不到 / 与现状完全一致返回 false（不落盘）
+     * @return 真的改动了返回 true；找不到 / 与现状完全一致返回 false（不标脏）
      */
     public boolean applyCachedPortals(PortalBinding binding,
                                       @Nullable BlockPos portalA, @Nullable BlockPos portalB) {
@@ -320,24 +322,24 @@ public final class PortalBindingConfig implements ReloadableConfig {
         }
         PortalBinding old = bindings.get(idx);
         if (Objects.equals(old.portalA(), portalA) && Objects.equals(old.portalB(), portalB)) {
-            // 和现状一模一样：不落盘，刷新一次没换门时连 IO 都不做
+            // 和现状一模一样：不标脏，刷新一次没换门时什么也不做
             return false;
         }
         bindings.set(idx, old.withPortalA(portalA).withPortalB(portalB));
-        save();
+        markDirty();
         log.debug("[{}] 已刷新缓存：{} -> A={}, B={}", SECTION,
                 describe(binding), format(portalA), format(portalB));
         return true;
     }
 
     /**
-     * 清空一条绑定两侧的缓存门坐标并落盘。
+     * 清空一条绑定两侧的缓存门坐标并<b>标脏</b>。
      *
      * <p>用于 {@code delete} 指令：删记录之前先把「这条绑定的缓存已作废」落一次盘。
      * {@code refresh} 不走这里 —— 它要的是「扫完再一次写回」，走
-     * {@link #applyCachedPortals}，整份文件只写一次。
+     * {@link #applyCachedPortals}，只算一次改动。
      *
-     * <p>如果两侧本来就没缓存，返回 false，不落盘。
+     * <p>如果两侧本来就没缓存，返回 false，不标脏。
      */
     public boolean clearCachedPortals(PortalBinding binding) {
         if (binding == null) return false;
@@ -352,7 +354,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         }
         // withPortalA/withPortalB 会保留 ID，别用 new PortalBinding(...) 把 ID 丢了
         bindings.set(idx, old.withPortalA(null).withPortalB(null));
-        save();
+        markDirty();
         log.debug("[{}] 已清空缓存：{}", SECTION, describe(binding));
         return true;
     }
@@ -364,7 +366,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
     /**
      * 从内存 root 读。
      *
-     * <p>解析完顺手把规范化后的内容写回 root，父类收尾那次 {@code save()} 会一起落盘 ——
+     * <p>解析完顺手把规范化后的内容写回 root，{@code UnifiedConfigFile.flush()} 会一起落盘 ——
      * 于是手改潦草 / 写坏的条目会被清理成标准格式，没绑过时也会留下一个空骨架给用户照着填。
      *
      * <p><b>旧存档的 ID 迁移</b>（这里也是「不会重号」的全部保证）：
@@ -453,7 +455,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         // 取两者较大值：文件里记的 nextId 更大 = 曾经删过最大的号，不能退回去重发
         nextId = Math.max(maxNumericId + 1, storedNextId(section));
 
-        // 写回规范化结果：旧存档在这里就被补上 id 了（父类收尾会落盘）
+        // 写回规范化结果：旧存档在这里就被补上 id 了（tick 末尾的 flush 会一起落盘）
         section.add(BINDINGS_KEY, toJsonArray());
         section.addProperty(KEY_NEXT_ID, nextId);
 
@@ -491,12 +493,12 @@ public final class PortalBindingConfig implements ReloadableConfig {
         return id;
     }
 
-    private void save() {
+    private void markDirty() {
         JsonObject section = UnifiedConfigFile.getSection(SECTION);
         section.add(BINDINGS_KEY, toJsonArray());
-        // 计数器一起落盘：否则「删掉最大的号 → 重启」会让那个号被重新发出去
+        // 计数器一起写进 root：否则「删掉最大的号 → 重启」会让那个号被重新发出去
         section.addProperty(KEY_NEXT_ID, nextId);
-        UnifiedConfigFile.save();
+        UnifiedConfigFile.markDirty();
     }
 
     private JsonArray toJsonArray() {

@@ -32,9 +32,16 @@ import java.util.Optional;
  *         即 1.0.x 及更早）—— 1.1.0 起不再兼容旧格式，走整份重置；</li>
  *     <li><b>版本 &lt; {@link #LEGACY_RESET_BELOW}</b>（1.1.0）：整份重置统一配置；</li>
  *     <li><b>{@code LEGACY_RESET_BELOW <= 版本 < 当前版本}</b>：按
- *         {@link #MIGRATIONS} 的顺序执行登记过的迁移（每步执行完立刻推进版本）；</li>
+ *         {@link #MIGRATIONS} 的顺序执行登记过的迁移（每步执行完立刻推进内存里的版本号）；</li>
  *     <li><b>版本 >= 当前版本</b>：什么都不做（连文件都不重写）。</li>
  * </ol>
+ *
+ * <h2>落盘时机</h2>
+ * 这里所有写着「落盘」的地方都只调 {@code UnifiedConfigFile.markDirty()}：<b>只改内存、不写文件</b>。
+ * 一次迁移 + 各子配置补默认值的全部改动会在本 tick 末尾由 {@code flush()} 合并成<b>一次</b>写盘
+ * （以前每步各写一次，一次迁移能连写四五次整份文件）。
+ * 代价是「崩溃续跑」的检查点从「每一步」变成「这个 tick 结束」——
+ * 同一 tick 内崩掉时最多重跑一遍整个迁移，迁移本身是幂等的。
  *
  * <h2>怎么加一条迁移</h2>
  * <ol>
@@ -173,7 +180,7 @@ public final class MigrationManager {
                 stored, LEGACY_RESET_BELOW);
         UnifiedConfigFile.clearAllSections();
         UnifiedConfigFile.setConfigVersion(CURRENT_CONFIG_VERSION);
-        UnifiedConfigFile.save();
+        UnifiedConfigFile.markDirty();
     }
 
     /**
@@ -195,13 +202,14 @@ public final class MigrationManager {
         for (ConfigMigration migration : pending) {
             log.info("执行配置迁移：→ {}", migration.targetVersion());
             migration.migrate(server);
-            // 每步之后立刻推进版本：中途崩溃时下次从这里继续，已完成的步骤不会重跑
+            // 每步之后立刻推进内存里的版本号：中途抛异常时下次从这里继续，已完成的步骤不会重跑
+            // （真正的写盘在 tick 末尾合并成一次，见类注释「落盘时机」）
             UnifiedConfigFile.setConfigVersion(migration.targetVersion());
-            UnifiedConfigFile.save();
+            UnifiedConfigFile.markDirty();
         }
 
         UnifiedConfigFile.setConfigVersion(CURRENT_CONFIG_VERSION);
-        UnifiedConfigFile.save();
+        UnifiedConfigFile.markDirty();
         log.info("配置迁移完成：{} → {}", fromVersion, CURRENT_CONFIG_VERSION);
     }
 
@@ -213,7 +221,7 @@ public final class MigrationManager {
             return;
         }
         UnifiedConfigFile.setConfigVersion(version);
-        UnifiedConfigFile.save();
+        UnifiedConfigFile.markDirty();
         log.info("{}：{} → {}", reason, stored == null ? "<无>" : stored, version);
     }
 

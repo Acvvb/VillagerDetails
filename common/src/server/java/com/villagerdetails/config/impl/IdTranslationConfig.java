@@ -1,11 +1,11 @@
 package com.villagerdetails.config.impl;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.villagerdetails.config.ReloadableConfig;
 import com.villagerdetails.config.impl.util.ConfigPaths;
-import com.villagerdetails.config.impl.util.JsonIO;
+import com.villagerdetails.util.io.AsyncConfigManager;
+import com.villagerdetails.util.io.JsonIO;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
@@ -324,16 +324,15 @@ public final class IdTranslationConfig implements ReloadableConfig {
     }
 
     /**
-     * 按「id → 叫法列表」写文件
+     * 按「id → 叫法列表」写文件。
+     *
+     * <p><b>改成异步</b>：这些写入只发生在「首次生成默认索引」和「重名清理后重写」两类场景，
+     * 写完立刻由内存里的 {@code DEFAULT_INDEX} / 清理后的 {@code index} 接管，
+     * 没有任何一处需要「函数返回时文件已落地」的强一致语义。
+     * Gson 能直接序列化 {@code Map<String, List<String>>}，不用手拼 JsonObject。
      */
     private static void write(Path file, Map<String, List<String>> index) {
-        JsonObject root = new JsonObject();
-        index.forEach((id, names) -> {
-            JsonArray array = new JsonArray();
-            names.forEach(array::add);
-            root.add(id, array);
-        });
-        JsonIO.safeWrite(file, root);
+        AsyncConfigManager.save(file, index);
     }
 
     /**

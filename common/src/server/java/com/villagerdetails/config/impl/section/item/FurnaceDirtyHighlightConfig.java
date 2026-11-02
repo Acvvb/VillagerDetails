@@ -90,14 +90,14 @@ public final class FurnaceDirtyHighlightConfig implements ReloadableConfig {
     @Override
     public void reload(MinecraftServer server) {
         JsonObject section = UnifiedConfigFile.getSection(configName());
-        boolean dirty = false;
+        boolean changed = false;
 
         int radius = DEFAULT_VIEW_CHUNK_RADIUS;
         if (isNumber(section, KEY_VIEW_CHUNK_RADIUS)) {
             radius = section.get(KEY_VIEW_CHUNK_RADIUS).getAsInt();
         } else {
             section.addProperty(KEY_VIEW_CHUNK_RADIUS, DEFAULT_VIEW_CHUNK_RADIUS);
-            dirty = true;
+            changed = true;
         }
 
         int interval = DEFAULT_SCAN_INTERVAL_TICKS;
@@ -105,14 +105,15 @@ public final class FurnaceDirtyHighlightConfig implements ReloadableConfig {
             interval = section.get(KEY_SCAN_INTERVAL).getAsInt();
         } else {
             section.addProperty(KEY_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_TICKS);
-            dirty = true;
+            changed = true;
         }
 
         viewChunkRadius = Math.clamp(radius, MIN_VIEW_CHUNK_RADIUS, MAX_VIEW_CHUNK_RADIUS);
         scanIntervalTicks = Math.clamp(interval, MIN_SCAN_INTERVAL_TICKS, MAX_SCAN_INTERVAL_TICKS);
 
-        if (dirty) {
-            UnifiedConfigFile.save();
+        // 补默认值只是改了内存 root：标脏即可，落盘由本 tick 末尾的 flush 合并完成
+        if (changed) {
+            UnifiedConfigFile.markDirty();
         }
 
         // 配置 0 = 跟随服务端视距：日志直接打出「实际生效」的区块半径，

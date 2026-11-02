@@ -92,8 +92,9 @@ public final class PlayerHeadSittingConfig implements ReloadableConfig {
         allowCreative = reader.bool(KEY_ALLOW_CREATIVE, DEFAULT_ALLOW_CREATIVE);
         dismountOnTargetRide = reader.bool(KEY_DISMOUNT_ON_TARGET_RIDE, DEFAULT_DISMOUNT_ON_TARGET_RIDE);
 
+        // 补默认值只是改了内存 root：标脏即可，落盘由本 tick 末尾的 flush 合并完成
         if (reader.dirty()) {
-            UnifiedConfigFile.save();
+            UnifiedConfigFile.markDirty();
         }
         log.info("[{}] maxStackDepth={}, allowCreative={}, dismountOnTargetRide={}",
                 configName(), maxStackDepth, allowCreative, dismountOnTargetRide);

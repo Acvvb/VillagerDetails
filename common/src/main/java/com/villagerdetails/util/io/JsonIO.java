@@ -1,6 +1,10 @@
-package com.villagerdetails.config.impl.util;
+package com.villagerdetails.util.io;
 
-import com.google.gson.*;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -11,14 +15,22 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * JSON 文件读写工具。三个配置类都用同一套 Gson 配置和同样的读写模式。
+ * JSON 读写工具：<b>序列化</b> + <b>原子写</b>。
  *
- * <p>只负责「读成 JsonObject / 把 JsonElement 写成文件」，不管 dirty、不管合并、
- * 不管缓存 —— 那些是各配置自己的策略。
+ * <p>位于 {@code main} 公共区，<b>绝不依赖任何服务端 / 客户端专属类型</b>
+ * （不出现 {@code MinecraftServer}、{@code ConfigPaths} 之类），只认标准 {@link Path}。
+ * 服务端的存档配置、客户端的渲染设置共用这一份实现。
+ *
+ * <p>本类只管「字节怎么落盘」，不管调度：
+ * <ul>
+ *     <li>要异步（推荐）：{@link AsyncConfigManager#save} —— 主线程序列化、后台单写者落盘；</li>
+ *     <li>要立刻同步写（少见）：{@link #writeObject} / {@link #safeWrite}，会阻塞调用线程。</li>
+ * </ul>
  */
 public final class JsonIO {
 
@@ -27,10 +39,17 @@ public final class JsonIO {
 
     private static final Logger log = LogManager.getLogger(JsonIO.class);
 
+    /**
+     * 全项目统一的 Gson 配置：缩进格式化 + 不转义 HTML 字符（中文与 {@code <>&} 保持原样）。
+     */
     public static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
             .disableHtmlEscaping()
             .create();
+
+    // ==============================================================
+    // 读
+    // ==============================================================
 
     /**
      * 读 JSON 对象。
@@ -48,26 +67,55 @@ public final class JsonIO {
         }
     }
 
+    // ==============================================================
+    // 序列化
+    // ==============================================================
+
     /**
-     * 写 JSON；自动建父目录。
+     * 把任意对象序列化成最终要落盘的文本（pretty printing + 数字数组压成一行）。
+     *
+     * <p>参数是 {@link Object} 而不是 {@code JsonElement}：Gson 能直接吃
+     * {@code JsonObject}、{@code Map}、普通 POJO ——调用方不用先手工拼一棵树。
+     *
+     * <p>这是<b>唯一</b>的序列化入口：同步写和异步写都走它，避免同一个文件
+     * 因为「谁序列化的」不同而格式漂移。
+     *
+     * <p><b>必须在调用方线程（服务端 = 主线程）执行</b>：它会遍历整棵树，
+     * 而 Gson 的树和普通集合都不是线程安全的。
+     */
+    public static String serialize(Object data) {
+        return inlineNumberArrays(GSON.toJson(data));
+    }
+
+    // ==============================================================
+    // 写（同步；异步请用 AsyncConfigManager）
+    // ==============================================================
+
+    /**
+     * 同步写一个 JSON；自动建父目录。<b>会阻塞调用线程</b>。
      *
      * <p><b>原子写</b>：内容先写进同目录的临时文件，再整体替换目标文件。中途崩服 / 断电时，
-     * 目标文件要么还是上一份完整内容、要么已经是新的完整内容，不会留下写到一半的 JSON
-     * （临时文件在 finally 里清掉，不会被读配置的逻辑看到）。
+     * 目标文件要么还是上一份完整内容、要么已经是新的完整内容，不会留下写到一半的 JSON。
+     *
+     * <p>日常请用 {@link AsyncConfigManager#save}；这里只在「必须立刻可见」的场景才需要。
      */
-    public static void writeObject(Path file, JsonElement root) throws Exception {
-        writeString(file, inlineNumberArrays(GSON.toJson(root)));
+    public static void writeObject(Path file, Object data) throws Exception {
+        writeString(file, serialize(data));
     }
 
     /**
      * 原子写一段文本（临时文件 + 整体替换）；JSON 之外的写入方也能直接用。
+     *
+     * <p><b>临时文件名带随机 UUID</b>：以前是固定的 {@code 文件名.tmp}，只要有两个写者
+     * 同时写同一个文件（异步写线程 + 某处同步兜底），就会出现「A 的 finally 删掉 B 正在写的临时文件」。
+     * 现在每次写都是独立临时文件，即使将来出现并发写也不会互踩。
      */
     public static void writeString(Path file, String content) throws Exception {
         Path parent = file.getParent();
         if (parent != null) Files.createDirectories(parent);
 
         // 临时文件必须和目标同目录：只有同一文件系统内才谈得上原子替换
-        Path tmp = file.resolveSibling(file.getFileName().toString() + ".tmp");
+        Path tmp = file.resolveSibling(file.getFileName() + ".tmp." + UUID.randomUUID());
         try {
             Files.writeString(tmp, content, StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
@@ -92,6 +140,23 @@ public final class JsonIO {
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
         }
     }
+
+    /**
+     * 内部用：写失败时统一打日志，调用方不用重复 try/catch。
+     *
+     * <p>同步兜底路径；异步路径的失败由 {@link AsyncConfigWriter} 统一计数并记录。
+     */
+    public static void safeWrite(Path file, Object data) {
+        try {
+            writeObject(file, data);
+        } catch (Exception e) {
+            log.error("写入 JSON 失败：{}", file, e);
+        }
+    }
+
+    // ==============================================================
+    // 格式化：把纯数字数组压回一行
+    // ==============================================================
 
     /**
      * 「带换行的纯数字数组」——注意必须包含换行才算，字符串里的换行是转义的，所以碰不到字符串内容。
@@ -128,16 +193,5 @@ public final class JsonIO {
         }
         arrays.appendTail(out);
         return out.toString();
-    }
-
-    /**
-     * 内部用：写失败时统一打日志，调用方不用重复 try/catch。
-     */
-    public static void safeWrite(Path file, JsonElement root) {
-        try {
-            writeObject(file, root);
-        } catch (Exception e) {
-            log.error("写入 JSON 失败：{}", file, e);
-        }
     }
 }

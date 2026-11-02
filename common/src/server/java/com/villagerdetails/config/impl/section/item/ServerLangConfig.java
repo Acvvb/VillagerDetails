@@ -78,7 +78,7 @@ public final class ServerLangConfig implements ReloadableConfig {
 
     public static void loadFromWorld() {
         JsonObject sec = UnifiedConfigFile.getSection(SETTING_LANGUAGE.getRegisterName());
-        boolean dirty = false;
+        boolean changed = false;
 
         if (sec.has("preload") && sec.get("preload").isJsonArray()) {
             List<String> list = new ArrayList<>();
@@ -90,17 +90,18 @@ public final class ServerLangConfig implements ReloadableConfig {
             JsonArray arr = new JsonArray();
             DEFAULT_PRELOAD.forEach(arr::add);
             sec.add("preload", arr);
-            dirty = true;
+            changed = true;
         }
 
         if (sec.has("default") && sec.get("default").isJsonPrimitive()) {
             defaultLang = sec.get("default").getAsString();
         } else {
             sec.addProperty("default", DEFAULT_LANG);
-            dirty = true;
+            changed = true;
         }
 
-        if (dirty) UnifiedConfigFile.save();
+        // 补默认值只是改了内存 root：标脏即可，落盘由本 tick 末尾的 flush 合并完成
+        if (changed) UnifiedConfigFile.markDirty();
         log.info("[ServerLang] preload={}, default={}", preloadLanguage, defaultLang);
     }
 }

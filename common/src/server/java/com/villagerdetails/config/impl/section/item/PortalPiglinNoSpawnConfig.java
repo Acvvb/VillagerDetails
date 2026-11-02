@@ -180,7 +180,7 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
     }
 
     /**
-     * 加一条并立刻落盘，ID 由本类分配（{@code 最大 ID + 1}）。
+     * 加一条并<b>标脏</b>，ID 由本类分配（{@code 最大 ID + 1}）。
      *
      * <p>已经有一模一样的（角点反着填也算同一条，record 的相等性已经覆盖归一化后的结果，
      * 且<b>不比较 ID</b>）就什么都不做，免得重复 {@code bind} 把文件写出一堆重复项。
@@ -193,13 +193,13 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
         }
         PortalPiglinNoSpawnRegion stored = region.withId(allocateId());
         regions.add(stored);
-        save();
+        markDirty();
         log.info("[{}] 已写入 #{} 区域：{}", SECTION, stored.id(), describe(stored));
         return true;
     }
 
     /**
-     * 按 ID 删除一条并立刻落盘；找不到返回 {@code null}。
+     * 按 ID 删除一条并<b>标脏</b>；找不到返回 {@code null}。
      */
     public @Nullable PortalPiglinNoSpawnRegion removeById(@Nullable String id) {
         if (id == null || id.isBlank()) {
@@ -211,7 +211,7 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
                 continue;
             }
             PortalPiglinNoSpawnRegion removed = regions.remove(i);
-            save();
+            markDirty();
             log.info("[{}] 已删除 #{} 区域：{}", SECTION, id, describe(removed));
             return removed;
         }
@@ -219,7 +219,7 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
     }
 
     /**
-     * 清空全部区域并落盘。
+     * 清空全部区域并<b>标脏</b>。
      *
      * <p>{@link #nextId} <b>不</b>重置：清空之后新绑的还是接着最大的号往上走。
      */
@@ -229,7 +229,7 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
         }
         int removed = regions.size();
         regions.clear();
-        save();
+        markDirty();
         log.info("[{}] 已清空 {} 个区域", SECTION, removed);
     }
 
@@ -240,7 +240,7 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
     /**
      * 从内存 root 读。
      *
-     * <p>解析完顺手把规范化后的内容写回 root，父类收尾那次 {@code save()} 会一起落盘 ——
+     * <p>解析完顺手把规范化后的内容写回 root，{@code UnifiedConfigFile.flush()} 会一起落盘 ——
      * 于是手改潦草 / 写坏的条目会被清理成标准格式，没绑过时也会留下一个空骨架给用户照着填。
      *
      * <p><b>旧存档的 ID 迁移</b>与 {@code PortalBindingConfig} 完全同一套：
@@ -318,7 +318,7 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
         // 取两者较大值：文件里记的 nextId 更大 = 曾经删过最大的号，不能退回去重发
         nextId = Math.max(maxNumericId + 1, storedNextId(section));
 
-        // 写回规范化结果：旧存档在这里就被补上 id 了（父类收尾会落盘）
+        // 写回规范化结果：旧存档在这里就被补上 id 了（tick 末尾的 flush 会一起落盘）
         section.add(REGIONS_KEY, toJsonArray());
         section.addProperty(KEY_NEXT_ID, nextId);
 
@@ -346,12 +346,12 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
         return id;
     }
 
-    private void save() {
+    private void markDirty() {
         JsonObject section = UnifiedConfigFile.getSection(SECTION);
         section.add(REGIONS_KEY, toJsonArray());
-        // 计数器一起落盘：否则「删掉最大的号 → 重启」会让那个号被重新发出去
+        // 计数器一起写进 root：否则「删掉最大的号 → 重启」会让那个号被重新发出去
         section.addProperty(KEY_NEXT_ID, nextId);
-        UnifiedConfigFile.save();
+        UnifiedConfigFile.markDirty();
     }
 
     private JsonArray toJsonArray() {
