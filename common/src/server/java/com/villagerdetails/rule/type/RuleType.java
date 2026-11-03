@@ -207,9 +207,11 @@ public enum RuleType implements RegisterTypeServer {
     VILLAGER_BATCH_BED_RESET("VillagerBatchBedBinding", "setting.villager_batch_bed_reset", "setting.villager_batch_bed_reset.desc", List.of(VILLAGER, COMMAND), List.of(ListenerType.BLOCK_RANGE_SELECTION), () -> VillagerBatchBedBindingServerImpl.INSTANCE, null, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR),
 
     /**
-     * 自动刷新交易。用命名牌写目标附魔，右键图书管理员刷出满级附魔交易。
+     * 自动刷新交易。用命名牌写物品 / 附魔（{@code 绿宝石} / {@code mending}），右键村民后
+     * 由分帧调度器<b>按原版概率真实重掷</b>，直到刷出目标（附魔书命中后补到满级）。
+     * <p>默认<b>开启</b>：这是玩家最常用的入口，默认关着等于「装了没效果」。
      */
-    VILLAGER_AUTO_TRADER("VillagerAutoTrader", "setting.villager_auto_trader", "setting.villager_auto_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
+    VILLAGER_AUTO_TRADER("VillagerAutoTrader", "setting.villager_auto_trader", "setting.villager_auto_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, TRUE_STR),
 
     /**
      * 神装工具刷新。使用 331a/331b 命名牌刷出三附魔钻石工具。

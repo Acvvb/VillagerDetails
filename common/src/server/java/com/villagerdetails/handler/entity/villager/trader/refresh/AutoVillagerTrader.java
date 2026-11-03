@@ -31,7 +31,6 @@ import net.minecraft.world.item.trading.VillagerTrade;
 
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import java.util.function.Predicate;
 
 import static com.villagerdetails.rule.type.RuleType.*;
@@ -41,14 +40,15 @@ import static com.villagerdetails.rule.type.RuleType.*;
  *
  * <p>两条路线：
  * <ul>
- *     <li><b>点名必中（{@link #tickTargeted}）</b>：命名牌写「绿宝石 / mending / 白釉陶瓦」这类
- *     物品或附魔，先静态判断「这个职业最低几级能刷出它」（{@link TradePoolChecker#requiredLevel}），
- *     再把那笔交易<b>定向</b>放进该等级，因此一次构造即命中，不再靠概率硬刷。</li>
- *     <li><b>拒绝采样（{@link #tickGodTools} / {@link #tickTerracotta}）</b>：{@code 331a} / {@code 331b}
- *     与陶瓦这类「要同时满足多个条件」的需求，仍旧反复生成整表直到命中。</li>
+ *     <li><b>点名刷取（分帧真实模拟）</b>：命名牌写「绿宝石 / mending / 白釉陶瓦」这类物品或附魔，
+ *     先静态判断「这个职业最低几级能刷出它」（{@link TradePoolChecker#requiredLevel}），
+ *     然后<b>按原版概率逐次重掷整表</b>，交给 {@link TradeRerollScheduler} 分帧执行；
+ *     命中后在主线程写回、锁等级、发包、刷索引。</li>
+ *     <li><b>固定组合（同步）</b>：{@code 331a} / {@code 331b} 是「三种附魔钻石工具」这种
+ *     复杂组合，仍旧同步跑拒绝采样 + 事后补齐三件工具。</li>
  * </ul>
  *
- * <p>两条路线的随机数都由 {@link TradeTableBuilder#seedFor(UUID, int)} 按
+ * <p>两条路线的随机数都由 {@link TradeTableBuilder#seedFor} 按
  * 「村民 UUID + 第几次尝试」自播种，<b>不碰世界随机序列</b>（{@code level.dat} 里的
  * {@code RandomSequences}），同一村民同一尝试结果可复现，也不再需要
  * {@code setVillagerData} + {@code updateTrades} 那套「临时改等级」的写法。
@@ -59,10 +59,9 @@ public class AutoVillagerTrader {
     private static final int COMBO_LEVEL = 5;
 
     /**
-     * 定向构造的重试上限：只为兜住「候选交易刚好被 {@code merchant_predicate} 挡掉」这类
-     * 极端数据包，正常情况第 1 次就成功。
+     * 331 工具刷新重试上限用规则里的次数（默认 500），这里只兜一个上限。
      */
-    private static final int TARGETED_MAX_ATTEMPTS = 16;
+    private static final int COMBO_MAX_ATTEMPTS = 1000;
 
     /**
      * 兜底最大使用次数
@@ -114,11 +113,11 @@ public class AutoVillagerTrader {
     // ==============================================================
 
     public enum Route {
-        /** 附魔书：结果被强制改写成「目标附魔 + 满级」。 */
+        /** 附魔书：命中条件是「书里带这个附魔」，命中后等级强制覆写到满级。 */
         ENCHANT,
         /** 普通物品。 */
         NORMAL,
-        /** 陶瓦：普通陶瓦 + 对应釉陶瓦必须成对出现，两笔一起定向构造。 */
+        /** 陶瓦：普通陶瓦 + 对应釉陶瓦必须成对出现。 */
         TERRACOTTA
     }
 
@@ -126,24 +125,29 @@ public class AutoVillagerTrader {
      * 解析出来的刷新目标。
      *
      * @param requiredLevel 最低可出等级（1~5），{@link TradePoolChecker#NO_LEVEL} 表示刷不出
-     * @param placements    必须出现在这一级的交易（陶瓦那种成对需求就是两个）
-     * @param verifications 结果校验：全部满足才算命中
+     * @param tests         命中条件：全部满足才算中
+     * @param upgrade       命中后的结果升级（附魔书满级），可为 {@code null}
      */
     public record Target(Route route,
                          int requiredLevel,
-                         List<TradeTableBuilder.Placement> placements,
-                         List<Predicate<ItemStack>> verifications) {
+                         List<Predicate<ItemStack>> tests,
+                         TradeRerollScheduler.Upgrade upgrade) {
     }
 
     // ==============================================================
     // 入口
     // ==============================================================
 
-    public static int tickByName(Villager villager, String raw, int maxAttempts) {
-        return tickByName(villager, raw, maxAttempts, true);
-    }
-
-    public static int tickByName(Villager villager, String raw, int maxAttempts, boolean doLock) {
+    /**
+     * 命名牌触发入口。
+     *
+     * @return {@code 1} 任务已排队（点名路线，结果稍后由调度器提示）；
+     * {@code >1} 同步路线实际模拟次数（331a/331b）；
+     * 负数见 {@link #isSpecialName} 附近的约定：
+     * {@code -1} 已锁定 / 小孩 / 无工作站、{@code -2} 名字解析不出、{@code -3} 规则未开、
+     * {@code -4} 职业不支持、{@code -7} 这个职业根本刷不出、{@code -8} 任务过多
+     */
+    public static int tickByName(Villager villager, String raw, int maxAttempts, ServerPlayer player) {
         if (raw == null) return -2;
         String key = normalize(raw);
 
@@ -151,22 +155,36 @@ public class AutoVillagerTrader {
         if (key.equals("331a")) {
             if (!RuleCache.isEnabled(VILLAGER_GOD_TOOLS)) return -3;
             if (isProfessionAllowed(villager, GOD_TOOLS_PROFESSIONS)) return -4;
-            return tickGodTools(villager, true, maxAttempts, doLock);
+            return tickGodTools(villager, true, maxAttempts, true);
         }
         if (key.equals("331b")) {
             if (!RuleCache.isEnabled(VILLAGER_GOD_TOOLS)) return -3;
             if (isProfessionAllowed(villager, GOD_TOOLS_PROFESSIONS)) return -4;
-            return tickGodTools(villager, false, maxAttempts, doLock);
+            return tickGodTools(villager, false, maxAttempts, true);
         }
 
-        // ===== 点名：物品 / 附魔书 / 陶瓦 =====
+        // ===== 点名：物品 / 附魔书 / 陶瓦 → 分帧真实模拟 =====
+        if (!RuleCache.isEnabled(VILLAGER_AUTO_TRADER)) return -3;
+
         Target target = resolveTarget(villager, raw);
         if (target == null) return -2;
-
+        if (target.requiredLevel() == TradePoolChecker.NO_LEVEL) return -7;
+        if (isRerollable(villager)) return -1;
+        if (!(villager.level() instanceof ServerLevel level)) return -1;
         if (target.route() == Route.TERRACOTTA && !RuleCache.isEnabled(VILLAGER_TERRACOTTA_TRADER)) {
             return -3;
         }
-        return tickTargeted(villager, target, maxAttempts, doLock);
+
+        TradeRerollScheduler.Submit submit = TradeRerollScheduler.submit(
+                new TradeRerollScheduler.Task(
+                        villager.getUUID(),
+                        level.dimension(),
+                        player == null ? null : player.getUUID(),
+                        raw.trim(),
+                        target.requiredLevel(),
+                        target.tests(),
+                        target.upgrade()));
+        return submit == TradeRerollScheduler.Submit.QUEUED ? 1 : -8;
     }
 
     // ==============================================================
@@ -191,19 +209,16 @@ public class AutoVillagerTrader {
         Registry<Enchantment> enchantments = registryAccess.lookupOrThrow(Registries.ENCHANTMENT);
         Enchantment enchantment = enchantments.getValue(id);
         if (enchantment != null) {
-            Holder<Enchantment> holder = enchantments.wrapAsHolder(enchantment);
             Predicate<VillagerTrade> matcher = TradePoolChecker.givesEnchantment(enchantment);
             int requiredLevel = TradePoolChecker.requiredLevel(profession, registryAccess, matcher);
             if (requiredLevel == TradePoolChecker.NO_LEVEL) {
-                return new Target(Route.ENCHANT, TradePoolChecker.NO_LEVEL, List.of(), List.of());
+                return new Target(Route.ENCHANT, TradePoolChecker.NO_LEVEL, List.of(), null);
             }
-            Predicate<ItemStack> accept = stack -> isMaxLevelBook(stack, enchantment);
             return new Target(Route.ENCHANT, requiredLevel,
-                    List.of(new TradeTableBuilder.Placement(
-                            TradePoolChecker.candidatesAtLevel(profession, registryAccess, requiredLevel, matcher),
-                            accept,
-                            stack -> forceEnchantmentBook(stack, holder, enchantment.getMaxLevel()))),
-                    List.of(accept));
+                    List.of(stack -> isBookWith(stack, enchantment)),
+                    // 命中后把这本书的附魔等级覆写到满级
+                    new TradeRerollScheduler.Upgrade(enchantments.getKey(enchantment),
+                            enchantment.getMaxLevel()));
         }
 
         // ── 物品 ──
@@ -217,31 +232,20 @@ public class AutoVillagerTrader {
             Predicate<VillagerTrade> glazedMatcher = TradePoolChecker.givesItem(glazed);
             int pairLevel = pairLevel(profession, registryAccess, plainMatcher, glazedMatcher);
             if (pairLevel == TradePoolChecker.NO_LEVEL) {
-                return new Target(Route.TERRACOTTA, TradePoolChecker.NO_LEVEL, List.of(), List.of());
+                return new Target(Route.TERRACOTTA, TradePoolChecker.NO_LEVEL, List.of(), null);
             }
-            Predicate<ItemStack> plainAccept = stack -> stack.is(item);
-            Predicate<ItemStack> glazedAccept = stack -> stack.is(glazed);
             return new Target(Route.TERRACOTTA, pairLevel,
-                    List.of(new TradeTableBuilder.Placement(
-                                    TradePoolChecker.candidatesAtLevel(profession, registryAccess, pairLevel, plainMatcher),
-                                    plainAccept, null),
-                            new TradeTableBuilder.Placement(
-                                    TradePoolChecker.candidatesAtLevel(profession, registryAccess, pairLevel, glazedMatcher),
-                                    glazedAccept, null)),
-                    List.of(plainAccept, glazedAccept));
+                    List.of(stack -> stack.is(item), stack -> stack.is(glazed)),
+                    null);
         }
 
         Predicate<VillagerTrade> matcher = TradePoolChecker.givesItem(item);
         int requiredLevel = TradePoolChecker.requiredLevel(profession, registryAccess, matcher);
         if (requiredLevel == TradePoolChecker.NO_LEVEL) {
-            return new Target(Route.NORMAL, TradePoolChecker.NO_LEVEL, List.of(), List.of());
+            return new Target(Route.NORMAL, TradePoolChecker.NO_LEVEL, List.of(), null);
         }
-        Predicate<ItemStack> accept = stack -> stack.is(item);
         return new Target(Route.NORMAL, requiredLevel,
-                List.of(new TradeTableBuilder.Placement(
-                        TradePoolChecker.candidatesAtLevel(profession, registryAccess, requiredLevel, matcher),
-                        accept, null)),
-                List.of(accept));
+                List.of(stack -> stack.is(item)), null);
     }
 
     /**
@@ -261,37 +265,7 @@ public class AutoVillagerTrader {
     }
 
     // ==============================================================
-    // 路线一：定向构造（点名必中）
-    // ==============================================================
-
-    /**
-     * 点名必中：目标交易直接落进它最低可出的那一级，一次构造即命中。
-     *
-     * @return 实际消耗的尝试次数（正常为 1）；{@code -1} 该村民已锁定 / 小孩 / 无工作站；
-     * {@code -7} 这个职业根本刷不出目标；{@code 0} 数据包层面构造失败
-     */
-    private static int tickTargeted(Villager villager, Target target, int maxAttempts, boolean doLock) {
-        if (isRerollable(villager)) return -1;
-        if (!(villager.level() instanceof ServerLevel level)) return -1;
-        if (target.requiredLevel() == TradePoolChecker.NO_LEVEL || target.placements().isEmpty()) return -7;
-
-        int attempts = Math.max(1, Math.min(maxAttempts, TARGETED_MAX_ATTEMPTS));
-        for (int i = 0; i < attempts; i++) {
-            MerchantOffers offers = TradeTableBuilder.buildTargeted(level, villager,
-                    target.requiredLevel(), target.placements(),
-                    RandomSource.create(TradeTableBuilder.seedFor(villager.getUUID(), i)));
-            if (offers == null || offers.isEmpty()) continue;
-            // 兜底校验：定向构造理论上必中，这里只挡「结果被 loot function 改掉」的怪数据包
-            if (!satisfiesAll(offers, target.verifications())) continue;
-
-            commit(level, villager, offers, doLock);
-            return i + 1;
-        }
-        return 0;
-    }
-
-    // ==============================================================
-    // 路线二：拒绝采样（331a / 331b）
+    // 路线：331a / 331b（同步拒绝采样）
     // ==============================================================
 
     private static int tickGodTools(Villager villager, boolean silkTouch, int maxAttempts, boolean doLock) {
@@ -299,11 +273,12 @@ public class AutoVillagerTrader {
         if (!(villager.level() instanceof ServerLevel level)) return -1;
         if (isProfessionAllowed(villager, GOD_TOOLS_PROFESSIONS)) return -4;
 
+        int attempts = Math.max(1, Math.min(maxAttempts, COMBO_MAX_ATTEMPTS));
         MerchantOffers best = null;
         int usedAttempts = 0;
-        for (int i = 0; i < maxAttempts; i++) {
+        for (int i = 0; i < attempts; i++) {
             MerchantOffers offers = TradeTableBuilder.build(level, villager, COMBO_LEVEL,
-                    RandomSource.create(TradeTableBuilder.seedFor(villager.getUUID(), i)));
+                    RandomSource.create(TradeTableBuilder.seedFor(villager.getUUID(), i + 1)));
             usedAttempts = i + 1;
             if (offers.isEmpty()) continue;
             best = offers;
@@ -344,47 +319,9 @@ public class AutoVillagerTrader {
         if (!hasShovel) best.add(buildGodOffer(Items.DIAMOND_SHOVEL, level, silkTouch, maxUses, xp));
         if (!hasAxe) best.add(buildGodOffer(Items.DIAMOND_AXE, level, silkTouch, maxUses, xp));
 
-        commit(level, villager, best, doLock);
+        commit(level, villager, best, COMBO_LEVEL, doLock);
         return usedAttempts;
     }
-
-    // ==============================================================
-    // 写回 / 同步
-    // ==============================================================
-
-    /**
-     * 写回实体 + 锁定 + 刷新已打开的交易界面 + 立即更新查询索引。
-     *
-     * <p><b>必须走 {@code @Accessor("offers")}，不能用 {@code Merchant#overrideOffers}</b>：
-     * 26.x 的 {@code AbstractVillager#overrideOffers} 是<b>空实现</b>
-     * （{@code overrideXp} 同），调它等于什么都没发生 —— 旧实现之所以一直用
-     * {@code setOffersField} 正是这个原因。
-     *
-     * <p>刻意<b>不改 {@code villagerData}</b>：等级显示保持原样，
-     * 避免旧实现「成功时把等级焊死在目标级、失败时才还原」的不对称行为。
-     */
-    private static void commit(ServerLevel level, Villager villager, MerchantOffers offers, boolean doLock) {
-        ((AbstractVillagerInterfaceMixin) villager).setOffersField(offers);
-        doLockIfNeeded(villager, offers, doLock);
-        syncOpenMenu(villager);
-        // 交易表刚被换过，索引里的旧快照立刻作废：成功刷新的村民应马上能被查到
-        VillagerTradePipeline.captureNow(villager);
-    }
-
-    /**
-     * 玩家正开着这只村民的交易界面时，把新报价发过去（否则界面里还是旧表）。
-     */
-    private static void syncOpenMenu(Villager villager) {
-        if (!(villager.getTradingPlayer() instanceof ServerPlayer player)) return;
-        if (!(player.containerMenu instanceof MerchantMenu menu)) return;
-        player.sendMerchantOffers(menu.containerId, villager.getOffers(),
-                villager.getVillagerData().level(), villager.getVillagerXp(),
-                villager.showProgressBar(), villager.canRestock());
-    }
-
-    // ==============================================================
-    // 内部工具
-    // ==============================================================
 
     private static MerchantOffer buildGodOffer(Item tool, ServerLevel level, boolean silkTouch, int maxUses, int xp) {
         ItemStack stack = new ItemStack(tool);
@@ -414,54 +351,62 @@ public class AutoVillagerTrader {
         return e == null ? null : reg.wrapAsHolder(e);
     }
 
+    // ==============================================================
+    // 写回 / 同步
+    // ==============================================================
+
     /**
-     * 把结果强制改写成「目标附魔 + 满级」的附魔书 —— 点名刷附魔书能做到必中的关键。
+     * 写回实体 + 锁等级 + 锁定 + 刷新已打开的交易界面 + 立即更新查询索引。
+     *
+     * <p><b>必须走 {@code @Accessor("offers")}，不能用 {@code Merchant#overrideOffers}</b>：
+     * 26.x 的 {@code AbstractVillager#overrideOffers} 是<b>空实现</b>
+     * （{@code overrideXp} 同），调它等于什么都没发生 —— 旧实现之所以一直用
+     * {@code setOffersField} 正是这个原因。
+     *
+     * @param lockLevel 命中后把村民等级固定到这一级（{@code <= 0} 表示不动等级）
      */
-    private static ItemStack forceEnchantmentBook(ItemStack stack,
-                                                  Holder<Enchantment> enchantment,
-                                                  int level) {
-        ItemStack book = stack != null && stack.is(Items.ENCHANTED_BOOK)
-                ? stack
-                : new ItemStack(Items.ENCHANTED_BOOK);
-        ItemEnchantments.Mutable mutable = new ItemEnchantments.Mutable(ItemEnchantments.EMPTY);
-        mutable.set(enchantment, level);
-        book.set(DataComponents.STORED_ENCHANTMENTS, mutable.toImmutable());
-        return book;
+    static void commit(ServerLevel level, Villager villager, MerchantOffers offers,
+                       int lockLevel, boolean doLock) {
+        ((AbstractVillagerInterfaceMixin) villager).setOffersField(offers);
+        if (lockLevel > 0) {
+            villager.setVillagerData(villager.getVillagerData().withLevel(lockLevel));
+        }
+        doLockIfNeeded(villager, offers, doLock);
+        syncOpenMenu(villager);
+        // 交易表刚被换过，索引里的旧快照立刻作废：成功刷新的村民应马上能被查到
+        VillagerTradePipeline.captureNow(villager);
     }
 
     /**
-     * 结果是不是「带目标附魔且满级」的附魔书（沿用原实现的判定口径）。
+     * 玩家正开着这只村民的交易界面时，把新报价发过去（否则界面里还是旧表）。
      */
-    private static boolean isMaxLevelBook(ItemStack stack, Enchantment target) {
+    private static void syncOpenMenu(Villager villager) {
+        if (!(villager.getTradingPlayer() instanceof ServerPlayer player)) return;
+        if (!(player.containerMenu instanceof MerchantMenu menu)) return;
+        player.sendMerchantOffers(menu.containerId, villager.getOffers(),
+                villager.getVillagerData().level(), villager.getVillagerXp(),
+                villager.showProgressBar(), villager.canRestock());
+    }
+
+    // ==============================================================
+    // 内部工具
+    // ==============================================================
+
+    /**
+     * 是不是「带这个附魔」的附魔书（等级不限，命中后会覆写到满级）。
+     */
+    private static boolean isBookWith(ItemStack stack, Enchantment target) {
         if (stack == null || !stack.is(Items.ENCHANTED_BOOK)) return false;
         ItemEnchantments stored = stack.get(DataComponents.STORED_ENCHANTMENTS);
         if (stored == null) return false;
         for (Holder<Enchantment> holder : stored.keySet()) {
-            if (holder.value() == target) {
-                return stored.getLevel(holder) >= target.getMaxLevel();
-            }
+            if (holder.value() == target) return true;
         }
         return false;
     }
 
     private static boolean hasAny(MerchantOffers offers, Predicate<ItemStack> want) {
-        if (offers == null || want == null) return false;
-        for (MerchantOffer offer : offers) {
-            ItemStack result = offer == null ? null : offer.getResult();
-            if (result != null && !result.isEmpty() && want.test(result)) return true;
-        }
-        return false;
-    }
-
-    /**
-     * 所有条件都要有对应的交易（陶瓦路线要求「普通 + 釉陶」同时存在）。
-     */
-    private static boolean satisfiesAll(MerchantOffers offers, List<Predicate<ItemStack>> wants) {
-        if (wants == null || wants.isEmpty()) return false;
-        for (Predicate<ItemStack> want : wants) {
-            if (!hasAny(offers, want)) return false;
-        }
-        return true;
+        return TradeTableBuilder.indexOfMatch(offers, want) >= 0;
     }
 
     /**

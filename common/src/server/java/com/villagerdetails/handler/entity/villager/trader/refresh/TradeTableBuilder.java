@@ -21,24 +21,26 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Predicate;
-import java.util.function.UnaryOperator;
 
 /**
- * <b>自播种</b>的交易表生成器：不再调用 {@code Villager#updateTrades}，因此
+ * <b>自播种</b>的交易表生成器：完全按原版的抽取规则重掷 1..n 级交易，
+ * <b>不做任何「定向插入」</b>（塞目标交易等于改概率，这里不干）。
+ *
+ * <p>不调用 {@code Villager#updateTrades} 的好处：
  * <ul>
  *     <li>不依赖（也不修改）{@code villagerData.level}，想要 1..n 级就自己按级取 set；</li>
  *     <li>不动世界随机序列（{@code RandomSequences} 存档数据），随机源由
  *     {@link #seedFor(UUID, int)} 按「村民 UUID + 第几次尝试」派生，结果可复现；</li>
- *     <li>可以「定向构造」：把指定交易直接放进目标等级，保证必中。</li>
+ *     <li>可以在一帧里连掷几十上百次而不影响实体状态，配合
+ *     {@link TradeRerollScheduler} 做分帧拒绝采样。</li>
  * </ul>
  *
- * <p>生成规则对齐原版 {@code AbstractVillager#addOffersFromTradeSet}：
- * 用 {@link LootContextParamSets#VILLAGER_TRADE} 建上下文（ORIGIN / THIS_ENTITY /
- * ADDITIONAL_COST_COMPONENT_ALLOWED），取 {@link TradeSet#calculateNumberOfTrades} 笔，
- * 遵循 {@link TradeSet#allowDuplicates()} 的「允许 / 不允许重复」两种抽取语义，
- * {@code getOffer} 返回 {@code null} 的交易从候选池里剔除（原版就是这样处理
- * {@code merchant_predicate} 不满足的情况）。
+ * <p>抽取规则对齐原版 {@code AbstractVillager#addOffersFromTradeSet} 里那个
+ * 包私有的 {@code addOffersFromItemListings}：用 {@link LootContextParamSets#VILLAGER_TRADE}
+ * 建上下文（ORIGIN / THIS_ENTITY / ADDITIONAL_COST_COMPONENT_ALLOWED），
+ * 取 {@link TradeSet#calculateNumberOfTrades} 笔，遵循 {@link TradeSet#allowDuplicates()}
+ * 的「允许 / 不允许重复」两种抽取语义，{@code getOffer} 返回 {@code null} 的交易
+ * 从候选池剔除（原版就是这样处理 {@code merchant_predicate} 不满足的情况）。
  */
 public final class TradeTableBuilder {
 
@@ -73,74 +75,19 @@ public final class TradeTableBuilder {
     }
 
     // ==============================================================
-    // 纯重掷（331a / 331b / 陶瓦这类「拒绝采样」路线用）
+    // 生成
     // ==============================================================
 
     /**
-     * 按原版分布生成 1..{@code upToLevel} 级的交易表。
+     * 按原版分布生成 1..{@code upToLevel} 级的交易表（纯抽样，不改实体）。
      */
     public static MerchantOffers build(ServerLevel level, Villager villager, int upToLevel, RandomSource random) {
-        return buildUpTo(level, villager, upToLevel, -1, null, random);
-    }
-
-    // ==============================================================
-    // 定向构造（命名牌点名刷取）
-    // ==============================================================
-
-    /**
-     * 一笔「必须出现」的交易：候选池 + 结果校验 + 结果改写。
-     *
-     * @param candidates 该等级里能产出目标的交易（{@link TradePoolChecker#candidatesAtLevel}）
-     * @param accept     结果校验；{@code null} 表示不校验
-     * @param shaper     结果改写（附魔书用：直接把目标附魔塞进书里）；{@code null} 表示不改
-     */
-    public record Placement(List<Holder<VillagerTrade>> candidates,
-                            Predicate<ItemStack> accept,
-                            UnaryOperator<ItemStack> shaper) {
-
-        public Placement {
-            candidates = candidates == null ? List.of() : List.copyOf(candidates);
-        }
-
-        static boolean usable(Placement placement) {
-            return placement != null && !placement.candidates().isEmpty();
-        }
-    }
-
-    /**
-     * 定向构造：把所有 {@code placements} 的交易<b>一定</b>放进 {@code requiredLevel} 级
-     * （陶瓦那种「普通 + 釉陶」成对需求就是两个 placement），
-     * 其余槽位仍按原版分布补齐；低等级（1..requiredLevel-1）照常随机生成。
-     *
-     * @return 1..requiredLevel 级的交易表；槽位不够或目标交易一个都放不进去时返回 {@code null}
-     */
-    public static MerchantOffers buildTargeted(ServerLevel level,
-                                               Villager villager,
-                                               int requiredLevel,
-                                               List<Placement> placements,
-                                               RandomSource random) {
-        if (placements == null || placements.isEmpty()) return null;
-        for (Placement placement : placements) {
-            if (!Placement.usable(placement)) return null;
-        }
-        return buildUpTo(level, villager, requiredLevel, requiredLevel, placements, random);
-    }
-
-    // ==============================================================
-    // 实现
-    // ==============================================================
-
-    private static MerchantOffers buildUpTo(ServerLevel level,
-                                            Villager villager,
-                                            int upToLevel,
-                                            int targetLevel,
-                                            List<Placement> placements,
-                                            RandomSource random) {
+        MerchantOffers offers = new MerchantOffers();
         int maxLevel = Math.max(0, Math.min(upToLevel, TradePoolChecker.MAX_LEVEL));
+        if (maxLevel <= 0 || random == null) return offers;
+
         Holder<VillagerProfession> profession = villager.getVillagerData().profession();
         RegistryAccess registryAccess = level.registryAccess();
-        MerchantOffers offers = new MerchantOffers();
-        if (maxLevel <= 0 || random == null) return offers;
 
         // 原版建上下文的参数（见 AbstractVillager#addOffersFromTradeSet）
         LootParams params = new LootParams.Builder(level)
@@ -167,28 +114,7 @@ public final class TradeTableBuilder {
                     new ArrayList<>(TradePoolChecker.holdersAtLevel(profession, registryAccess, lv));
             if (pool.isEmpty()) continue;
 
-            int placed = 0;
-
-            // ── 定向：先把「必须出现」的交易塞进这一级，保证必中 ──
-            if (lv == targetLevel && placements != null && !placements.isEmpty()) {
-                if (amount < placements.size()) return null;     // 槽位不够放全部目标
-                List<Holder<VillagerTrade>> taken = new ArrayList<>(placements.size());
-                for (Placement placement : placements) {
-                    Shaped chosen = pick(placement, context, random, taken);
-                    if (chosen == null) return null;              // 有目标放不进去 → 整体失败
-                    offers.add(chosen.offer());
-                    taken.add(chosen.trade());
-                    placed++;
-                }
-                if (!allowDuplicates) {
-                    for (Holder<VillagerTrade> chosen : taken) {
-                        pool.remove(chosen);
-                    }
-                }
-            }
-
-            // ── 补齐剩余槽位：完全照抄原版抽取语义 ──
-            int remaining = amount - placed;
+            int remaining = amount;
             int guard = remaining + FILL_GUARD;
             while (remaining > 0 && !pool.isEmpty() && guard-- > 0) {
                 int idx = random.nextInt(pool.size());
@@ -205,55 +131,31 @@ public final class TradeTableBuilder {
         return offers;
     }
 
+    // ==============================================================
+    // 命中判定
+    // ==============================================================
+
     /**
-     * 从候选池里挑一笔能用的：随机起点绕一圈，跳过已经用过的，返回 {@code null} 表示一个都不行。
+     * 这份表里第一笔「结果满足条件」的交易下标；没有则返回 {@code -1}。
      */
-    private static Shaped pick(Placement placement,
-                               LootContext context,
-                               RandomSource random,
-                               List<Holder<VillagerTrade>> taken) {
-        List<Holder<VillagerTrade>> candidates = placement.candidates();
-        int offset = random.nextInt(candidates.size());
-        for (int i = 0; i < candidates.size(); i++) {
-            Holder<VillagerTrade> candidate = candidates.get((offset + i) % candidates.size());
-            if (taken.contains(candidate)) continue;
-            Shaped shaped = shape(candidate, context, placement.accept(), placement.shaper());
-            if (shaped != null) return shaped;
+    public static int indexOfMatch(MerchantOffers offers, java.util.function.Predicate<ItemStack> test) {
+        if (offers == null || test == null) return -1;
+        for (int i = 0; i < offers.size(); i++) {
+            MerchantOffer offer = offers.get(i);
+            ItemStack result = offer == null ? null : offer.getResult();
+            if (result != null && !result.isEmpty() && test.test(result)) return i;
         }
-        return null;
+        return -1;
     }
 
     /**
-     * 一笔「挑中并改造完」的报价。
+     * 所有条件都要有对应的交易（陶瓦那种「普通 + 釉陶」成对需求）。
      */
-    private record Shaped(Holder<VillagerTrade> trade, MerchantOffer offer) {
-    }
-
-    /**
-     * 单笔候选 → 可用的报价：可能为 {@code null}（条件不满足 / 结果不符）。
-     */
-    private static Shaped shape(Holder<VillagerTrade> candidate,
-                                LootContext context,
-                                Predicate<ItemStack> accept,
-                                UnaryOperator<ItemStack> resultShaper) {
-        MerchantOffer raw = candidate.value().getOffer(context);
-        if (raw == null) return null;
-
-        ItemStack result = raw.getResult();
-        if (result == null || result.isEmpty()) return null;
-
-        if (resultShaper == null && accept == null) return new Shaped(candidate, raw);
-
-        ItemStack shaped = result;
-        if (resultShaper != null) {
-            shaped = resultShaper.apply(result.copy());
-            if (shaped == null || shaped.isEmpty()) return null;
+    public static boolean containsAll(MerchantOffers offers, List<java.util.function.Predicate<ItemStack>> tests) {
+        if (offers == null || tests == null || tests.isEmpty()) return false;
+        for (java.util.function.Predicate<ItemStack> test : tests) {
+            if (indexOfMatch(offers, test) < 0) return false;
         }
-        if (accept != null && !accept.test(shaped)) return null;
-        if (shaped == result) return new Shaped(candidate, raw);
-
-        MerchantOffer rebuilt = new MerchantOffer(raw.getItemCostA(), raw.getItemCostB(), shaped,
-                raw.getMaxUses(), raw.getXp(), raw.getPriceMultiplier());
-        return new Shaped(candidate, rebuilt);
+        return true;
     }
 }

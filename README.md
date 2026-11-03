@@ -32,7 +32,7 @@ VillagerDetails is a Fabric mod that provides a large collection of behavior fix
 | VillagerWorkBlockBinding | Villager work block editor — rebind the work block with a lead named `work` |
 | VillagerBatchBedBinding | Batch bed binding — auto-bind villagers in an area to the nearest bed |
 | VillagerInfiniteTrade | Infinite trades — villager trades never run out |
-| VillagerAutoTrader | Auto trade refresh — write an item or enchantment id on a name tag (`emerald`, `minecraft:mending`, `经验修补`…) and right-click a villager to have that trade **constructed directly** at its lowest possible level (guaranteed hit, no 500-attempt dice roll) |
+| VillagerAutoTrader | Auto trade refresh — write an item / enchantment id on a name tag (`emerald`, `mending`, `经验修补`…) and right-click a villager: the trade table is re-rolled with **vanilla probabilities**, sliced across ticks (100 rolls/tick, 1000 rolls max), until the target shows up; enchanted books are topped up to max level on a hit. Default: **on** |
 | VillagerSilentTrader | Silent trade reroll — remove the name tag after rerolling |
 | VillagerAutoLockHitTrader | Auto-lock trades — lock rerolled enchanted books automatically |
 | VillagerGodTools | God tools — use `331a` / `331b` name tags to reroll triple-enchanted diamond tools |
@@ -350,7 +350,7 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 | VillagerWorkBlockBinding | 村民工作方块编辑器 — 使用命名为 `work` 的拴绳修改工作方块 |
 | VillagerBatchBedBinding | 批量村民床编辑器 — 区域内村民自动绑定最近的床 |
 | VillagerInfiniteTrade | 无限交易 — 村民交易永不耗尽 |
-| VillagerAutoTrader | 自动刷新交易 — 命名牌写物品 / 附魔（`绿宝石`、`mending`、`minecraft:emerald`），右键任意村民即可把该交易**定向构造**到它最低可出的等级（必中，不再靠概率硬刷）；`331a/331b` 与陶瓦另有独立规则 |
+| VillagerAutoTrader | 自动刷新交易 — 命名牌写物品 / 附魔（`绿宝石`、`mending`、`minecraft:emerald`），右键任意村民后按**原版概率**重掷交易表：分帧执行（每 tick 100 次、单任务上限 1000 次），命中后写回并把附魔书补到满级；`331a/331b` 与陶瓦另有独立规则。默认**开启** |
 | VillagerSilentTrader | 无感交易刷新 — 刷新后自动移除命名标签 |
 | VillagerAutoLockHitTrader | 自动锁定交易 — 刷新出的附魔书自动锁定 |
 | VillagerGodTools | 神装工具刷新 — 使用 `331a/331b` 命名牌刷三附魔钻石工具 |

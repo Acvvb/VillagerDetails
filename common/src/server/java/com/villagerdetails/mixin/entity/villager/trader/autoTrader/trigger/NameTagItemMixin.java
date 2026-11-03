@@ -1,6 +1,7 @@
 package com.villagerdetails.mixin.entity.villager.trader.autoTrader.trigger;
 
 import com.villagerdetails.handler.entity.villager.trader.refresh.AutoVillagerTrader;
+import com.villagerdetails.handler.entity.villager.trader.refresh.TradeRerollScheduler;
 import com.villagerdetails.handler.monster.zombieVillager.ZombieVillagerCureHandler;
 import com.villagerdetails.util.ParseUtils;
 import net.minecraft.core.component.DataComponents;
@@ -59,26 +60,32 @@ public class NameTagItemMixin {
 
         // ★ 只处理能解析成「点名目标」或固定关键字的名称，其余直接放行（不弹消息）
         if (!AutoVillagerTrader.isSupportedName(villager, name)) return;
+        ServerPlayer sp = (ServerPlayer) player;
         String defaultValue = getState(VILLAGER_ONE_TICK_TRADER_COUNT);
         int count = ParseUtils.toInt(defaultValue, 500);
-        int attempts = AutoVillagerTrader.tickByName(villager, name, count);
+        int outcome = AutoVillagerTrader.tickByName(villager, name, count, sp);
         villager.setCustomName(null);
 
         // 6) 反馈
-        ServerPlayer sp = (ServerPlayer) player;
-        switch (attempts) {
+        switch (outcome) {
             case -1 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.locked"));
             case -2 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.no_match", name));
             case -3 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.rule_disabled"));
             case -4 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.wrong_profession"));
             case -7 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.not_producible", name));
-            case 0  -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.no_hit", count));
-            // 点名路线是「定向构造」，一次就成；331a/331b 仍是拒绝采样，报具体次数
-            default -> sendOverlayOrBroadcast(sp, Component.translatable(
-                    AutoVillagerTrader.isSpecialName(name)
-                            ? "msg.auto_trader.success"
-                            : "msg.auto_trader.target_success",
-                    attempts, name));
+            case -8 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.too_many_tasks"));
+            // 点名路线：任务已排队，结果由分帧调度器稍后提示
+            case 1 -> {
+                if (AutoVillagerTrader.isSpecialName(name)) {
+                    sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.success", 1, name));
+                } else {
+                    sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.task_started",
+                            name, TradeRerollScheduler.MAX_ATTEMPTS));
+                }
+            }
+            case 0 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.no_hit", count));
+            // 只剩 331a/331b 的同步路线会走到这里
+            default -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.success", outcome, name));
         }
     }
 }
