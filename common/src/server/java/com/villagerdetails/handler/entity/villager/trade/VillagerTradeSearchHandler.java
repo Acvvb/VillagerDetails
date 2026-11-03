@@ -17,15 +17,16 @@ import net.minecraft.world.level.Level;
 
 import java.util.List;
 import java.util.StringJoiner;
+import java.util.UUID;
 
 import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
 
 /**
  * {@code /ec c TradeSearch} 的业务实现：<b>只查内存缓存</b>，不遍历世界。
  *
- * <p>结果按「最多 {@value #MAX_RESULTS} 条、每条最多 {@value #MAX_OFFERS_PER_ENTRY} 件商品」截断，
- * 防止聊天栏刷屏；每条都带一个可点击的 {@code [x, y, z]}，点了把坐标复制到剪贴板
- * （<b>不再提供传送</b>：搜索只要求规则档位权限，传送属于另一套权限语义，
+ * <p>结果按「最多 {@value #MAX_RESULTS} 个村民、每个村民最多 {@value #MAX_OFFERS_PER_ENTRY} 笔
+ * <b>命中的</b>交易」截断，防止聊天栏刷屏；每个村民都会带上 UUID（点一下复制完整值），
+ * 坐标同样可点击复制（<b>不再提供传送</b>：搜索只要求规则档位权限，传送属于另一套权限语义，
  * 需要的话玩家自己拿坐标传送）。
  *
  * <p><b>服务端不拼物品名</b>：索引里只有 id，展示全部用
@@ -43,7 +44,7 @@ public final class VillagerTradeSearchHandler {
     public static final int MAX_RESULTS = 10;
 
     /**
-     * 一条结果里最多列几件商品，多出来的折叠成「另有 N 件」。
+     * 一条结果里最多列几笔<b>命中的</b>交易，多出来的折叠成「另有 N 件」。
      */
     public static final int MAX_OFFERS_PER_ENTRY = 6;
 
@@ -52,10 +53,10 @@ public final class VillagerTradeSearchHandler {
     private static final String K_NO_MATCH = "command.villager_trade_search.no_match";
     private static final String K_HEADER = "command.villager_trade_search.header";
     private static final String K_TRUNCATED = "command.villager_trade_search.truncated";
-    private static final String K_ENTRY_OFFERS = "command.villager_trade_search.entry.offers";
-    private static final String K_MORE_OFFERS = "command.villager_trade_search.entry.more";
     private static final String K_ENTRY_USES = "command.villager_trade_search.entry.uses";
+    private static final String K_MORE_OFFERS = "command.villager_trade_search.entry.more";
     private static final String K_HOVER_COPY_COORDS = "command.villager_trade_search.hover.copy_coords";
+    private static final String K_HOVER_COPY_UUID = "command.villager_trade_search.hover.copy_uuid";
 
     // ============================================================
     // 入口
@@ -83,7 +84,7 @@ public final class VillagerTradeSearchHandler {
         // 关键词会原样拼进聊天栏标题 / 提示：去掉 § 颜色码，免得玩家用关键词给整行染色
         String displayKeyword = trimmed.replace('§', ' ');
 
-        List<VillagerTradeInfo> matches = VillagerTradeCache.INSTANCE.search(trimmed);
+        List<VillagerTradeCache.SearchResult> matches = VillagerTradeCache.INSTANCE.search(trimmed);
         if (matches.isEmpty()) {
             if (VillagerTradeCache.INSTANCE.size() == 0) {
                 // 缓存空 = 还没积累到任何快照（区块卸载才会写缓存），单独给一句提示
@@ -116,38 +117,50 @@ public final class VillagerTradeSearchHandler {
     // ============================================================
 
     /**
-     * 一条结果：{@code #序号 维度 [x, y, z]} + 下一行的交易列表。
+     * 一条结果：
+     * <pre>
+     * #1 主世界 [305, 64, 227] UUID: c49fcd79
+     *   9 绿宝石 -> 1 书架（可交易 12 次）
+     *   18 绿宝石 + 1 书 -> 1 附魔书[经验修补]（可交易 12 次）
+     * </pre>
+     *
+     * <p>只打<b>命中的那几笔交易</b>（{@code matchedOffers}），不再把整张交易表倒出来 ——
+     * 搜「绿宝石」时一个商人十几笔没命中的泥土 / 面包会把重点埋掉。
      */
-    private static MutableComponent entry(VillagerTradeInfo info, int index, boolean console) {
+    private static MutableComponent entry(VillagerTradeCache.SearchResult result, int index, boolean console) {
+        VillagerTradeInfo info = result.info();
         MutableComponent line = Component.literal("§7#" + index + " ")
                 .append(dimensionName(info.dimension()))
                 .append(Component.literal(" §7"))
-                .append(coordinateText(info.pos()));
+                .append(coordinateText(info.pos()))
+                .append(Component.literal(" §7"))
+                .append(uuidText(info.uuid()));
 
-        List<TradeItemInfo> offers = info.offers();
-        if (offers.isEmpty()) {
-            return line;
+        List<TradeItemInfo> offers = result.matchedOffers();
+        int limit = Math.min(MAX_OFFERS_PER_ENTRY, offers.size());
+        for (int i = 0; i < limit; i++) {
+            // 同一村民的多笔命中交易逐行打印（搜「绿宝石」时「收绿宝石」和「卖绿宝石」各一行）
+            line.append("\n  ").append(offerLine(offers.get(i), console));
         }
-
-        return line.append("\n  ").append(Component.translatable(K_ENTRY_OFFERS, offersList(offers, console)));
+        if (offers.size() > limit) {
+            line.append("\n  ").append(Component.translatable(K_MORE_OFFERS, String.valueOf(offers.size() - limit)));
+        }
+        return line;
     }
 
     /**
-     * 一条村民的全部交易（最多 {@value #MAX_OFFERS_PER_ENTRY} 笔，其余折叠成「另有 N 件」）。
+     * 村民 UUID：显示前 8 位，<b>点击复制完整 UUID</b>（悬停提示）。
+     *
+     * <p>缩短只是为了让第一行别被 36 位 UUID 撑得太长；真正要用的时候点一下就拿到全的。
      */
-    private static MutableComponent offersList(List<TradeItemInfo> offers, boolean console) {
-        int limit = Math.min(MAX_OFFERS_PER_ENTRY, offers.size());
-        MutableComponent out = Component.empty();
-        for (int i = 0; i < limit; i++) {
-            if (i > 0) {
-                out.append(Component.literal("§8, "));
-            }
-            out.append(offerLine(offers.get(i), console));
-        }
-        if (offers.size() > limit) {
-            out.append(Component.translatable(K_MORE_OFFERS, String.valueOf(offers.size() - limit)));
-        }
-        return out;
+    private static MutableComponent uuidText(UUID uuid) {
+        String full = uuid.toString();
+        String shortId = full.substring(0, 8);
+        return Component.literal("UUID: " + shortId)
+                .withStyle(style -> style.withColor(TextColor.fromRgb(0x9CC2E5)))
+                .withStyle(style -> style.withClickEvent(new ClickEvent.CopyToClipboard(full)))
+                .withStyle(style -> style.withHoverEvent(
+                        new HoverEvent.ShowText(Component.translatable(K_HOVER_COPY_UUID))));
     }
 
     /**

@@ -274,58 +274,81 @@ public final class VillagerTradeCache implements SessionState {
     }
 
     /**
-     * 按关键词搜索全部索引。
+     * 一条搜索结果：命中的村民 + <b>命中的那几笔交易</b>（不是它的全部交易）。
      *
-     * <p>匹配分两层：
+     * <p>以前只返回村民，展示时会把整张交易表打出来 —— 搜「绿宝石」结果二十行全是
+     * 没命中的泥土 / 面包。现在把「哪几笔命中」一起带出去，聊天栏只打命中的那几条。
+     *
+     * @param info          村民信息（UUID / 坐标 / 维度）
+     * @param matchedOffers 命中的交易，保持村民交易表里的原始顺序
+     */
+    public record SearchResult(VillagerTradeInfo info, List<TradeItemInfo> matchedOffers) {
+        public SearchResult {
+            matchedOffers = matchedOffers == null ? List.of() : List.copyOf(matchedOffers);
+        }
+    }
+
+    /**
+     * 按关键词搜索全部索引，<b>按交易粒度</b>收集命中项。
+     *
+     * <p>匹配分三层：
      * <ol>
-     *     <li>{@link VillagerTradeInfo#matches}：UUID / 维度 / 坐标 / 交易里所有<b>原始 id</b>
+     *     <li>{@link VillagerTradeInfo#matchesLocation}：UUID / 维度 / 坐标命中 → 该村民的
+     *         <b>全部</b>交易都算命中（玩家找的就是这只村民）；</li>
+     *     <li>{@link TradeItemInfo#matchesId}：结果物 / 价格物 / 附魔的<b>原始 id</b>
      *         （{@code stone}、{@code minecraft:enchanted_book}、{@code mending} 都算）；</li>
-     *     <li><b>别名表兜底</b>：把交易里每个 id 过一遍 {@link IdTranslationConfig#displayNameOf}，
+     *     <li><b>别名表兜底</b>：把 id 过一遍 {@link IdTranslationConfig#displayNameOf}，
      *         用中文 / 自定叫法做包含匹配 —— 中文玩家搜「绿宝石」「书架」也能命中。
      *         这一层刻意放在服务端：{@code TradeItemInfo} 是两端共用的 DTO，不能依赖服务端配置。</li>
      * </ol>
      *
-     * <p>结果排序固定为「维度 id → 坐标 → UUID」，同一份缓存每次搜索的顺序都一样，
+     * <p>一只村民有多笔交易命中就都收进来（搜「绿宝石」时「收绿宝石」和「卖绿宝石」都会列出）。
+     * 结果排序固定为「维度 id → 坐标 → UUID」，同一份缓存每次搜索的顺序都一样，
      * 玩家点聊天栏里的第 N 条永远对得上。
      *
      * @param keyword 已 trim 的原始关键词；空串直接返回空列表（不把整个缓存倒出来）
      */
-    public List<VillagerTradeInfo> search(String keyword) {
+    public List<SearchResult> search(String keyword) {
         String needle = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
         if (needle.isEmpty()) {
             return List.of();
         }
 
-        List<VillagerTradeInfo> matches = new ArrayList<>();
+        List<SearchResult> results = new ArrayList<>();
         for (VillagerTradeInfo info : store().values()) {
-            if (info.matches(needle) || matchesAlias(info, needle)) {
-                matches.add(info);
+            boolean wholeVillager = info.matchesLocation(needle);
+            List<TradeItemInfo> matched = new ArrayList<>();
+            for (TradeItemInfo offer : info.offers()) {
+                if (wholeVillager || offer.matchesId(needle) || matchesAlias(offer, needle)) {
+                    matched.add(offer);
+                }
+            }
+            if (!matched.isEmpty()) {
+                results.add(new SearchResult(info, matched));
             }
         }
-        matches.sort(Comparator
-                .comparing((VillagerTradeInfo info) -> info.dimension().identifier().toString())
-                .thenComparingLong(info -> info.pos().asLong())
-                .thenComparing(VillagerTradeInfo::uuid));
-        return matches;
+        results.sort(Comparator
+                .comparing((SearchResult result) -> result.info().dimension().identifier().toString())
+                .thenComparingLong(result -> result.info().pos().asLong())
+                .thenComparing(result -> result.info().uuid()));
+        return results;
     }
 
     /**
-     * 别名表兜底：这只村民的任意一个 id（结果物 / 价格物 / 附魔）配的叫法里含有关键词。
+     * 别名表兜底：这一笔交易的任意一个 id（结果物 / 价格物 / 附魔）配的叫法里含有关键词。
      *
      * <p>{@link IdTranslationConfig#displayNameOf} 的优先级是「{@code trade_index.json} →
      * 内置兜底」，正是玩家手工配中文名的那张表。
      */
-    private static boolean matchesAlias(VillagerTradeInfo info, String needle) {
-        for (TradeItemInfo offer : info.offers()) {
-            if (aliasContains(offer.resultItemId(), needle)
-                    || aliasContains(offer.price1Id(), needle)
-                    || aliasContains(offer.price2Id(), needle)) {
+    private static boolean matchesAlias(TradeItemInfo offer, String needle) {
+        if (aliasContains(offer.resultItemId(), needle)
+                || aliasContains(offer.price1Id(), needle)
+                || aliasContains(offer.price2Id(), needle)) {
+            return true;
+        }
+        for (TradeItemInfo.EnchantmentEntry enchantment : offer.enchantments()) {
+            if (aliasContains(enchantment.id(), needle)) {
                 return true;
-            }
-            for (TradeItemInfo.EnchantmentEntry enchantment : offer.enchantments()) {
-                if (aliasContains(enchantment.id(), needle)) {
-                    return true;
-                }
             }
         }
         return false;

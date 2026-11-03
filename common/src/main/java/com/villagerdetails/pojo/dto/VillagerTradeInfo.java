@@ -39,16 +39,16 @@ public record VillagerTradeInfo(
     }
 
     /**
-     * 关键词是否命中这只村民。<b>这里只比「数据本身」</b>：UUID、维度 id、坐标、以及每笔交易的
-     * 原始 item id（见 {@link TradeItemInfo#matchesId}）。
+     * 关键词是否命中这只村民<b>本身</b>：UUID、维度 id、{@code x,y,z} / {@code x y z} 两种坐标写法。
      *
-     * <p><b>名字不在这里比</b>：中文 / 本地化名字依赖服务端的别名表（{@code IdTranslationConfig}），
-     * 而这个 DTO 是两端共用的，不能反向依赖服务端类。服务端在
-     * {@code VillagerTradeCache.search} 里补上「别名表兜底」那一层。
+     * <p><b>交易内容不在这里比</b>：搜索要按「哪几笔交易命中」逐条收集（这样聊天栏只打命中的那几条），
+     * 所以匹配逻辑在 {@code VillagerTradeCache.search} 里按 offer 粒度做：
+     * id 直配（{@link TradeItemInfo#matchesId}）+ 服务端别名表兜底（中文名）。
+     * 这个 DTO 是两端共用的，不能反向依赖服务端配置。
      *
      * @param lowerKeyword 已经 {@code trim + toLowerCase} 过的关键词
      */
-    public boolean matches(String lowerKeyword) {
+    public boolean matchesLocation(String lowerKeyword) {
         if (lowerKeyword == null || lowerKeyword.isEmpty()) {
             return false;
         }
@@ -63,15 +63,6 @@ public record VillagerTradeInfo(
 
         String coords = pos.getX() + "," + pos.getY() + "," + pos.getZ();
         String coordsSpaced = pos.getX() + " " + pos.getY() + " " + pos.getZ();
-        if (coords.contains(lowerKeyword) || coordsSpaced.contains(lowerKeyword)) {
-            return true;
-        }
-
-        for (TradeItemInfo offer : offers) {
-            if (offer.matchesId(lowerKeyword)) {
-                return true;
-            }
-        }
-        return false;
+        return coords.contains(lowerKeyword) || coordsSpaced.contains(lowerKeyword);
     }
 }
