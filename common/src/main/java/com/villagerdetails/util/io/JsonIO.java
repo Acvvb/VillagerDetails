@@ -29,7 +29,6 @@ import java.util.regex.Pattern;
  * <p>本类只管「字节怎么落盘」，不管调度：
  * <ul>
  *     <li>要异步（推荐）：{@link AsyncConfigManager#save} —— 主线程序列化、后台单写者落盘；</li>
- *     <li>要立刻同步写（少见）：{@link #writeObject} / {@link #safeWrite}，会阻塞调用线程。</li>
  * </ul>
  */
 public final class JsonIO {
@@ -140,23 +139,6 @@ public final class JsonIO {
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
         }
     }
-
-    /**
-     * 内部用：写失败时统一打日志，调用方不用重复 try/catch。
-     *
-     * <p>同步兜底路径；异步路径的失败由 {@link AsyncConfigWriter} 统一计数并记录。
-     */
-    public static void safeWrite(Path file, Object data) {
-        try {
-            writeObject(file, data);
-        } catch (Exception e) {
-            log.error("写入 JSON 失败：{}", file, e);
-        }
-    }
-
-    // ==============================================================
-    // 格式化：把纯数字数组压回一行
-    // ==============================================================
 
     /**
      * 「带换行的纯数字数组」——注意必须包含换行才算，字符串里的换行是转义的，所以碰不到字符串内容。

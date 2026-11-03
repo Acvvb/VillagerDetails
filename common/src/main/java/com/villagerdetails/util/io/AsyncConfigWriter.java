@@ -153,7 +153,7 @@ public final class AsyncConfigWriter {
                 log.error("等待配置落盘超时（{} ms），继续按内存内容运行：{}", timeoutMs, filePath);
                 return;
             }
-            sleepQuietly(SPIN_MS);
+            sleepQuietly();
         }
     }
 
@@ -215,29 +215,8 @@ public final class AsyncConfigWriter {
                         timeoutMs, PENDING.size(), PENDING.keySet());
                 return;
             }
-            sleepQuietly(SPIN_MS);
+            sleepQuietly();
         }
-    }
-
-    /**
-     * 当前还有多少个文件待写（观测用）。
-     */
-    public static int pendingCount() {
-        return PENDING.size();
-    }
-
-    /**
-     * 成功落盘的次数（观测用）。
-     */
-    public static long writtenCount() {
-        return WRITTEN.get();
-    }
-
-    /**
-     * 写入失败次数（观测用）。失败只记 ERROR、不重试，见类注释。
-     */
-    public static long failedCount() {
-        return FAILED.get();
     }
 
     // ==============================================================
@@ -397,9 +376,9 @@ public final class AsyncConfigWriter {
         return System.nanoTime() + nanos;
     }
 
-    private static void sleepQuietly(long ms) {
+    private static void sleepQuietly() {
         try {
-            Thread.sleep(ms);
+            Thread.sleep(AsyncConfigWriter.SPIN_MS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

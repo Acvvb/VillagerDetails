@@ -110,24 +110,4 @@ public final class AsyncConfigManager {
         AsyncConfigWriter.flushAndShutdown(timeoutMs);
     }
 
-    /**
-     * 还有多少个文件待写（观测 / 排障用）。
-     */
-    public static int pendingCount() {
-        return AsyncConfigWriter.pendingCount();
-    }
-
-    /**
-     * 成功落盘次数（观测 / 排障用）。
-     */
-    public static long writtenCount() {
-        return AsyncConfigWriter.writtenCount();
-    }
-
-    /**
-     * 写入失败次数（观测 / 排障用）。
-     */
-    public static long failedCount() {
-        return AsyncConfigWriter.failedCount();
-    }
 }
