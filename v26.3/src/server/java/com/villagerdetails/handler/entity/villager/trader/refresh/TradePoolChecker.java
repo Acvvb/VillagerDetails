@@ -1,10 +1,12 @@
 package com.villagerdetails.handler.entity.villager.trader.refresh;
 
-import com.villagerdetails.mixin.villager.trader.autoTrader.VillagerTradeMixin;
 import com.villagerdetails.mixin.entity.villager.trader.autoTrader.book.EnchantRandomlyFunctionMixin;
+import com.villagerdetails.mixin.villager.trader.autoTrader.SequenceFunctionMixin;
+import com.villagerdetails.mixin.villager.trader.autoTrader.VillagerTradeMixin;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.Registry;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -19,6 +21,7 @@ import net.minecraft.world.item.trading.TradeSet;
 import net.minecraft.world.item.trading.VillagerTrade;
 import net.minecraft.world.level.storage.loot.functions.EnchantRandomlyFunction;
 import net.minecraft.world.level.storage.loot.functions.LootItemFunction;
+import net.minecraft.world.level.storage.loot.functions.SequenceFunction;
 
 import java.util.*;
 
@@ -53,14 +56,25 @@ public final class TradePoolChecker {
     public static boolean canProduceEnchantmentAtLevel(Villager villager, int level, Enchantment target) {
         if (target == null) return false;
         if (!(villager.level() instanceof ServerLevel sl)) return false;
+        return canProduceEnchantmentAtLevel(sl.registryAccess(),
+                villager.getVillagerData().profession(), level, target);
+    }
 
-        VillagerData data = villager.getVillagerData();
-        if (data.profession().is(VillagerProfession.NONE)) return false;
+    /**
+     * 不依赖实体实例的重载：只要注册表和职业就能判断某个等级能不能刷出目标附魔。
+     * 除了给上面的便捷版复用，也方便在启动期做自检（不需要真的生成一个村民）。
+     */
+    public static boolean canProduceEnchantmentAtLevel(RegistryAccess registryAccess,
+                                                       Holder<VillagerProfession> profession,
+                                                       int level,
+                                                       Enchantment target) {
+        if (target == null || profession == null) return false;
+        if (profession.is(VillagerProfession.NONE)) return false;
 
-        ResourceKey<TradeSet> key = data.profession().value().getTrades(level);
+        ResourceKey<TradeSet> key = profession.value().getTrades(level);
         if (key == null) return false;
 
-        Registry<TradeSet> registry = sl.registryAccess().lookupOrThrow(Registries.TRADE_SET);
+        Registry<TradeSet> registry = registryAccess.lookupOrThrow(Registries.TRADE_SET);
         TradeSet tradeSet = registry.getValue(key);
         if (tradeSet == null) return false;
 
@@ -71,16 +85,42 @@ public final class TradePoolChecker {
             if (gives.item().value() != Items.ENCHANTED_BOOK
                     && gives.item().value() != Items.BOOK) continue;
 
-            for (LootItemFunction func : givenModifiers(acc)) {
-                if (!(func instanceof EnchantRandomlyFunction erf)) continue;
-                Optional<HolderSet<Enchantment>> options =
-                        ((EnchantRandomlyFunctionMixin) erf).getOptions();
+            // 26.3：given_item_modifier 变成 Optional<Holder<LootItemFunction>>，
+            // 数组写法会被 LootItemFunctions.CODEC 折成一层 SequenceFunction，必须递归拆
+            Optional<Holder<LootItemFunction>> modifier = acc.getGivenItemModifiers();
+            if (modifier.isEmpty()) continue;
+            if (canProduceEnchantment(modifier.get().value(), target)) return true;
+        }
+        return false;
+    }
 
-                if (options.isEmpty()) return true;   // 任意附魔
+    /**
+     * 在（可能嵌套的）战利品函数里找 {@code enchant_randomly}，看它能不能产出目标附魔。
+     *
+     * <p>为什么要递归：26.2 的 {@code VillagerTrade} 存的是 {@code List<LootItemFunction>}，
+     * 每个函数都是平的；26.3 改成单个 {@code Holder<LootItemFunction>}，而
+     * <b>JSON 里写成数组就会被折成一个 {@link SequenceFunction}</b> ——
+     * 图书管理员那笔附魔书交易正是 {@code [enchant_randomly, filtered]} 两段，
+     * 于是拿到手的是 {@code SequenceFunction} 而不是 {@code EnchantRandomlyFunction}。
+     * 只做一层 {@code instanceof} 的话，所有附魔都会被判成「这个村民刷不出来」。
+     */
+    private static boolean canProduceEnchantment(LootItemFunction function, Enchantment target) {
+        if (function instanceof EnchantRandomlyFunction erf) {
+            Optional<HolderSet<Enchantment>> options =
+                    ((EnchantRandomlyFunctionMixin) erf).getOptions();
 
-                for (Holder<Enchantment> h : options.get()) {
-                    if (h.value() == target) return true;
-                }
+            if (options.isEmpty()) return true;   // 任意附魔
+
+            for (Holder<Enchantment> h : options.get()) {
+                if (h.value() == target) return true;
+            }
+            return false;
+        }
+
+        // 数组折叠成的序列函数：逐个成员再看，允许嵌套
+        if (function instanceof SequenceFunction sequence) {
+            for (Holder<LootItemFunction> nested : ((SequenceFunctionMixin) sequence).getFunctions()) {
+                if (canProduceEnchantment(nested.value(), target)) return true;
             }
         }
         return false;
@@ -115,20 +155,6 @@ public final class TradePoolChecker {
             items.add(gives.item().value());
         }
         return Collections.unmodifiableSet(items);
-    }
-
-    /**
-     * 26.3 把 {@code givenItemModifiers}（{@code List<LootItemFunction>}）换成了
-     * {@code givenItemModifier}（{@code Optional<Holder<LootItemFunction>>}）。
-     * 这里统一成「零个或一个」的列表语义，调用点不必分版本。
-     */
-    private static List<LootItemFunction> givenModifiers(VillagerTradeMixin trade) {
-
-        Optional<Holder<LootItemFunction>> modifier = trade.getGivenItemModifiers();
-        return modifier.map(lootItemFunctionHolder -> List.of(lootItemFunctionHolder.value())).orElseGet(List::of);
-
-
-
     }
 
     /**

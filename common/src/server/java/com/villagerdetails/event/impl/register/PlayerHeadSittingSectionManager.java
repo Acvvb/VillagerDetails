@@ -3,8 +3,10 @@ package com.villagerdetails.event.impl.register;
 import com.villagerdetails.event.server.ServerEventRegisterServer;
 import com.villagerdetails.handler.player.headSitting.PlayerHeadSittingHandler;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -24,6 +26,10 @@ import net.minecraft.world.phys.EntityHitResult;
  * </ol>
  *
  * <p>规则开关、同意判定、叠罗汉、防穿模、巡检踢人全部在 Handler 里。
+ *
+ * <p>另外三处是<b>状态清理</b>（详见 Handler 里下线 / 卸载 / 重进三个方法）：
+ * 玩家下线（{@code DISCONNECT}）、实体卸载（{@code ENTITY_UNLOAD}）、玩家进服（{@code JOIN}）。
+ * 载具是玩家、而玩家实体是 {@code noSave()}，这三处不兜底就会留下「幽灵乘客」。
  */
 public final class PlayerHeadSittingSectionManager implements ServerEventRegisterServer {
 
@@ -36,6 +42,16 @@ public final class PlayerHeadSittingSectionManager implements ServerEventRegiste
         ServerTickEvents.END_SERVER_TICK.register(PlayerHeadSittingHandler::onEndServerTick);
         ServerEntityLevelChangeEvents.AFTER_PLAYER_CHANGE_LEVEL.register(
                 (player, _, _) -> PlayerHeadSittingHandler.onPlayerChangeLevel(player));
+
+        // 下线：实体还在世界里的时刻，把两个方向的骑乘关系拆干净
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                PlayerHeadSittingHandler.onPlayerDisconnect(server, handler.getPlayer()));
+        // 卸载：区块卸载 / 换维度 / 被移除时的兜底
+        ServerEntityEvents.ENTITY_UNLOAD.register((entity, _) ->
+                PlayerHeadSittingHandler.onEntityUnload(entity));
+        // 进服：强制清一次残留状态，并在下一个 tick 补发乘客表
+        ServerPlayConnectionEvents.JOIN.register((handler, _, _) ->
+                PlayerHeadSittingHandler.onPlayerJoin(handler.getPlayer()));
     }
 
     public static InteractionResult onUseEntity(Player player, Level level, InteractionHand hand,

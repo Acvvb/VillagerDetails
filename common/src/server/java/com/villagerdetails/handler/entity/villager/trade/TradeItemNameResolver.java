@@ -111,6 +111,33 @@ public final class TradeItemNameResolver {
     }
 
     /**
+     * 只按<b>物品 id</b> 取展示名（价格物品没有 {@code ItemStack} 可读，只能走这条路）。
+     *
+     * <p>优先级和 {@link #itemName(ItemStack)} 保持一致：{@code trade_index.json} 的中文叫法 →
+     * 模组 / 原版语言表（{@code item.minecraft.emerald} 这种键）→ 按 id 拼的可读名。
+     */
+    public static String itemNameOfId(String itemId) {
+        if (itemId == null || itemId.isBlank()) {
+            return "";
+        }
+        String alias = IdTranslationConfig.displayNameOf(itemId);
+        if (alias != null && !alias.isBlank()) {
+            return clean(alias);
+        }
+
+        // 注册 id → 原版语言键：minecraft:emerald → item.minecraft.emerald
+        int colon = itemId.indexOf(':');
+        String namespace = colon >= 0 ? itemId.substring(0, colon) : "minecraft";
+        String path = colon >= 0 ? itemId.substring(colon + 1) : itemId;
+        String resolved = translate("item." + namespace + "." + path);
+        if (resolved.isBlank() || resolved.equals("item." + namespace + "." + path)
+                || looksLikeTranslationKey(resolved)) {
+            resolved = prettify(itemId);
+        }
+        return clean(resolved);
+    }
+
+    /**
      * 物品上的全部附魔（普通附魔 + 附魔书的 {@code STORED_ENCHANTMENTS}）。
      *
      * <p>每项同时带 id 和展示名：展示名用于聊天栏，id 用于搜索（{@code mending} 这种英文 id

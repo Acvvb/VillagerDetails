@@ -254,14 +254,17 @@ public enum RuleType implements RegisterTypeServer {
      * <ol>
      *     <li>区块卸载时（实体被移出追踪的 {@code ENTITY_UNLOAD}，以及整区块兜底的
      *         {@code CHUNK_UNLOAD}），主线程把村民深拷贝成纯字符串快照
-     *         （UUID / 坐标 / 维度 / 商品名，不持有任何原版对象）；</li>
-     *     <li>快照交给 {@code ServerThreadManager} 的服务端线程池异步解析；</li>
-     *     <li>解析结果写进 {@code VillagerTradeCache}（{@code ConcurrentHashMap}），查询只读内存；</li>
+     *         （UUID / 坐标 / 维度 / 卖出物 + 价格 + 数量，不持有任何原版对象）；</li>
+     *     <li>只收录「卖出物在交易索引（{@code trade_index.json}）里登记过」的交易，
+     *         冷门物品（泥土、砂砾……）直接丢弃 —— 白名单降级过滤；</li>
+     *     <li>快照交给 {@code ServerThreadManager} 的服务端线程池异步写进
+     *         {@code VillagerTradeCache}（{@code ConcurrentHashMap}），查询只读内存；</li>
      *     <li>村民死亡（{@code AFTER_DEATH}）时主线程清掉对应缓存。</li>
      * </ol>
      *
-     * <p>缓存<b>不落盘</b>，停服 / 规则关闭即清空，下次进服靠区块卸载重新积累。
-     * 已知边界：交易刚锁定但区块一直没卸载时，缓存要等下一次区块卸载才会更新。
+     * <p>索引<b>会落盘</b>（{@code <存档>/villagerdetails/villager_trade_cache.json}）：
+     * 内存标脏 + 每 1200 tick / 停服时异步写盘，所以<b>重启后仍能查询</b>。
+     * 已知边界：交易刚锁定但区块一直没卸载时，索引要等下一次区块卸载才会更新。
      */
     VILLAGER_TRADE_SEARCH("TradeSearch", "setting.villager_trade_search", "setting.villager_trade_search.desc", List.of(VILLAGER, COMMAND), new ArrayList<>(), () -> TradeSearchCommand.INSTANCE, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 

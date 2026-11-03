@@ -67,6 +67,33 @@ public final class IdTranslationConfig implements ReloadableConfig {
     private static final Map<String, List<String>> DEFAULT_INDEX = defaultIndex();
 
     /**
+     * 常见交易物品的中文叫法兜底：<b>id（不带命名空间）→ 中文</b>。
+     *
+     * <p>为什么需要它：{@code trade_index.json} 里登记的是附魔 / 陶瓦（这些是「卖什么」的判定依据），
+     * 而<b>价格物品</b>（绿宝石、书、纸……）从来没人登记过。服务端又只有原版 {@code en_us}
+     * 语言表，光靠它拼出来的展示文本会是 {@code 10 Emerald -> 1 Enchanted Book[经验修补]}
+     * —— 中文玩家搜「绿宝石」就成了空结果。
+     *
+     * <p>所以这里放一份<b>只读兜底</b>：查不到文件里的叫法时才用它。三个承诺：
+     * <ul>
+     *     <li><b>不写盘</b>：{@code trade_index.json} 的内容永远只由玩家 / 默认表决定，
+     *         这份兜底不会把文件撑大，也不会在重载后「凭空多出条目」；</li>
+     *     <li><b>文件优先</b>：玩家在文件里给同一个 id 配了自己的叫法，以文件为准；</li>
+     *     <li><b>只放常见物</b>：冷门物品（泥土、砂砾……）刻意不列，它们同时也不在
+     *         「白名单」里 —— 这正是村民交易索引要丢掉的那批交易。</li>
+     * </ul>
+     *
+     * <p><b>声明顺序有讲究</b>：下面 {@link #nameToId} / {@link #searchableNames} 的静态初始化
+     * 会读这两个表，所以它们必须声明在前面（Java 静态字段按声明顺序初始化）。
+     */
+    private static final Map<String, String> BUILTIN_ID_TO_NAME = builtinItemAliases();
+
+    /**
+     * {@link #BUILTIN_ID_TO_NAME} 的反查：中文叫法 → id（{@link #resolveId} 用）。
+     */
+    private static final Map<String, String> BUILTIN_NAME_TO_ID = reverseBuiltin(BUILTIN_ID_TO_NAME);
+
+    /**
      * 反查表：叫法 → id。加载 / 重置后整体替换，读的时候拿到的永远是完整的一份。
      */
     private static volatile Map<String, String> nameToId = reverse(DEFAULT_INDEX);
@@ -78,6 +105,17 @@ public final class IdTranslationConfig implements ReloadableConfig {
      * 村民交易查询需要按 id 找展示名，所以单独维护一份。和 {@code nameToId} 同源、同时整体替换。
      */
     private static volatile Map<String, String> idToName = firstNames(DEFAULT_INDEX);
+
+    /**
+     * Tab 补全用的「可搜索名字」全集：英文 id + 全部中文 / 别名叫法，和上面两张表同源、同时整体替换。
+     *
+     * <p>为什么单独存一份而不是每次补全都现拼：按 Tab 是高频操作，而这份表只在
+     * 加载 / 重载 / 重置交易索引时变一次（{@link #applyIndex}）。
+     *
+     * <p>顺序固定（先全部 id、再全部叫法，各自按文件里的顺序），所以同一个前缀的补全顺序
+     * 每次按 Tab 都一样，不会跳来跳去。
+     */
+    private static volatile Set<String> searchableNames = collectSearchableNames(idToName, nameToId);
 
     private static Map<String, List<String>> defaultIndex() {
         Map<String, List<String>> map = new LinkedHashMap<>();
@@ -168,6 +206,49 @@ public final class IdTranslationConfig implements ReloadableConfig {
 
     private static void put(Map<String, List<String>> map, String id, String... names) {
         map.put(id, List.of(names));
+    }
+
+    // ==============================================================
+    // 内置物品叫法兜底（不写进 trade_index.json）
+    // ==============================================================
+
+    private static Map<String, String> builtinItemAliases() {
+        Map<String, String> map = new LinkedHashMap<>();
+
+        // 付款物（原版村民交易几乎只用这几样付钱）
+        map.put("emerald", "绿宝石");
+        map.put("book", "书");
+        map.put("paper", "纸");
+
+        // 常见产物（附魔书靠附魔名区分，物品名本身也补一个）
+        map.put("enchanted_book", "附魔书");
+        map.put("glass", "玻璃");
+        map.put("glass_pane", "玻璃板");
+        map.put("lantern", "灯笼");
+        map.put("candle", "蜡烛");
+        map.put("clock", "时钟");
+        map.put("compass", "指南针");
+        map.put("ink_sac", "墨囊");
+        map.put("clay_ball", "黏土球");
+        map.put("brick", "红砖");
+        map.put("nether_brick", "下界砖");
+        map.put("quartz", "下界石英");
+        map.put("arrow", "箭");
+
+        return Collections.unmodifiableMap(map);
+    }
+
+    private static Map<String, String> reverseBuiltin(Map<String, String> idToName) {
+        Map<String, String> reversed = new LinkedHashMap<>();
+        idToName.forEach((id, name) -> reversed.putIfAbsent(name, id));
+        return Collections.unmodifiableMap(reversed);
+    }
+
+    /**
+     * 内置兜底叫法（{@code id → 中文}）；只读，给补全 / 白名单 / 展示名用。
+     */
+    public static Map<String, String> builtinItemAliasesView() {
+        return BUILTIN_ID_TO_NAME;
     }
 
     // ==============================================================
@@ -319,8 +400,63 @@ public final class IdTranslationConfig implements ReloadableConfig {
      * 两张表一起替换，避免出现「反查表是新的、正查表还是旧的」的中间状态。
      */
     private static void applyIndex(Map<String, List<String>> index) {
-        nameToId = reverse(index);
-        idToName = firstNames(index);
+        Map<String, String> ids = reverse(index);
+        Map<String, String> names = firstNames(index);
+        nameToId = ids;
+        idToName = names;
+        searchableNames = collectSearchableNames(names, ids);
+    }
+
+    /**
+     * 展开成「可搜索名字」全集：先全部英文 id，再全部中文 / 别名叫法，最后补上内置兜底。
+     *
+     * <p>给 {@code /ec c TradeSearch <关键词>} 的 Tab 补全用 —— 这个命令的关键词
+     * 既能写 id（{@code mending}）也能写叫法（{@code 经验修补}），两边都要能补全出来。
+     */
+    private static Set<String> collectSearchableNames(Map<String, String> idToName,
+                                                     Map<String, String> nameToId) {
+        Set<String> names = new LinkedHashSet<>(
+                idToName.size() + nameToId.size() + BUILTIN_ID_TO_NAME.size() * 2);
+        names.addAll(idToName.keySet());
+        names.addAll(nameToId.keySet());
+        // 内置兜底也进补全（绿宝石 / 附魔书 这类价格物品，文件里通常没有）
+        names.addAll(BUILTIN_ID_TO_NAME.keySet());
+        names.addAll(BUILTIN_ID_TO_NAME.values());
+        return Collections.unmodifiableSet(names);
+    }
+
+    /**
+     * 交易索引里所有能用来搜索的名字：英文 id（{@code mending}、{@code white_terracotta}）
+     * 与中文 / 别名叫法（{@code 经验修补}、{@code 白色陶瓦}），外加内置的物品兜底叫法
+     * （{@code emerald} / {@code 绿宝石} 这类价格物品）。
+     *
+     * <p>返回的是<b>不可变快照</b>，可以放心在补全器里遍历；重载交易索引后会换成新的一份，
+     * 调用方每次都重新取，不要缓存。
+     */
+    public static Set<String> getAllSearchableNames() {
+        return searchableNames;
+    }
+
+    /**
+     * 这个 id 在交易索引里有没有登记（带不带 {@code minecraft:} 都认，含内置兜底叫法）。
+     *
+     * <p>给「村民交易查询」做<b>白名单降级过滤</b>用：只有索引里登记过的物品 / 附魔才值得收录，
+     * 冷门物品（泥土、砂砾这种）直接丢掉，免得缓存和落盘文件被无意义的交易撑爆。
+     *
+     * @param idText 物品 / 附魔 id，例如 {@code minecraft:emerald} 或 {@code mending}
+     */
+    public static boolean isMapped(String idText) {
+        Identifier id = parseId(idText);
+        if (id == null) {
+            return false;
+        }
+        if (idToName.containsKey(id.toString())) {
+            return true;
+        }
+        if (!"minecraft".equals(id.getNamespace())) {
+            return false;
+        }
+        return idToName.containsKey(id.getPath()) || BUILTIN_ID_TO_NAME.containsKey(id.getPath());
     }
 
     /**
@@ -349,7 +485,7 @@ public final class IdTranslationConfig implements ReloadableConfig {
     // ==============================================================
 
     /**
-     * 把玩家输入的名字转成 Identifier：先查名字表（中文 / 别名），查不到就当 id 直接解析。
+     * 把玩家输入的名字转成 Identifier：先查名字表（中文 / 别名），再查内置兜底，最后当 id 直接解析。
      *
      * @return 解析不出来返回 {@code null}
      */
@@ -359,14 +495,21 @@ public final class IdTranslationConfig implements ReloadableConfig {
         String trimmed = raw.replace('\u3000', ' ').trim();
         if (trimmed.isEmpty()) return null;
 
-        // 1) 名字表
+        // 1) 名字表（trade_index.json）
         String mapped = nameToId.get(trimmed);
         if (mapped != null) {
             Identifier id = parseId(mapped);
             if (id != null) return id;
         }
 
-        // 2) 直接当 id 用（英文 / 带命名空间的 id）
+        // 2) 内置兜底叫法（绿宝石 / 附魔书 这类文件里通常没有的物品名）
+        String builtin = BUILTIN_NAME_TO_ID.get(trimmed);
+        if (builtin != null) {
+            Identifier id = parseId(builtin);
+            if (id != null) return id;
+        }
+
+        // 3) 直接当 id 用（英文 / 带命名空间的 id）
         return parseId(trimmed);
     }
 
@@ -374,8 +517,8 @@ public final class IdTranslationConfig implements ReloadableConfig {
      * 取某个 id 的展示叫法（第一个别名），没有配置返回 {@code null}。
      *
      * <p>给「村民交易查询」这类<b>只读展示</b>用：玩家在 {@code trade_index.json} 里给
-     * {@code mending} 配了「经验修补」，这里就返回「经验修补」；没配的返回 {@code null}，
-     * 调用方再退回原版语言表 / 注册 id。
+     * {@code mending} 配了「经验修补」，这里就返回「经验修补」；文件里没有时再看内置兜底
+     * （{@code emerald → 绿宝石}），都没有就返回 {@code null}，调用方再退回原版语言表 / 注册 id。
      *
      * <p>文件中 key 通常不带命名空间（{@code mending}），而注册表里的 id 带命名空间
      * （{@code minecraft:mending}），所以两者都查一遍。
@@ -388,7 +531,16 @@ public final class IdTranslationConfig implements ReloadableConfig {
         if (direct != null) {
             return direct;
         }
-        return "minecraft".equals(id.getNamespace()) ? idToName.get(id.getPath()) : null;
+        if (!"minecraft".equals(id.getNamespace())) {
+            return null;
+        }
+        String path = id.getPath();
+        String fromFile = idToName.get(path);
+        if (fromFile != null) {
+            return fromFile;
+        }
+        // 文件优先，内置兜底只补文件里没有的（价格物品）
+        return BUILTIN_ID_TO_NAME.get(path);
     }
 
     /**

@@ -458,21 +458,24 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 
 #### 村民交易查询
 
-`VillagerTradeSearch` 维护一份**只存在于内存**的「已锁定交易」村民索引。索引在村民随区块卸载时
-填充（主入口是 `ServerEntityEvents.ENTITY_UNLOAD`，另有 `ServerChunkEvents.CHUNK_UNLOAD` 的整区块
-兜底）：主线程只拷贝 UUID、坐标、维度和每件结果物品的**字符串**（`Villager` / `MerchantOffer` /
-`ItemStack` 绝不跨线程传递），服务端线程池再组装成 `VillagerTradeInfo` 存进
+`VillagerTradeSearch` 维护一份「已锁定交易」的村民索引（内存 + `<存档>/villagerdetails/villager_trade_cache.json`）。
+索引在村民随区块卸载时填充（主入口是 `ServerEntityEvents.ENTITY_UNLOAD`，另有 `ServerChunkEvents.CHUNK_UNLOAD` 的整区块
+兜底）：主线程只拷贝 UUID、坐标、维度和每笔交易的**字符串**（卖什么 / 要什么价 / 各多少；`Villager` /
+`MerchantOffer` / `ItemStack` 绝不跨线程传递），服务端线程池再组装成 `VillagerTradeInfo` 存进
 `VillagerTradeCache`；村民死亡时由 `ServerLivingEntityEvents.AFTER_DEATH` 清掉对应条目。
+
+只收录「卖出物在 `trade_index.json` 里登记过」的交易（附魔书按附魔 id 判定），泥土、砂砾这类冷门产物
+直接丢弃，免得索引和落盘文件被无意义的交易撑爆。
 
 ```
 /ec TradeSearch true|false              # 开启 / 关闭规则
-/ec c TradeSearch <关键词>             # 搜物品名 / id / 附魔 / 坐标 / 维度 / UUID
-/ec c TradeSearch teleport <uuid>       # 传送到该村民（结果里的 [传送] 按钮就是执行它）
+/ec c TradeSearch <关键词>             # 搜物品名 / id / 附魔 / 价格 / 坐标 / 维度 / UUID（TAB 补全中英文交易名）
 ```
 
-每次最多显示 10 个村民（每个村民最多列 6 件商品）。缓存不落盘：停服、关闭规则都会清空，
-进服后随区块卸载重新积累；因此「交易已锁定但区块一直没卸载」时，要等下一次区块卸载才会出现在
-查询结果里。
+每次最多显示 10 个村民（每个村民最多列 6 件商品），点结果里的 `[x, y, z]` 复制坐标（不再提供传送）。
+索引**会落盘**：内存标脏后每 1200 tick 检查一次、脏了就丢进服务端线程池异步写盘（主线程不做 I/O），
+停服 / 关闭规则时同步刷一次再清内存，所以重启后仍能查询；「交易已锁定但区块一直没卸载」时，仍要等
+下一次区块卸载才会出现在查询结果里。
 
 `/ec c reload` 以**物理文件**为单位整份重读：`villagerdetails/config.json` 的所有 section、
 `villager_details_binding.json` 和 `trade_index.json` 一起重新加载，手改配置不用重启就生效；

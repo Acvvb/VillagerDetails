@@ -4,16 +4,21 @@ import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.cache.impl.VillagerTradeCache;
 import com.villagerdetails.concurrent.ModContext;
 import com.villagerdetails.concurrent.ModThreadPool;
+import com.villagerdetails.config.impl.IdTranslationConfig;
 import com.villagerdetails.pojo.dto.TradeItemInfo;
 import com.villagerdetails.pojo.dto.VillagerTradeInfo;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 import net.minecraft.world.level.ChunkPos;
@@ -26,23 +31,29 @@ import org.apache.logging.log4j.Logger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 村民交易查询的<b>异步处理管线</b>（主线程只做「读 + 拷字符串」，解析交给线程池）。
+ * 村民交易查询的<b>异步处理管线</b>（主线程只做「读 + 拷字符串」，写缓存交给线程池）。
  *
  * <p>两段式：
  * <ol>
  *     <li><b>主线程（实体 / 区块卸载）</b>：只挑「已锁定交易」的村民，
- *         把 UUID / 坐标 / 维度 / 每件结果物品的字符串快照拷出来。
- *         这一步是<b>深拷贝</b>：不把 {@link Villager}、{@link MerchantOffer}、
- *         {@link ItemStack} 这些原版对象带进子线程，避免主线程继续改交易时出现
- *         {@code ConcurrentModificationException}；</li>
- *     <li><b>线程池</b>：把快照组装成 {@link VillagerTradeInfo}，写进
- *         {@link VillagerTradeCache}。这一步只碰不可变字符串 / record。</li>
+ *         把 UUID / 坐标 / 维度 / <b>每笔交易的结果与价格</b>拷成
+ *         {@link TradeItemInfo}（纯字符串 + 整数）。这一步是<b>深拷贝</b>：不把
+ *         {@link Villager}、{@link MerchantOffer}、{@link ItemStack} 这些原版对象带进子线程，
+ *         避免主线程继续改交易时出现 {@code ConcurrentModificationException}；</li>
+ *     <li><b>线程池</b>：把快照包成 {@link VillagerTradeInfo} 写进
+ *         {@link VillagerTradeCache}（顺手标脏，真正的落盘由存储类定时做）。</li>
  * </ol>
+ *
+ * <p><b>白名单降级过滤</b>（见 {@link #isWhitelistedResult}）：只收录「卖出的东西在
+ * {@code trade_index.json} 里登记过」的交易 —— 泥土、砂砾这种冷门产物直接丢掉，
+ * 免得索引和落盘文件被无意义的交易撑爆。附魔书是例外：它在索引里没有登记，
+ * 但<b>附魔 id</b> 有，所以「附魔书 + 已知附魔」也算白名单命中（不然经验修补这种最常用的
+ * 交易反而会被过滤掉）。
  *
  * <p><b>两个主线程入口</b>：{@link #onEntityUnload(Entity, ServerLevel)} 是实际生效的那个
  * （原版在区块变成 HIDDEN 时就把实体移出追踪，比 {@code CHUNK_UNLOAD} 更早）；
@@ -50,10 +61,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <p>村民死亡时由 {@code ServerLivingEntityEvents.AFTER_DEATH} 调 {@link #onLivingDeath}，
  * 在主线程立刻摘掉缓存（并留下墓碑挡住迟到的异步写入，见 {@link VillagerTradeCache}）。
- *
- * <p><b>为什么不在区块卸载时直接遍历 {@code MerchantOffers} 到子线程</b>：
- * 交易列表是村民实体的一部分，玩家随时可能点开交易界面修改它；跨线程读同一个
- * {@code ArrayList} 没有可见性保证，也没有锁。所以这里坚持「主线程拷贝成纯数据」。
  */
 public final class VillagerTradePipeline {
 
@@ -152,7 +159,7 @@ public final class VillagerTradePipeline {
     }
 
     /**
-     * 村民死亡：主线程清掉它在内存缓存里的那份交易。
+     * 村民死亡：主线程清掉它在索引里的那份交易（并标脏，下次落盘时从文件里消失）。
      *
      * <p>只认 {@link Villager}；僵尸村民转化之类不是死亡，不走这里
      * （转化后 UUID 不变，但交易已经没了，下次区块卸载自然不会再收录）。
@@ -190,8 +197,8 @@ public final class VillagerTradePipeline {
 
         pool.execute(() -> {
             try {
-                VillagerTradeInfo info = snapshot.toInfo();
-                VillagerTradeCache.INSTANCE.put(info, snapshot.capturedAt());
+                // 快照本身已经只含不可变标量，这里只是包成缓存 DTO 并写入（顺带标脏）
+                VillagerTradeCache.INSTANCE.put(snapshot.toInfo(), snapshot.capturedAt());
             } catch (Throwable t) {
                 // 子线程里出的错不能影响池子，也不能把半成品写进缓存
                 log.warn("异步解析村民交易失败，已跳过：uuid={}", snapshot.uuid(), t);
@@ -208,6 +215,35 @@ public final class VillagerTradePipeline {
     }
 
     // ============================================================
+    // 白名单（降级过滤）
+    // ============================================================
+
+    /**
+     * 这笔交易的「卖的东西」值不值得收录。
+     *
+     * <p>两条命中途径：
+     * <ul>
+     *     <li>结果物品本身在 {@code trade_index.json} 里登记过（陶瓦这类直接写物品 id 的）；</li>
+     *     <li>结果是<b>附魔书 / 附魔物品</b>，且它带的某个附魔 id 在索引里登记过
+     *         （索引里只有附魔 id，没有 {@code enchanted_book} 这个物品 id）。</li>
+     * </ul>
+     *
+     * <p>都不命中 → 冷门物品（泥土、砂砾、面包……）→ 直接丢弃，不进内存也不落盘。
+     */
+    private static boolean isWhitelistedResult(ItemStack result) {
+        String resultId = TradeItemNameResolver.itemId(result);
+        if (IdTranslationConfig.isMapped(resultId)) {
+            return true;
+        }
+        for (TradeItemNameResolver.EnchantmentText enchantment : TradeItemNameResolver.enchantmentTexts(result)) {
+            if (!enchantment.id().isBlank() && IdTranslationConfig.isMapped(enchantment.id())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ============================================================
     // 主线程抓取的数据快照（全部是不可变基础类型）
     // ============================================================
 
@@ -221,7 +257,7 @@ public final class VillagerTradePipeline {
             UUID uuid,
             BlockPos pos,
             ResourceKey<Level> dimension,
-            List<TradeItemSnapshot> items,
+            List<TradeItemInfo> items,
             long capturedAt
     ) {
 
@@ -237,40 +273,13 @@ public final class VillagerTradePipeline {
                 return null;
             }
 
-            List<TradeItemSnapshot> items = new ArrayList<>(offers.size());
+            List<TradeItemInfo> items = new ArrayList<>(offers.size());
             for (MerchantOffer offer : offers) {
-                // 只记录「村民卖什么」，支付物（costA / costB）不参与查询
-                ItemStack result = offer.getResult();
-                if (result == null || result.isEmpty()) {
-                    continue;
+                TradeItemInfo item = toTradeItem(offer);
+                // 白名单没过的（冷门产物）直接不收录
+                if (item != null) {
+                    items.add(item);
                 }
-
-                String itemId = TradeItemNameResolver.itemId(result);
-                String displayName = TradeItemNameResolver.itemName(result);
-                if (displayName.isBlank()) {
-                    displayName = itemId;
-                }
-
-                List<TradeItemNameResolver.EnchantmentText> enchantments =
-                        TradeItemNameResolver.enchantmentTexts(result);
-                List<String> enchantmentNames = new ArrayList<>(enchantments.size());
-                List<String> searchTokens = new ArrayList<>(2 + enchantments.size() * 2);
-                searchTokens.add(itemId);
-                searchTokens.add(displayName);
-                for (TradeItemNameResolver.EnchantmentText enchantment : enchantments) {
-                    enchantmentNames.add(enchantment.displayName());
-                    if (!enchantment.id().isBlank()) {
-                        searchTokens.add(enchantment.id());
-                    }
-                    searchTokens.add(enchantment.displayName());
-                }
-
-                items.add(new TradeItemSnapshot(
-                        itemId,
-                        displayName,
-                        List.copyOf(enchantmentNames),
-                        result.getCount(),
-                        String.join(" ", searchTokens).toLowerCase(Locale.ROOT)));
             }
             if (items.isEmpty()) {
                 return null;
@@ -283,6 +292,103 @@ public final class VillagerTradePipeline {
                     List.copyOf(items),
                     // 用单调时钟给这份快照打时间戳，缓存用它挡住「死后才到的异步写入」
                     System.nanoTime());
+        }
+
+        /**
+         * 一笔交易 → 纯字符串快照；白名单没过返回 {@code null}。
+         *
+         * <p>名字在这一步就解析好（{@code Component} 只有主线程能读），子线程只做字符串拼接。
+         */
+        private static TradeItemInfo toTradeItem(MerchantOffer offer) {
+            if (offer == null) {
+                return null;
+            }
+            ItemStack result = offer.getResult();
+            if (result == null || result.isEmpty()) {
+                return null;
+            }
+            if (!isWhitelistedResult(result)) {
+                return null;
+            }
+
+            String resultId = TradeItemNameResolver.itemId(result);
+            String resultName = TradeItemNameResolver.itemName(result);
+            if (resultName.isBlank()) {
+                resultName = resultId;
+            }
+            List<TradeItemNameResolver.EnchantmentText> enchantments =
+                    TradeItemNameResolver.enchantmentTexts(result);
+            List<String> enchantmentNames = new ArrayList<>(enchantments.size());
+
+            // 价格：costA 一定有，costB 是「第二样东西」（原版大多数交易没有）
+            ItemCost costA = offer.getItemCostA();
+            String price1Id = itemIdOf(costA == null ? null : costA.item());
+            int price1Count = costA == null ? 0 : costA.count();
+            String price1Name = TradeItemNameResolver.itemNameOfId(price1Id);
+
+            Optional<ItemCost> costB = offer.getItemCostB();
+            String price2Id = costB.map(cost -> itemIdOf(cost.item())).orElse("");
+            int price2Count = costB.map(ItemCost::count).orElse(0);
+            String price2Name = price2Count > 0 ? TradeItemNameResolver.itemNameOfId(price2Id) : "";
+
+            // ---- 展示文本：10 Emerald -> 1 Enchanted Book[经验修补] ----
+            StringBuilder display = new StringBuilder(price1Name.length() + price2Name.length()
+                    + resultName.length() + 24);
+            display.append(price1Count).append(' ').append(price1Name.isBlank() ? price1Id : price1Name);
+            if (price2Count > 0) {
+                display.append(" + ").append(price2Count).append(' ')
+                        .append(price2Name.isBlank() ? price2Id : price2Name);
+            }
+            display.append(" -> ").append(resultCount(result)).append(' ')
+                    .append(resultName.isBlank() ? resultId : resultName);
+
+            // ---- 搜索文本：把价格物品、结果物品、附魔都塞进去 ----
+            List<String> searchTokens = new ArrayList<>(8 + enchantments.size() * 2);
+            searchTokens.add(resultId);
+            searchTokens.add(resultName);
+            searchTokens.add(price1Id);
+            searchTokens.add(price1Name);
+            if (price2Count > 0) {
+                searchTokens.add(price2Id);
+                searchTokens.add(price2Name);
+            }
+            for (TradeItemNameResolver.EnchantmentText enchantment : enchantments) {
+                enchantmentNames.add(enchantment.displayName());
+                if (!enchantment.id().isBlank()) {
+                    searchTokens.add(enchantment.id());
+                }
+                searchTokens.add(enchantment.displayName());
+            }
+            if (!enchantmentNames.isEmpty()) {
+                display.append('[').append(String.join(", ", enchantmentNames)).append(']');
+            }
+            String displayText = display.toString();
+            searchTokens.add(displayText);
+
+            return new TradeItemInfo(
+                    resultId,
+                    resultCount(result),
+                    price1Id,
+                    price1Count,
+                    price2Id,
+                    price2Count,
+                    displayText,
+                    String.join(" ", searchTokens).toLowerCase(Locale.ROOT));
+        }
+
+        private static int resultCount(ItemStack result) {
+            return result == null ? 0 : result.getCount();
+        }
+
+        /**
+         * {@code Holder<Item>} → 注册 id；解析不出来时返回空串（不抛）。
+         */
+        private static String itemIdOf(Holder<Item> holder) {
+            if (holder == null) {
+                return "";
+            }
+            net.minecraft.resources.Identifier id = BuiltInRegistries.ITEM.getKey(holder.value());
+            return id == null ? "" : id.toString();
         }
 
         /**
@@ -311,46 +417,10 @@ public final class VillagerTradePipeline {
         }
 
         /**
-         * 子线程调用：把快照组装成缓存 DTO。
+         * 子线程调用：包成缓存 / 落盘用的 DTO。
          */
         VillagerTradeInfo toInfo() {
-            List<TradeItemInfo> tradeItems = new ArrayList<>(items.size());
-            for (TradeItemSnapshot item : items) {
-                tradeItems.add(item.toInfo());
-            }
-            return new VillagerTradeInfo(uuid, pos, dimension, tradeItems);
-        }
-    }
-
-    /**
-     * 一件结果物品的字符串快照。
-     */
-    private record TradeItemSnapshot(
-            String itemId,
-            String displayName,
-            List<String> enchantments,
-            int count,
-            String searchText
-    ) {
-
-        TradeItemSnapshot {
-            Objects.requireNonNull(itemId, "itemId");
-            Objects.requireNonNull(displayName, "displayName");
-            enchantments = enchantments == null ? List.of() : List.copyOf(enchantments);
-            searchText = searchText == null ? "" : searchText;
-        }
-
-        /**
-         * 子线程调用：拼出「附魔书[经验修补] x1」这种展示文本。
-         */
-        TradeItemInfo toInfo() {
-            StringBuilder text = new StringBuilder(displayName.length() + 24).append(displayName);
-            if (!enchantments.isEmpty()) {
-                text.append('[').append(String.join(", ", enchantments)).append(']');
-            }
-            text.append(" x").append(count);
-            return new TradeItemInfo(itemId, displayName, text.toString(), count,
-                    !enchantments.isEmpty(), searchText);
+            return new VillagerTradeInfo(uuid, pos, dimension, items);
         }
     }
 }

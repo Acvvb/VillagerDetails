@@ -47,6 +47,7 @@
     "plant.GrassBlockBoneMealMixin",
     "player.playerHeadSitting.EntityPlayerVehiclePassengersMixin",
     "player.playerHeadSitting.EntityStartRidingMixin",
+    "villager.trader.autoTrader.SequenceFunctionMixin",
     "villager.trader.autoTrader.VillagerTradeMixin"
   ],
   "injectors": {

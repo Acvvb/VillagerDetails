@@ -10,16 +10,17 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * 一只「已锁定交易」村民的完整交易快照（活在一次服务端会话的内存缓存里）。
+ * 一只「已锁定交易」村民的完整交易快照（内存索引 + 落盘文件都存这一份）。
  *
  * <p>记录本身完全由不可变数据组成：{@link BlockPos} 在构造时 {@code immutable()}，
  * {@code offers} 走 {@link List#copyOf} 做防御性拷贝，所以它可以安全地在主线程构造、
- * 在服务端线程池里读取。
+ * 在服务端线程池里读取，也可以直接序列化进
+ * {@code <存档>/villagerdetails/villager_trade_cache.json}。
  *
  * @param uuid      村民 UUID（缓存 key，也是死亡清理的依据）
- * @param pos       村民所在方块坐标（点击传送 / 展示用）
+ * @param pos       村民所在方块坐标（点击复制坐标 / 展示用）
  * @param dimension 村民所在维度
- * @param offers    该村民当前能卖出的全部物品（只包含结果物品，不包含支付物）
+ * @param offers    该村民当前能卖出的全部交易（每笔都带卖出物、价格、数量，见 {@link TradeItemInfo}）
  */
 public record VillagerTradeInfo(
         UUID uuid,
