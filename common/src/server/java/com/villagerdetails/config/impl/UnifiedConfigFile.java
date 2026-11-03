@@ -144,17 +144,14 @@ public final class UnifiedConfigFile implements ReloadableConfig {
      *         手改等于白改；子配置自己补默认值时各按各的脏标记，最后合并落盘。</li>
      * </ul>
      *
-     * <p>读盘<b>之前</b>先 {@link #flush()}：否则「刚改完还没到 tick 末尾」的那次改动会被
-     * 这轮读盘直接覆盖掉，等于玩家白改（以前是同步写，改动早就在盘上了）。
+     * <p>读盘<b>之前</b>必须先过 {@link #flushAndAwait} 那道栅栏：否则「刚改完还没到 tick 末尾」
+     * 的那次改动会被这轮读盘直接覆盖掉，等于玩家白改（以前是同步写，改动早就在盘上了）。
      */
     public static synchronized void reloadFromDisk(MinecraftServer server) {
-        flush();
+        // 先把内存改动提交<b>并等它真正落地</b>：不等就回读，读到的还是写之前的内容（等于这次重载白做）
+        flushAndAwait(server, RELOAD_AWAIT_MS);
         // load() 读的是静态 server 字段，先把目标服务器挂上
         UnifiedConfigFile.server = server;
-        // 文件写是异步的：不等它落地就回读，读到的还是写之前的内容（等于这次重载白做）
-        if (server != null) {
-            AsyncConfigManager.awaitFile(ConfigPaths.world(server, SAVE_PATH), RELOAD_AWAIT_MS);
-        }
         load();
         if (server == null) {
             log.warn("reloadFromDisk 收到 null server：只重置了内存 root，没有读盘");
@@ -163,6 +160,33 @@ public final class UnifiedConfigFile implements ReloadableConfig {
         }
         reloadChildren(server);
         loaded = true;
+    }
+
+    /**
+     * 把内存里的改动<b>提交给写线程，并等到它真正落到磁盘</b> —— 给「读盘之前」的栅栏用。
+     *
+     * <p>为什么需要单独一个入口：{@link #flush()} 只是把内容入队，紧接着读盘会读到写之前的
+     * 旧内容。{@code /ec c reload} 的读盘发生在 {@code MigrationManager.migrateIfNeeded} 里
+     * （它比 {@link #reloadFromDisk} 更早），所以那道栅栏<b>不能只放在 reloadFromDisk 里</b>，
+     * 否则「同 tick 内改过、还没到 tick 末尾」的改动会先被迁移读盘覆盖，再被 reloadFromDisk
+     * 的 flush 把这份旧内容写回磁盘 —— 内存和磁盘一起丢。
+     *
+     * <p>路径解析失败（停服收尾阶段存档目录不可用）只记日志、不抛：这只是个栅栏，
+     * 拿不到路径就按内存内容继续。
+     *
+     * @param server    目标服务器；{@code null} 时只 flush（没有路径可等）
+     * @param timeoutMs 最长等待毫秒数
+     */
+    public static synchronized void flushAndAwait(MinecraftServer server, long timeoutMs) {
+        flush();
+        if (server == null) {
+            return;
+        }
+        try {
+            AsyncConfigManager.awaitFile(ConfigPaths.world(server, SAVE_PATH), timeoutMs);
+        } catch (Exception e) {
+            log.warn("等待统一配置落盘失败（继续按内存内容重载）：", e);
+        }
     }
 
     /**

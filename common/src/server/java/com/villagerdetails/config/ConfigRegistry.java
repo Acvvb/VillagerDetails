@@ -25,6 +25,14 @@ public final class ConfigRegistry {
     private static final Logger log = LogManager.getLogger(ConfigRegistry.class);
     private static final Map<String, ReloadableConfig> REGISTRY = new LinkedHashMap<>();
 
+    /**
+     * {@code /ec c reload} 读盘前等待「内存改动落盘」的上限（毫秒）。
+     *
+     * <p>等的是本地一次小文件写的完成，正常情况下是毫秒级；超时只记日志并继续重载，
+     * 不把命令卡死（此时最坏结果仍是旧版那种「读到写之前的内容」）。
+     */
+    private static final long RELOAD_FLUSH_AWAIT_MS = 3000L;
+
     /** SERVER_STARTED 回灌钩子是否已登记（防历史坑：以前被单独注册过两次） */
     private static boolean startedHookRegistered;
 
@@ -120,6 +128,12 @@ public final class ConfigRegistry {
      * 只重载一份既省不了 IO，还会多出一条驱动路径。
      */
     public static Result reloadAllFromDisk(MinecraftServer server) {
+        // ★ 第一件事必须是「把内存里已标脏的改动提交并等它真正落盘」。
+        //   迁移的第一步（loadForMigration）就会无条件重读磁盘并整份覆盖内存 root；
+        //   此时如果还有「改完但没到 tick 末尾」的改动，它既不在盘上、又会被覆盖掉，
+        //   随后 reloadFromDisk 的 flush 还会把这份旧内容写回文件 —— 内存和磁盘一起丢。
+        UnifiedConfigFile.flushAndAwait(server, RELOAD_FLUSH_AWAIT_MS);
+
         // 与 reloadAll 同一套保证：先迁移，再从磁盘读
         MigrationManager.migrateIfNeeded(server);
 

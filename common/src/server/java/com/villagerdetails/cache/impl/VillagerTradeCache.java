@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 全存档「已锁定交易」的村民交易索引（<b>内存是唯一数据源</b>）。
@@ -37,6 +38,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p><b>快照之间也要比新旧</b>：两个抓取入口 + 2~4 条 worker，同一只村民的两份快照完全可能
  * 乱序到达。{@link #LAST_SNAPSHOT} 只放行「严格更新」的那一份，否则旧坐标 / 旧交易表会
  * 盖掉刚写进去的新数据（时间戳同样取 {@code nanoTime}）。
+ *
+ * <p><b>清空与写入互斥</b>：{@link #clearSession()} 清内存的一瞬间，可能还有在途的
+ * {@link #put} 已经通过前置检查、但还没写进内存。两者靠 {@link #EPOCH} 纪元 +
+ * {@link #SESSION_LOCK} 互斥：迟到的那一条会看到纪元变化而放弃，不会在清空之后
+ * 凭空多出一条、再被下一次落盘拿去覆盖整份文件。
  */
 public final class VillagerTradeCache implements SessionState {
 
@@ -74,6 +80,27 @@ public final class VillagerTradeCache implements SessionState {
      */
     private static volatile long clearedAt = Long.MIN_VALUE;
 
+    /**
+     * 清理纪元：{@link #clearSession()} 每清一次 +1，{@link #put} 在真正写进内存之前比对它。
+     *
+     * <p>为什么 {@link #clearedAt} 不够：它是「先检查、后写入」的典型 check-then-act ——
+     * 一条在途的 {@code put} 完全可能在上面的检查通过之后、{@code store().put()} 之前被挂起，
+     * 等 {@link #clearSession()} 清完内存才继续执行，于是清空之后又冒出一条并标脏，
+     * 下一次 {@code flushAsync} 就拿这份「接近空」的内存覆盖整份落盘文件（规则关一下再开 = 索引全丢）。
+     *
+     * <p>纪元只在 {@link #SESSION_LOCK} 里读写，「比较纪元 + 写内存」和「推进纪元 + 清内存」
+     * 因此是互斥的，那条迟到任务要么看到纪元变化而放弃，要么真的发生在清空之后（那是新数据，该留）。
+     */
+    private static final AtomicLong EPOCH = new AtomicLong();
+
+    /**
+     * 串行化「清空内存」与「写入内存」这两件互斥的事（见 {@link #EPOCH}）。
+     *
+     * <p>只保护很短的一段临界区（几次 map 操作 + 两个原子写），不和 {@code writeLock}（磁盘写）
+     * 嵌套，所以不会和存储类的写盘互锁。
+     */
+    private static final Object SESSION_LOCK = new Object();
+
     private VillagerTradeCache() {
     }
 
@@ -99,15 +126,20 @@ public final class VillagerTradeCache implements SessionState {
     }
 
     /**
-     * 存入一只村民的快照，并拒绝「比死亡记录还旧」或「比已存快照还旧」的迟到写入。
+     * 存入一只村民的快照，并拒绝所有已经作废的迟到写入。
      *
-     * <p>三条拒绝规则（顺序无关，但都要在 {@code store().put} 之前）：
+     * <p>四条拒绝规则（前三条都要在 {@code store().put} 之前判掉）：
      * <ol>
      *     <li>快照早于最近一次整份清空（{@link #clearedAt}）→ 清理之后才跑完的作废数据；</li>
      *     <li>快照早于村民死亡时刻（{@link #REMOVED_AT}）→ 墓碑挡住迟到写，避免把死掉的村民塞回来；</li>
      *     <li>快照不严格新于已存的快照（{@link #LAST_SNAPSHOT}）→ 双入口 + 多 worker 乱序时，
-     *         不让旧坐标 / 旧交易表覆盖新的。</li>
+     *         不让旧坐标 / 旧交易表覆盖新的；</li>
+     *     <li>进锁后发现清理纪元（{@link #EPOCH}）变了 → 清空就发生在本次检查与写入之间，
+     *         写下去会在清空之后凭空多出一条，下一次落盘还会用它覆盖整份文件。</li>
      * </ol>
+     *
+     * <p>第 4 条必须和「写内存」放在同一个 {@link #SESSION_LOCK} 临界区里，否则挡住它的
+     * 仍然只是一个 check-then-act 窗口。
      *
      * @param info          已解析完的快照
      * @param snapshotNanos 主线程抓快照那一刻的 {@link System#nanoTime()}
@@ -116,6 +148,8 @@ public final class VillagerTradeCache implements SessionState {
         if (info == null) {
             return;
         }
+        // 纪元在入口处读一次：之后任何一次 clearSession 都会让它对不上
+        long epoch = EPOCH.get();
         // 快照比最近一次整份清空还早：说明清理之后才执行完，属于已经作废的数据
         if (snapshotNanos <= clearedAt) {
             return;
@@ -126,15 +160,22 @@ public final class VillagerTradeCache implements SessionState {
             // 快照比村民死亡还早：这是一份已经没有意义的旧数据，直接丢掉
             return;
         }
-        // 同一只村民的两份快照可能乱序到：只有严格更新的那一份才允许写（原子抢占）
-        if (!claimSnapshot(uuid, snapshotNanos)) {
-            log.debug("丢弃乱序到达的旧快照：uuid={}, snapshot={}，已存={}",
-                    uuid, snapshotNanos, LAST_SNAPSHOT.get(uuid));
-            return;
+        synchronized (SESSION_LOCK) {
+            if (EPOCH.get() != epoch) {
+                // 检查之后、写入之前发生了整份清空：这份快照属于上一个会话，不能再写进去
+                log.debug("丢弃清空前的迟到快照：uuid={}, snapshot={}", uuid, snapshotNanos);
+                return;
+            }
+            // 同一只村民的两份快照可能乱序到：只有严格更新的那一份才允许写（原子抢占）
+            if (!claimSnapshot(uuid, snapshotNanos)) {
+                log.debug("丢弃乱序到达的旧快照：uuid={}, snapshot={}，已存={}",
+                        uuid, snapshotNanos, LAST_SNAPSHOT.get(uuid));
+                return;
+            }
+            store().put(uuid, info);
+            // 标脏：真正的写盘交给定时任务 / 停服兜底，这里绝不做 I/O
+            VillagerTradeStorage.INSTANCE.markDirty();
         }
-        store().put(uuid, info);
-        // 标脏：真正的写盘交给定时任务 / 停服兜底，这里绝不做 I/O
-        VillagerTradeStorage.INSTANCE.markDirty();
         if (removedAt != null) {
             // 已经写进了更新的数据，墓碑没用了
             REMOVED_AT.remove(uuid, removedAt);
@@ -222,6 +263,17 @@ public final class VillagerTradeCache implements SessionState {
     // 生命周期
     // ============================================================
 
+    /**
+     * 会话结束：<b>先把没落盘的改动写下去，再清内存</b>（停服 / 规则关闭都会走这里）。
+     *
+     * <p><b>写失败就什么都不清</b>：以前失败只打 WARN 就继续清空，磁盘满 / 文件被占
+     * （Windows 上很常见）时等于把唯一的一份索引直接扔掉。现在失败只记 ERROR 并保留内存，
+     * 下一次会话（或下次关规则）还有机会写出去。
+     *
+     * <p>清空与「在途 {@code put}」的互斥靠 {@link #EPOCH}：推进纪元与清内存在
+     * {@link #SESSION_LOCK} 里一次做完，已经在 {@link #put} 里通过前置检查的迟到任务
+     * 会在锁内看到纪元变化而放弃，不会在清空之后又冒出来一条。
+     */
     @Override
     public void clearSession() {
         int cached = store().size();
@@ -231,13 +283,19 @@ public final class VillagerTradeCache implements SessionState {
         try {
             VillagerTradeStorage.INSTANCE.flushSync();
         } catch (Throwable t) {
-            log.warn("停服落盘村民交易索引失败，本次改动可能丢失", t);
+            // 保留内存数据：清掉就真的没了（磁盘上那份可能还是上一次的旧内容）
+            log.error("停服落盘村民交易索引失败：保留内存数据，本次不清理、不推进清理纪元", t);
+            return;
         }
 
-        clearedAt = System.nanoTime();
-        REMOVED_AT.clear();
-        LAST_SNAPSHOT.clear();
-        VillagerTradeStorage.INSTANCE.clearMemory();
+        synchronized (SESSION_LOCK) {
+            // 先推进纪元再清内存：在途 put 的比较与写入都在同一把锁里，顺序天然成立
+            EPOCH.incrementAndGet();
+            clearedAt = System.nanoTime();
+            REMOVED_AT.clear();
+            LAST_SNAPSHOT.clear();
+            VillagerTradeStorage.INSTANCE.clearMemory();
+        }
         if (cached > 0 || tombstones > 0) {
             log.info("村民交易缓存已清空（快照 {} 条，墓碑 {} 条；磁盘文件保留）", cached, tombstones);
         }
