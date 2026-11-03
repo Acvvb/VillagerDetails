@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -101,6 +102,22 @@ public final class VillagerTradeCache implements SessionState {
      */
     private static final Object SESSION_LOCK = new Object();
 
+    /**
+     * 墓碑 / 快照时刻表的清理阈值：条目数到这个量级就做一次过期清理。
+     *
+     * <p>两张表都是「每个村民一条」，正常规模下和索引同量级；但在刷怪塔 / 村民牧场里，
+     * 村民不断生成又死去，墓碑<b>只增不减</b>，单个会话能涨到几十万条 UUID。
+     */
+    private static final int STALE_ENTRY_PRUNE_THRESHOLD = 512;
+
+    /**
+     * 过期时长：超过它还没被用到的墓碑 / 快照时刻<b>一定</b>没用了。
+     *
+     * <p>在途快照从「主线程抓取」到「worker 执行 put」只有几秒（队列 64 条、worker 2~4 条），
+     * 所以 10 分钟前的记录不可能再参与任何比较。
+     */
+    private static final long STALE_ENTRY_TTL_NANOS = TimeUnit.MINUTES.toNanos(10);
+
     private VillagerTradeCache() {
     }
 
@@ -180,6 +197,7 @@ public final class VillagerTradeCache implements SessionState {
             // 已经写进了更新的数据，墓碑没用了
             REMOVED_AT.remove(uuid, removedAt);
         }
+        pruneStaleEntries();
         log.debug("村民交易快照已缓存：uuid={}, dimension={}, pos={}, offers={}",
                 uuid, info.dimension().identifier(), info.pos(), info.offers().size());
     }
@@ -204,6 +222,25 @@ public final class VillagerTradeCache implements SessionState {
     }
 
     /**
+     * 清理两张过期表（墓碑 / 快照时刻）：条目太多时才真正遍历，平时只是一次 {@code size()} 比较。
+     *
+     * <p>两者都按 {@link #STALE_ENTRY_TTL_NANOS} 判定过期。清掉的都是「很久以前」的记录，
+     * 而任何还可能在途的快照都比它们新得多，所以清理不会放行一条本该被拒的迟到写入。
+     */
+    private static void pruneStaleEntries() {
+        pruneStaleEntries(REMOVED_AT);
+        pruneStaleEntries(LAST_SNAPSHOT);
+    }
+
+    private static void pruneStaleEntries(Map<UUID, Long> table) {
+        if (table.size() < STALE_ENTRY_PRUNE_THRESHOLD) {
+            return;
+        }
+        long cutoff = System.nanoTime() - STALE_ENTRY_TTL_NANOS;
+        table.entrySet().removeIf(entry -> entry.getValue() < cutoff);
+    }
+
+    /**
      * 村民死亡：主线程立刻摘掉它的缓存，并留下墓碑挡住迟到的异步写入。
      */
     public void remove(UUID uuid) {
@@ -215,6 +252,8 @@ public final class VillagerTradeCache implements SessionState {
         if (existed) {
             VillagerTradeStorage.INSTANCE.markDirty();
         }
+        // 墓碑只在「还有在途快照可能到达」的窗口内有意义，过期就清掉，别让刷怪塔把表撑爆
+        pruneStaleEntries();
     }
 
     // ============================================================

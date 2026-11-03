@@ -15,8 +15,8 @@ public class ModThreadPool {
      * 默认拒绝策略：<b>直接丢弃</b>（WARN 由下面的包装日志统一打出）。
      *
      * <p>只适合「丢一条不影响正确性」的任务（村民交易快照这类缓存重建型任务）。
-     * 需要保证「绝不丢」的池子（服务端那个）必须在构造时传入更强的策略 ——
-     * 见 {@code ServerThreadManager} 里用的「队列满就退化为调用线程同步执行」。
+     * 需要「调用方自己决定怎么兜」的池子（服务端那个）必须在构造时传入更强的策略 ——
+     * 见 {@code ServerThreadManager} 里用的「先 WARN 再抛出」，<b>不会</b>把任务退回调用线程执行。
      */
     private static final RejectedExecutionHandler DISCARD_WITH_WARN = (_, _) -> {
     };
@@ -27,9 +27,13 @@ public class ModThreadPool {
     }
 
     /**
-     * @param rejectedHandler 队列满 / 池已关闭时的兜底策略；<b>不允许传会抛异常的 AbortPolicy</b>，
-     *                        否则提交方要在每个调用点自己 try/catch（本类已在 {@link #submit} 兜住，
-     *                        但 {@link #execute} 的调用方是业务代码，不适合被迫处理）。
+     * @param rejectedHandler 队列满 / 池已关闭时的兜底策略。
+     *
+     *                        <p><b>可以传会抛 {@link RejectedExecutionException} 的策略</b>：
+     *                        {@link #submit} 会把它转成「future 以异常收尾」，{@link #execute}
+     *                        则会记一条 WARN 后丢弃 —— 两种入口都不会把异常漏给业务调用方。
+     *                        （早期注释写着「不允许传 AbortPolicy」，那是 {@code execute} 还没
+     *                        兜住异常时的约定，现在已不成立。）
      */
     public ModThreadPool(String poolName, int coreSize, int maxSize, int queueCapacity,
                          RejectedExecutionHandler rejectedHandler) {
@@ -61,7 +65,8 @@ public class ModThreadPool {
     /**
      * 提交一个不关心结果的异步任务。
      *
-     * <p>池已关闭 / 任务被拒绝时<b>不会</b>抛给调用方：拒绝策略已经决定怎么兜（丢弃或调用线程执行）。
+     * <p>池已关闭 / 任务被拒绝时<b>不会</b>抛给调用方：拒绝策略已经决定怎么兜
+     * （本类默认丢弃；服务端池是抛异常，这里会记 WARN 后丢弃）。
      */
     public void execute(Runnable task) {
         if (executor == null || executor.isShutdown()) {
@@ -78,8 +83,8 @@ public class ModThreadPool {
                 }
             });
         } catch (RejectedExecutionException e) {
-            // 只有极端情况才会走到：池刚好在此刻关闭，且拒绝策略本身是抛异常型的
-            logger.warn("异步任务提交失败（池已关闭），已丢弃", e);
+            // 队列满，或池刚好在此刻关闭
+            logger.warn("异步任务被拒绝（队列满 / 池已关闭），已丢弃", e);
         }
     }
 

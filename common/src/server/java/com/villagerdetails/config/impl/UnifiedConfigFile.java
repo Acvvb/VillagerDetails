@@ -34,7 +34,9 @@ import java.nio.file.Path;
  *
  * <p><b>树仍然只允许在主线程碰</b>：{@link #getSection} 会把内部 {@link JsonObject} 直接交出去
  * （{@code ServerLangConfig} 等会原地改它），而 Gson 的树不是线程安全的。
- * 所以 {@link #markDirty()} / {@link #flush()} /  都是 {@code synchronized}。
+ * 所以 {@link #markDirty()} / {@link #flush()} / {@link #getSection(String)} /
+ * {@link #setSection(String, JsonElement)} / {@link #flushAndAwait(MinecraftServer, long)}
+ * 都是 {@code synchronized}。
  *
  * <p><b>I/O 已经移出主线程</b>：{@link #flush()} 只做主线程内的「序列化成 String」，
  * 真正的写盘交给 {@link AsyncConfigWriter} 的专职单写者线程。因此 {@code flush()} 里

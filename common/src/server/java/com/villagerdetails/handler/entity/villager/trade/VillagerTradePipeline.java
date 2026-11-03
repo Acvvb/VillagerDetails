@@ -4,7 +4,6 @@ import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.cache.impl.VillagerTradeCache;
 import com.villagerdetails.concurrent.ModContext;
 import com.villagerdetails.concurrent.ModThreadPool;
-import com.villagerdetails.config.impl.IdTranslationConfig;
 import com.villagerdetails.pojo.dto.TradeItemInfo;
 import com.villagerdetails.pojo.dto.VillagerTradeInfo;
 import com.villagerdetails.rule.type.RuleType;
@@ -31,7 +30,6 @@ import org.apache.logging.log4j.Logger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -49,11 +47,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *         {@link VillagerTradeCache}（顺手标脏，真正的落盘由存储类定时做）。</li>
  * </ol>
  *
- * <p><b>白名单降级过滤</b>（见 {@link #isWhitelistedResult}）：只收录「卖出的东西在
- * {@code trade_index.json} 里登记过」的交易 —— 泥土、砂砾这种冷门产物直接丢掉，
- * 免得索引和落盘文件被无意义的交易撑爆。附魔书是例外：它在索引里没有登记，
- * 但<b>附魔 id</b> 有，所以「附魔书 + 已知附魔」也算白名单命中（不然经验修补这种最常用的
- * 交易反而会被过滤掉）。
+ * <p><b>不做任何「值不值得收录」的过滤</b>：村民卖什么就收录什么（只跳过没有结果物品的
+ * 空交易）。索引的用途是「查谁卖什么」，不该替玩家判断哪些物品值得查 —— 一旦按
+ * {@code trade_index.json} 做白名单，书架、地图、命名牌、盔甲、食物这些正常出售交易
+ * 会全部被误杀，而「收购绿宝石」方向反倒全都能过，索引最后只剩一堆「X -> 1 绿宝石」。
+ * 条目多到撑爆文件属于容量问题，应该用文件体积 / 条数上限去管，不是靠误杀数据解决。
  *
  * <p><b>两个主线程入口</b>：{@link #onEntityUnload(Entity, ServerLevel)} 是实际生效的那个
  * （原版在区块变成 HIDDEN 时就把实体移出追踪，比 {@code CHUNK_UNLOAD} 更早）；
@@ -215,35 +213,6 @@ public final class VillagerTradePipeline {
     }
 
     // ============================================================
-    // 白名单（降级过滤）
-    // ============================================================
-
-    /**
-     * 这笔交易的「卖的东西」值不值得收录。
-     *
-     * <p>两条命中途径：
-     * <ul>
-     *     <li>结果物品本身在 {@code trade_index.json} 里登记过（陶瓦这类直接写物品 id 的）；</li>
-     *     <li>结果是<b>附魔书 / 附魔物品</b>，且它带的某个附魔 id 在索引里登记过
-     *         （索引里只有附魔 id，没有 {@code enchanted_book} 这个物品 id）。</li>
-     * </ul>
-     *
-     * <p>都不命中 → 冷门物品（泥土、砂砾、面包……）→ 直接丢弃，不进内存也不落盘。
-     */
-    private static boolean isWhitelistedResult(ItemStack result) {
-        String resultId = TradeItemNameResolver.itemId(result);
-        if (IdTranslationConfig.isMapped(resultId)) {
-            return true;
-        }
-        for (TradeItemNameResolver.EnchantmentText enchantment : TradeItemNameResolver.enchantmentTexts(result)) {
-            if (!enchantment.id().isBlank() && IdTranslationConfig.isMapped(enchantment.id())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // ============================================================
     // 主线程抓取的数据快照（全部是不可变基础类型）
     // ============================================================
 
@@ -295,7 +264,12 @@ public final class VillagerTradePipeline {
         }
 
         /**
-         * 一笔交易 → 纯字符串快照；白名单没过返回 {@code null}。
+         * 一笔交易 → 纯字符串快照；空结果返回 {@code null}。
+         *
+         * <p><b>不按物品做过滤</b>：只跳过「没有结果物品」这种无意义记录。曾经的「白名单」
+         * （只收 {@code trade_index.json} 登记过的物品 / 附魔）会把书架、地图、命名牌、盔甲、
+         * 食物这些正常出售交易全部误杀，而「收购绿宝石」方向又全都能过 —— 索引最后只剩
+         * 一堆「X -> 1 绿宝石」。交易索引的用途是「查谁卖什么」，不该替玩家决定什么值得查。
          *
          * <p>名字在这一步就解析好（{@code Component} 只有主线程能读），子线程只做字符串拼接。
          */
@@ -305,9 +279,6 @@ public final class VillagerTradePipeline {
             }
             ItemStack result = offer.getResult();
             if (result == null || result.isEmpty()) {
-                return null;
-            }
-            if (!isWhitelistedResult(result)) {
                 return null;
             }
 
@@ -320,15 +291,24 @@ public final class VillagerTradePipeline {
                     TradeItemNameResolver.enchantmentTexts(result);
             List<String> enchantmentNames = new ArrayList<>(enchantments.size());
 
-            // 价格：costA 一定有，costB 是「第二样东西」（原版大多数交易没有）
-            ItemCost costA = offer.getItemCostA();
-            String price1Id = itemIdOf(costA == null ? null : costA.item());
-            int price1Count = costA == null ? 0 : costA.count();
+            // 价格：getCostA() / getCostB() 返回的是「已经计入供需涨价 + 声望折扣」的实际价格
+            // （ItemStack 形态），getItemCostA() / getItemCostB() 才是原始标价（ItemCost）。
+            // 展示必须用前者 —— 否则行情涨了以后，玩家照展示价带钱会不够。
+            ItemStack priceStackA = offer.getCostA();
+            ItemCost baseCostA = offer.getItemCostA();
+            String price1Id = isPresent(priceStackA) ? TradeItemNameResolver.itemId(priceStackA)
+                    : (baseCostA == null ? "" : itemIdOf(baseCostA.item()));
+            int price1Count = isPresent(priceStackA) ? priceStackA.getCount()
+                    : (baseCostA == null ? 0 : baseCostA.count());
             String price1Name = TradeItemNameResolver.itemNameOfId(price1Id);
 
-            Optional<ItemCost> costB = offer.getItemCostB();
-            String price2Id = costB.map(cost -> itemIdOf(cost.item())).orElse("");
-            int price2Count = costB.map(ItemCost::count).orElse(0);
+            // costB 是「第二样东西」：原版大多数交易没有（取不到就是空栈 / 空 Optional）
+            ItemStack priceStackB = offer.getCostB();
+            ItemCost baseCostB = offer.getItemCostB().orElse(null);
+            String price2Id = isPresent(priceStackB) ? TradeItemNameResolver.itemId(priceStackB)
+                    : (baseCostB == null ? "" : itemIdOf(baseCostB.item()));
+            int price2Count = isPresent(priceStackB) ? priceStackB.getCount()
+                    : (baseCostB == null ? 0 : baseCostB.count());
             String price2Name = price2Count > 0 ? TradeItemNameResolver.itemNameOfId(price2Id) : "";
 
             // ---- 展示文本：10 Emerald -> 1 Enchanted Book[经验修补] ----
@@ -389,6 +369,14 @@ public final class VillagerTradePipeline {
             }
             net.minecraft.resources.Identifier id = BuiltInRegistries.ITEM.getKey(holder.value());
             return id == null ? "" : id.toString();
+        }
+
+        /**
+         * 这个价格物品栈可不可用（{@code getCostX()} 在「没有这一侧价格」时可能给 {@code null}
+         * 或空栈，两种都要当成「没有」处理）。
+         */
+        private static boolean isPresent(ItemStack stack) {
+            return stack != null && !stack.isEmpty();
         }
 
         /**

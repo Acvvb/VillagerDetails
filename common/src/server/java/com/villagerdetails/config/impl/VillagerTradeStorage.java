@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -178,9 +179,9 @@ public final class VillagerTradeStorage {
             return;
         }
 
-        Map<UUID, VillagerTradeInfo> loaded;
+        ParsedIndex parsed;
         try {
-            loaded = parse(JsonIO.readObject(target));
+            parsed = parse(JsonIO.readObject(target));
         } catch (Exception e) {
             log.warn("读取村民交易索引失败，本次按空缓存继续（文件：{}）", target, e);
             markClean();
@@ -188,9 +189,23 @@ public final class VillagerTradeStorage {
         }
 
         cache.clear();
-        cache.putAll(loaded);
+        cache.putAll(parsed.villagers());
         markClean();
         log.info("已从 {} 加载村民交易索引：{} 只村民", target, cache.size());
+        if (parsed.skipped() > 0) {
+            // 标脏 = 把清理结果写回文件。不写的话坏条目会永远留在文件里，
+            // 每次启动都在日志里刷一遍同样的 WARN，玩家也没法靠手改修好。
+            markDirty();
+            log.info("村民交易索引里有 {} 条坏记录已被剔除，将在下一次落盘时重写文件", parsed.skipped());
+        }
+    }
+
+    /**
+     * 读盘结果：解析成功的村民 + 被跳过的坏条目数。
+     *
+     * <p>坏条目数要带出去，调用方才能决定「是否把清理结果重写回文件」。
+     */
+    private record ParsedIndex(Map<UUID, VillagerTradeInfo> villagers, int skipped) {
     }
 
     /**
@@ -198,8 +213,11 @@ public final class VillagerTradeStorage {
      *
      * <p>单条坏数据只跳过自己（并计数），不影响其它条目 —— 手改文件写坏一个 UUID
      * 不该让整个索引作废。
+     *
+     * <p>格式版本不认识时<b>不</b>算坏条目（{@code skipped = 0}）：那种情况宁可原样留着文件，
+     * 也不能用旧格式的解析结果把它覆盖掉。
      */
-    private static Map<UUID, VillagerTradeInfo> parse(JsonObject root) {
+    private static ParsedIndex parse(JsonObject root) {
         Map<UUID, VillagerTradeInfo> result = new HashMap<>();
 
         int format = root.has("format") && root.get("format").isJsonPrimitive()
@@ -207,12 +225,12 @@ public final class VillagerTradeStorage {
         if (format != FORMAT_VERSION) {
             log.warn("村民交易索引格式版本不匹配（文件 {}，期望 {}），本次按空缓存继续",
                     format, FORMAT_VERSION);
-            return result;
+            return new ParsedIndex(result, 0);
         }
 
         JsonElement villagersElement = root.get("villagers");
         if (villagersElement == null || !villagersElement.isJsonArray()) {
-            return result;
+            return new ParsedIndex(result, 0);
         }
 
         int skipped = 0;
@@ -231,7 +249,7 @@ public final class VillagerTradeStorage {
         if (skipped > 0) {
             log.warn("村民交易索引里有 {} 条记录解析失败，已跳过（其余 {} 条正常）", skipped, result.size());
         }
-        return result;
+        return new ParsedIndex(result, skipped);
     }
 
     private static VillagerTradeInfo parseVillager(JsonObject object) {
@@ -301,6 +319,11 @@ public final class VillagerTradeStorage {
      * <p><b>先读代际、再拷快照</b>，顺序不能反：反了就会漏掉落在两步之间的那次 {@code put}
      * （见 {@link #generation} 的注释）。
      *
+     * <p><b>队列满时保留脏标记重试，绝不退回主线程写盘</b>：本方法由 {@code END_SERVER_TICK}
+     * 驱动，而写盘是「序列化 + 原子写文件」，在主线程做会直接掉 tick。所以这里用
+     * {@link ModThreadPool#submit}（future 型提交）：被拒绝时 future 以异常收尾，
+     * 我们只记一条 WARN、什么都不清 —— {@code dirty} 还亮着，下个 tick 会带着更新的快照再试。
+     *
      * <p>线程池不可用（停服过程中）时什么都不做 —— 那时会走 {@link #flushSync()}。
      */
     public void flushAsync(MinecraftServer server) {
@@ -317,7 +340,14 @@ public final class VillagerTradeStorage {
         Map<UUID, VillagerTradeInfo> snapshot = new HashMap<>(cache);
         Path target = file;
 
-        pool.execute(() -> writeSnapshot(snapshot, target, capturedGeneration, false));
+        CompletableFuture<Void> future = pool.submit(() -> {
+            writeSnapshot(snapshot, target, capturedGeneration, false);
+            return null;
+        });
+        if (future.isCompletedExceptionally()) {
+            // 队列满 / 池已关：不落盘、不清脏，等下一个 1200 tick 的定时任务重试
+            log.warn("村民交易索引落盘任务被线程池拒绝（队列满），保留脏标记，下个周期重试");
+        }
     }
 
     /**

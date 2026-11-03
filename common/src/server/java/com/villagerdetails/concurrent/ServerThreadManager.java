@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 
 /**
@@ -43,7 +44,8 @@ public final class ServerThreadManager {
      *
      * <p>原来是 1000：配合 {@code LinkedBlockingQueue}，队列没满就永远不会超过核心线程数，
      * 于是 {@code maxSize=4} 形同虚设、拒绝策略也几乎触发不到（真触发了就是静默丢任务）。
-     * 现在压到 64，池子才真的能在积压时从 2 扩到 4；满了也有下面那条保底策略兜着。
+     * 现在压到 64，池子才真的能在积压时从 2 扩到 4；满了走 {@link #rejectWithWarn()}：
+     * 抛给调用方兜底，<b>不会</b>把任务拉回调用线程执行。
      */
     private static final int QUEUE_CAPACITY = 64;
 
@@ -95,31 +97,34 @@ public final class ServerThreadManager {
             return;
         }
 
-        // 服务端池：核心 2，最大 4，队列 64，满了退化为「调用线程同步执行」
-        serverPool = new ModThreadPool(POOL_NAME, CORE_SIZE, MAX_SIZE, QUEUE_CAPACITY, callerRunsWithWarn());
+        // 服务端池：核心 2，最大 4，队列 64，满了直接拒绝（绝不退回调用线程执行）
+        serverPool = new ModThreadPool(POOL_NAME, CORE_SIZE, MAX_SIZE, QUEUE_CAPACITY, rejectWithWarn());
         ModContext.setServerPool(serverPool);
         hookLifecycle();
     }
 
     /**
-     * 队列满 / 池已关闭时的保底策略：<b>不丢任务</b>，退化成在提交线程里同步执行。
+     * 队列满 / 池已关闭时的拒绝策略：<b>先 WARN，再抛出去</b>。
      *
-     * <p>为什么不用 {@code AbortPolicy}（抛异常）：业务侧（区块卸载的村民交易快照）不该被迫
-     * 处理拒绝异常；为什么不用「丢弃 + WARN」：配置落盘一旦丢事件就是丢数据。
-     * 卡一下主线程远比丢一条配置便宜。
+     * <p><b>为什么不再「退化为调用线程同步执行」</b>：本池最重的任务是村民交易索引的落盘
+     * （整份 JSON 序列化 + 原子写文件），而它的提交方正是服务端主线程的 tick。以前队列一满，
+     * 这个写盘任务就当场在 tick 线程里做完，直接掉 tick —— 恰好违背了它自己「主线程永远不做 I/O」
+     * 的设计目标。所以这里改回标准的拒绝语义，把「怎么办」交给调用方：
+     * <ul>
+     *     <li>{@code ModThreadPool#submit} 把 future 以异常收尾 —— {@code VillagerTradeStorage}
+     *         据此<b>保留脏标记</b>，下个 tick 的定时任务再试；</li>
+     *     <li>{@code ModThreadPool#execute} 记一条 WARN 后丢弃 —— 交易快照丢了不要紧，
+     *         下次区块卸载会重新抓。</li>
+     * </ul>
      *
-     * <p>注意 {@code task.run()} 跑的是包装后的任务，所以异常已经被内层 try/catch 兜住；
-     * 这里再包一层是为了不让 {@code Error} 冒到 {@code ThreadPoolExecutor} 的提交路径上。
+     * <p>「卡一下主线程」听起来比「丢任务」安全，但在这里不成立：整份索引写盘是毫秒~十毫秒级，
+     * 而丢掉的快照是可重建的缓存数据。
      */
-    private static RejectedExecutionHandler callerRunsWithWarn() {
+    private static RejectedExecutionHandler rejectWithWarn() {
         return (task, executor) -> {
-            log.warn("服务端异步队列已满（容量 {}，排队 {}），任务改为在调用线程同步执行",
+            log.warn("服务端异步队列已满（容量 {}，排队 {}），任务被拒绝（交由调用方兜底）",
                     QUEUE_CAPACITY, executor.getQueue().size());
-            try {
-                task.run();
-            } catch (Throwable t) {
-                log.error("同步执行被拒绝的任务时异常", t);
-            }
+            throw new RejectedExecutionException("服务端异步队列已满（容量 " + QUEUE_CAPACITY + "）");
         };
     }
 

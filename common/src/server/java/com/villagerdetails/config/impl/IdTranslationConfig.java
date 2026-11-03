@@ -438,28 +438,6 @@ public final class IdTranslationConfig implements ReloadableConfig {
     }
 
     /**
-     * 这个 id 在交易索引里有没有登记（带不带 {@code minecraft:} 都认，含内置兜底叫法）。
-     *
-     * <p>给「村民交易查询」做<b>白名单降级过滤</b>用：只有索引里登记过的物品 / 附魔才值得收录，
-     * 冷门物品（泥土、砂砾这种）直接丢掉，免得缓存和落盘文件被无意义的交易撑爆。
-     *
-     * @param idText 物品 / 附魔 id，例如 {@code minecraft:emerald} 或 {@code mending}
-     */
-    public static boolean isMapped(String idText) {
-        Identifier id = parseId(idText);
-        if (id == null) {
-            return false;
-        }
-        if (idToName.containsKey(id.toString())) {
-            return true;
-        }
-        if (!"minecraft".equals(id.getNamespace())) {
-            return false;
-        }
-        return idToName.containsKey(id.getPath()) || BUILTIN_ID_TO_NAME.containsKey(id.getPath());
-    }
-
-    /**
      * 按「id → 叫法列表」写文件。
      *
      * <p><b>改成异步</b>：这些写入只发生在「首次生成默认索引」和「重名清理后重写」两类场景，

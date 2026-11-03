@@ -255,8 +255,9 @@ public enum RuleType implements RegisterTypeServer {
      *     <li>区块卸载时（实体被移出追踪的 {@code ENTITY_UNLOAD}，以及整区块兜底的
      *         {@code CHUNK_UNLOAD}），主线程把村民深拷贝成纯字符串快照
      *         （UUID / 坐标 / 维度 / 卖出物 + 价格 + 数量，不持有任何原版对象）；</li>
-     *     <li>只收录「卖出物在交易索引（{@code trade_index.json}）里登记过」的交易，
-     *         冷门物品（泥土、砂砾……）直接丢弃 —— 白名单降级过滤；</li>
+     *     <li><b>不做「值不值得收录」的过滤</b>：村民卖什么就收什么（只跳过没有结果物品的空交易）。
+     *         按交易索引做白名单会把书架、地图、命名牌、盔甲、食物这些正常出售交易全部误杀，
+     *         而「收购绿宝石」方向又全都能过 —— 索引不该替玩家判断哪个物品值得查；</li>
      *     <li>快照交给 {@code ServerThreadManager} 的服务端线程池异步写进
      *         {@code VillagerTradeCache}（{@code ConcurrentHashMap}），查询只读内存；</li>
      *     <li>村民死亡（{@code AFTER_DEATH}）时主线程清掉对应缓存。</li>

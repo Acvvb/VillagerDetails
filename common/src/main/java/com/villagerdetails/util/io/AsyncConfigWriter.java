@@ -165,7 +165,9 @@ public final class AsyncConfigWriter {
      * <ol>
      *     <li>自旋等待 {@link #PENDING} / {@link #NOTIFY} / 在途写全部清空；</li>
      *     <li>置停机标志并 {@code interrupt + join} 写线程；</li>
-     *     <li>超时不死等、不抛异常，只记 ERROR（剩下的文件交给下一次 tick 或下次启动）。</li>
+     *     <li><b>关线程后再复查一次</b>：还有残留就唤醒写线程补排干一轮 —— 防止
+     *         「判空之后、置停机标志之前」这条窗口里新提交的内容被静默搁置；</li>
+     *     <li>超时不死等、不抛异常，只记 ERROR（剩下的文件交给 JVM 关机钩子或下次启动）。</li>
      * </ol>
      *
      * <p>停完之后再 {@link #submit} 会<b>懒重启</b>写线程，所以单人换存档不需要手动复位。
@@ -173,21 +175,48 @@ public final class AsyncConfigWriter {
      * @param timeoutMs 最长等待毫秒数；{@code <= 0} 表示不等，直接停
      */
     public static void flushAndShutdown(long timeoutMs) {
+        // 第一轮：正常排干 + 停线程
+        drain(timeoutMs);
+        shutdownWorker(timeoutMs);
+
+        // 第二轮：关线程之后再复查一次。
+        // 旧实现在「hasPending() 判空 → 置 stop」之间有个窗口：这段时间里的 submit 会成功
+        // 写进 PENDING，而 ensureWorker() 看到写线程还活着就直接返回，随后写线程因 stop 退出
+        // —— 那条内容再也没人写，而且全程没有日志。所以这里唤醒一次补排干。
         if (!hasPending()) {
-            shutdownWorker(timeoutMs);
             return;
         }
+        log.warn("配置写线程已停，但仍有 {} 个文件待写，唤醒写线程补排干一轮：{}",
+                PENDING.size(), PENDING.keySet());
+        ensureWorker();
+        // 停机期间提交的内容当时没被叫醒（写线程还没起），这里把通知重投一遍；
+        // 重复通知由写线程「取不到就跳过」自然吃掉。
+        for (Path path : PENDING.keySet()) {
+            NOTIFY.offer(path);
+        }
+        drain(timeoutMs);
+        shutdownWorker(timeoutMs);
 
+        if (hasPending()) {
+            // 极端情况（磁盘无响应 / 无权限）：不死等，剩下的交给 JVM 关机钩子或下次启动
+            log.error("补排干后仍有 {} 个文件未写完，留给 JVM 关机钩子兜底：{}",
+                    PENDING.size(), PENDING.keySet());
+        }
+    }
+
+    /**
+     * 自旋等待待写内容清空；超时只记 ERROR 并返回（不死等、不抛异常）。
+     */
+    private static void drain(long timeoutMs) {
         long deadline = deadlineAfter(timeoutMs);
         while (hasPending()) {
             if (System.nanoTime() >= deadline) {
-                log.error("停服前等待配置落盘超时（{} ms），仍有 {} 个文件未写完：{}",
+                log.error("等待配置落盘超时（{} ms），仍有 {} 个文件未写完：{}",
                         timeoutMs, PENDING.size(), PENDING.keySet());
-                break;
+                return;
             }
             sleepQuietly(SPIN_MS);
         }
-        shutdownWorker(timeoutMs);
     }
 
     /**

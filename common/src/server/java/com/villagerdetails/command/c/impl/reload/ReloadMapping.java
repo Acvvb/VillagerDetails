@@ -36,7 +36,9 @@ import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
  *
  * <p>重读走 {@link ConfigRegistry#reloadAllFromDisk(MinecraftServer)}：
  * {@code UnifiedConfigFile} 会真的去读 {@code config.json}（不经过 {@code ensureLoaded} 的短路），
- * 并且<b>不在末尾 save()</b>，玩家手改的内容不会被刚读到的内存快照盖回去。
+ * 读盘之前先 {@code flushAndAwait} 把内存改动落盘，读完<b>不在末尾标脏</b>
+ * （旧实现里那一步叫 {@code save()}，随异步落盘重构改成了 {@code markDirty()} + tick 末尾合并写）——
+ * 所以玩家手改的内容不会被刚读到的内存快照盖回去。
  */
 public class ReloadMapping implements RegisterServer {
 

@@ -464,8 +464,9 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 `MerchantOffer` / `ItemStack` 绝不跨线程传递），服务端线程池再组装成 `VillagerTradeInfo` 存进
 `VillagerTradeCache`；村民死亡时由 `ServerLivingEntityEvents.AFTER_DEATH` 清掉对应条目。
 
-只收录「卖出物在 `trade_index.json` 里登记过」的交易（附魔书按附魔 id 判定），泥土、砂砾这类冷门产物
-直接丢弃，免得索引和落盘文件被无意义的交易撑爆。
+村民挂出来的**每笔交易都会收录**（买卖两个方向都收），不再按 `trade_index.json` 做白名单过滤：
+早期版本只收录索引里登记过的物品 / 附魔，结果书架、地图、命名牌、盔甲、食物这些正常出售交易全被误杀，
+而「收购绿宝石」方向又全都能过 —— 查「谁卖书架」永远查不到。
 
 ```
 /ec TradeSearch true|false              # 开启 / 关闭规则
