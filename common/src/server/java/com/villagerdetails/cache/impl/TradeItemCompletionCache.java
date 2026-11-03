@@ -3,30 +3,36 @@ package com.villagerdetails.cache.impl;
 import com.villagerdetails.config.impl.IdTranslationConfig;
 import com.villagerdetails.handler.entity.villager.trade.TradeItemNameResolver;
 import com.villagerdetails.handler.entity.villager.trader.refresh.TradeEnchantmentScanner;
+import com.villagerdetails.handler.entity.villager.trader.refresh.TradeSetAdapter;
 import com.villagerdetails.mixin.villager.trader.autoTrader.VillagerTradeMixin;
 import com.villagerdetails.pojo.dto.TradeItemInfo;
 import net.minecraft.core.Holder;
+import net.minecraft.core.HolderSet;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.entity.npc.villager.VillagerProfession;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.trading.TradeCost;
+import net.minecraft.world.item.trading.TradeSet;
 import net.minecraft.world.item.trading.VillagerTrade;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Tab 补全用的「交易关联物品 / 附魔」缓存：<b>直接遍历 {@code VILLAGER_TRADE} 注册表</b>动态收集。
@@ -69,6 +75,11 @@ public final class TradeItemCompletionCache {
      * 附魔书的物品 id：{@code item} 子命令要把它排除掉（那是 {@code book} 子命令的地盘）。
      */
     private static final String ENCHANTED_BOOK_ID = "minecraft:enchanted_book";
+
+    /**
+     * 村民职业的最高等级（原版 {@code VillagerData} 上限是 5 级，5 级之后交易不再刷新）。
+     */
+    private static final int MAX_PROFESSION_LEVEL = 5;
 
     /**
      * 交易注册表里出现过的物品 id（不可变快照）。
@@ -115,12 +126,30 @@ public final class TradeItemCompletionCache {
             return;
         }
 
+        // 「村民职业实际能挂出来」的交易集：索引只收录 {@code Villager} 实体，而
+        // {@code WanderingTrader} 是另一条实体线（那里全是花 / 珊瑚 / 树苗 / 海龟壳……），
+        // 永远不会出现在索引里。所以补全也只取村民这一侧 —— 这是本类唯一「收口」的地方，
+        // 提取字段仍然只有 wants / additionalWants / gives 三处。
+        Set<ResourceKey<VillagerTrade>> villagerTrades = villagerReachableTrades(server);
+        boolean scoped = !villagerTrades.isEmpty();
+        if (!scoped) {
+            // 拿不到职业表（极端情况：TRADE_SET 注册表不可用）时退回全表扫描，
+            // 宁可比实际范围大一点，也别让补全空掉
+            log.warn("读不到村民职业的交易集，补全退回扫描整个 VILLAGER_TRADE 注册表");
+        }
+
         Set<Identifier> itemIds = new LinkedHashSet<>();
         Set<Identifier> enchantmentIds = new LinkedHashSet<>();
         int trades = 0;
+        int skipped = 0;
         for (Map.Entry<ResourceKey<VillagerTrade>, VillagerTrade> entry : registry.entrySet()) {
             VillagerTrade trade = entry.getValue();
             if (trade == null) {
+                continue;
+            }
+            if (scoped && !villagerTrades.contains(entry.getKey())) {
+                // 流浪商人的交易：索引永远收不到，补全里也就不该出现
+                skipped++;
                 continue;
             }
             trades++;
@@ -174,12 +203,75 @@ public final class TradeItemCompletionCache {
 
         CACHED_TRADE_ITEM_IDS = Collections.unmodifiableSet(itemIds);
         CACHED_ENCHANTMENT_IDS = Collections.unmodifiableSet(enchantmentIds);
-        CACHED_ITEM_SUGGESTIONS = Collections.unmodifiableSet(itemSuggestions);
-        CACHED_ENCHANTMENT_SUGGESTIONS = Collections.unmodifiableSet(enchantmentSuggestions);
-        log.info("已动态收集到 {} 种村民交易关联物品、{} 种附魔，用于补全",
-                itemIds.size(), enchantmentIds.size());
-        log.debug("交易补全缓存刷新完成：{} 笔交易；物品 {} 条、附魔 {} 条补全项；物品 id = {}",
-                trades, itemSuggestions.size(), enchantmentSuggestions.size(), itemIds);
+        CACHED_ITEM_SUGGESTIONS = unmodifiableSorted(itemSuggestions);
+        CACHED_ENCHANTMENT_SUGGESTIONS = unmodifiableSorted(enchantmentSuggestions);
+        log.info("已动态收集到 {} 种村民交易关联物品、{} 种附魔，用于补全", itemIds.size(), enchantmentIds.size());
+        log.debug("交易补全缓存刷新完成：村民交易 {} 笔（跳过流浪商人 {} 笔）；"
+                        + "item 补全 {} 条、book 补全 {} 条；物品 id = {}",
+                trades, skipped, itemSuggestions.size(), enchantmentSuggestions.size(), itemIds);
+        log.debug("item 补全项（{} 条）= {}", itemSuggestions.size(), itemSuggestions);
+        log.debug("book 补全项（{} 条）= {}", enchantmentSuggestions.size(), enchantmentSuggestions);
+    }
+
+    /**
+     * 排序后包装成不可变集合：注册表遍历顺序不稳定（{@code HashMap} 支撑），
+     * 排序能保证每次按 Tab 出来的顺序都一样。
+     */
+    private static Set<String> unmodifiableSorted(Set<String> raw) {
+        return Collections.unmodifiableSet(new LinkedHashSet<>(new TreeSet<>(raw)));
+    }
+
+    /**
+     * 村民职业实际能挂出来的交易（{@code profession × level → TradeSet → trades}）。
+     *
+     * <p>为什么要这一层：{@code VILLAGER_TRADE} 注册表里混着 <b>{@code wandering_trader}</b> 的
+     * 交易（花、珊瑚、树苗、海龟壳……），而本模组的索引只收录 {@code Villager} 实体
+     * （{@code WanderingTrader} 不在其中），那些物品永远不可能被搜到 —— 放进补全只会让列表
+     * 显得「什么方块都有」。
+     *
+     * <p>返回空集表示拿不到职业表（TRADE_SET 不可用等），调用方应退回全表扫描。
+     */
+    private static Set<ResourceKey<VillagerTrade>> villagerReachableTrades(MinecraftServer server) {
+        Set<ResourceKey<VillagerTrade>> trades = new HashSet<>();
+        Registry<TradeSet> tradeSets;
+        try {
+            tradeSets = server.registryAccess().lookupOrThrow(Registries.TRADE_SET);
+        } catch (Exception e) {
+            log.debug("读取 TRADE_SET 注册表失败，本次不做职业收口：", e);
+            return trades;
+        }
+
+        Set<ResourceKey<TradeSet>> visited = new HashSet<>();
+        // VillagerProfession.NONE 是个 ResourceKey（不是实例），从注册表取回实例再比
+        VillagerProfession none = BuiltInRegistries.VILLAGER_PROFESSION.getValue(VillagerProfession.NONE);
+        for (VillagerProfession profession : BuiltInRegistries.VILLAGER_PROFESSION) {
+            if (profession == null || profession == none) {
+                continue;
+            }
+            for (int level = 1; level <= MAX_PROFESSION_LEVEL; level++) {
+                ResourceKey<TradeSet> key;
+                try {
+                    key = profession.getTrades(level);
+                } catch (Exception e) {
+                    continue;
+                }
+                if (key == null || !visited.add(key)) {
+                    continue;
+                }
+                TradeSet set = tradeSets.getValue(key);
+                if (set == null) {
+                    continue;
+                }
+                HolderSet<VillagerTrade> members = TradeSetAdapter.trades(set);
+                if (members == null) {
+                    continue;
+                }
+                for (Holder<VillagerTrade> holder : members) {
+                    holder.unwrapKey().ifPresent(trades::add);
+                }
+            }
+        }
+        return trades;
     }
 
     /**

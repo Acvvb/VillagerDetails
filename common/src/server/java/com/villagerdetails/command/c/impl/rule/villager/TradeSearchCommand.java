@@ -10,7 +10,9 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -94,12 +96,31 @@ public final class TradeSearchCommand implements RegisterServer {
     }
 
     /**
-     * {@code item} 的补全：交易里出现过的物品 id + 中文叫法（不含附魔书）。
-     * 缓存没就绪时退回静态别名表。
+     * {@code item} 的补全：交易里出现过的物品 id + 中文叫法（<b>不含附魔书</b>）。
+     *
+     * <p>缓存本身已经排除了 {@code minecraft:enchanted_book}，这里再挡一道 ——
+     * 补全范围只允许是「普通物品交易」的主题，附魔书归 {@code book} 子命令。
+     * 缓存没就绪（服务端启动早期）时退回静态别名表。
      */
     private static Collection<String> itemSuggestions() {
         Set<String> dynamic = TradeItemCompletionCache.getItemSuggestions();
-        return dynamic.isEmpty() ? IdTranslationConfig.getAllSearchableNames() : dynamic;
+        if (dynamic.isEmpty()) {
+            return IdTranslationConfig.getAllSearchableNames();
+        }
+        List<String> filtered = new ArrayList<>(dynamic.size());
+        for (String suggestion : dynamic) {
+            if (!isEnchantedBookSuggestion(suggestion)) {
+                filtered.add(suggestion);
+            }
+        }
+        return filtered;
+    }
+
+    /**
+     * 这条补全项是不是指「附魔书」（{@code minecraft:enchanted_book} 或裸 {@code enchanted_book}）。
+     */
+    private static boolean isEnchantedBookSuggestion(String suggestion) {
+        return suggestion != null && suggestion.endsWith("enchanted_book");
     }
 
     /**
