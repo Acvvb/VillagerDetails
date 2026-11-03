@@ -57,10 +57,10 @@ public class NameTagItemMixin {
         // 5) 普通村民：自动刷新交易那套
         if (!(target instanceof Villager villager)) return;
 
-        // ★ 只处理支持的三类名字，其余直接放行（不弹消息）
+        // ★ 只处理能解析成「点名目标」或固定关键字的名称，其余直接放行（不弹消息）
         if (!AutoVillagerTrader.isSupportedName(villager, name)) return;
         String defaultValue = getState(VILLAGER_ONE_TICK_TRADER_COUNT);
-        int count = ParseUtils.toInt(defaultValue,ParseUtils.toInt(defaultValue));
+        int count = ParseUtils.toInt(defaultValue, 500);
         int attempts = AutoVillagerTrader.tickByName(villager, name, count);
         villager.setCustomName(null);
 
@@ -71,8 +71,14 @@ public class NameTagItemMixin {
             case -2 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.no_match", name));
             case -3 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.rule_disabled"));
             case -4 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.wrong_profession"));
+            case -7 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.not_producible", name));
             case 0  -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.no_hit", count));
-            default -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.success", attempts, name));
+            // 点名路线是「定向构造」，一次就成；331a/331b 仍是拒绝采样，报具体次数
+            default -> sendOverlayOrBroadcast(sp, Component.translatable(
+                    AutoVillagerTrader.isSpecialName(name)
+                            ? "msg.auto_trader.success"
+                            : "msg.auto_trader.target_success",
+                    attempts, name));
         }
     }
 }

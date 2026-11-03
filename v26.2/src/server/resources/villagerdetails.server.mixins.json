@@ -33,7 +33,6 @@
     "entity.villager.trader.autoTrader.AbstractVillagerInterfaceMixin",
     "entity.villager.trader.autoTrader.MerchantMenuInterfaceMixin",
     "entity.villager.trader.autoTrader.MerchantOfferInterfaceMixin",
-    "entity.villager.trader.autoTrader.VillagerInterfaceTradesMixin",
     "entity.villager.trader.autoTrader.book.EnchantRandomlyFunctionMixin",
     "entity.villager.trader.autoTrader.hardWork.MerchantOfferResetMixin",
     "entity.villager.trader.autoTrader.trigger.NameTagItemMixin",

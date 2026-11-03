@@ -155,6 +155,23 @@ public final class VillagerTradePipeline {
     }
 
     /**
+     * 立刻抓一次这只村民的交易快照（主线程调用）。
+     *
+     * <p>给「命名牌刷新交易」用：刷新刚把报价表整张换掉，如果等区块卸载再抓，
+     * 查询索引里会一直留着旧的一份。抓取规则与卸载路径完全一致
+     * （{@code VillagerTradeSnapshot.capture} 自己判断「有没有锁定交易」）。
+     */
+    public static void captureNow(Villager villager) {
+        if (!(villager.level() instanceof ServerLevel level)) {
+            return;
+        }
+        if (!RuleCache.isEnabled(RuleType.VILLAGER_TRADE_SEARCH)) {
+            return;
+        }
+        captureAndSubmit(level, villager);
+    }
+
+    /**
      * 村民死亡：主线程清掉它在索引里的那份交易（并标脏，下次落盘时从文件里消失）。
      *
      * <p>只认 {@link Villager}；僵尸村民转化之类不是死亡，不走这里
