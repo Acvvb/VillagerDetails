@@ -5,6 +5,7 @@ import com.villagerdetails.config.impl.IdTranslationConfig;
 import com.villagerdetails.pojo.dto.TradeItemInfo;
 import com.villagerdetails.pojo.dto.VillagerTradeInfo;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
@@ -13,6 +14,8 @@ import net.minecraft.network.chat.TextColor;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 
 import java.util.List;
@@ -204,13 +207,17 @@ public final class VillagerTradeSearchHandler {
      * 物品 id → 展示名。
      *
      * <ul>
-     *     <li>玩家：发可翻译节点（{@code minecraft:enchanted_book → item.minecraft.enchanted_book}），
-     *         客户端解析成自己语言的名字；</li>
+     *     <li>玩家：拿注册表里的 {@link Item} 实例，用原版 {@link Item#getDescriptionId()} 取
+     *         <b>正确的翻译键</b> —— 方块类物品（{@code BlockItem}，例如书架、带釉陶瓦）用的是
+     *         {@code block.minecraft.*}，普通物品才是 {@code item.minecraft.*}。手拼 {@code item.}
+     *         前缀会让方块类物品在客户端显示成原始键，这正是「白色带釉陶瓦显示
+     *         {@code item.minecraft.white_glazed_terracotta}」的原因；</li>
      *     <li>控制台：走服务端别名表（{@code trade_index.json} + 内置兜底），保证日志里是
      *         「绿宝石」而不是 {@code item.minecraft.emerald}。</li>
      * </ul>
      *
-     * <p>id 写坏时原样显示，不让一行结果炸掉整条消息。
+     * <p>id 写坏 / 注册表里没有（模组物品被卸载）时退回手拼 {@code item.<ns>.<path>}，
+     * 不让一行结果炸掉整条消息。
      */
     private static MutableComponent itemName(String itemId, boolean console) {
         Identifier id = itemId == null ? null : Identifier.tryParse(itemId);
@@ -218,6 +225,12 @@ public final class VillagerTradeSearchHandler {
             return Component.literal(String.valueOf(itemId));
         }
         if (!console) {
+            Item item = BuiltInRegistries.ITEM.getValue(id);
+            if (item != null && item != Items.AIR) {
+                // 原版自己知道该用 item. 还是 block. 前缀（BlockItem 走 block.minecraft.*）
+                return Component.translatable(item.getDescriptionId());
+            }
+            // 注册表里找不到：退回手拼
             return Component.translatable("item." + id.getNamespace() + "." + id.getPath());
         }
         String alias = IdTranslationConfig.displayNameOf(id);
@@ -227,6 +240,12 @@ public final class VillagerTradeSearchHandler {
     /**
      * 附魔 → 展示名：名称用 {@code enchantment.<ns>.<path>}，等级 &gt; 1 时追加
      * {@code enchantment.level.N}（原版自带 1~10，客户端渲染成 I / II / III）。
+     *
+     * <p><b>为什么这里手拼键、不走注册表</b>：1.21.9+ 附魔已经是数据驱动的动态注册表，
+     * {@code BuiltInRegistries} 里<b>没有</b> {@code ENCHANTMENT} 入口（只有 {@code ITEM}），
+     * 要拿实例得走 {@code server.registryAccess()}。而附魔的翻译键恒为
+     * {@code enchantment.<ns>.<path>}（原版与模组都遵守这个约定），手拼是安全的 ——
+     * 真正有「两套前缀」歧义的只有物品（item / block）。
      */
     private static MutableComponent enchantmentName(TradeItemInfo.EnchantmentEntry enchantment, boolean console) {
         Identifier id = Identifier.tryParse(enchantment.id());
