@@ -135,6 +135,7 @@
   "msg.auto_trader.not_producible": "§c这个职业没有任何等级会出售 %s，换个职业或换个名字",
   "msg.auto_trader.rule_disabled": "§c对应规则未开启，请先启用",
   "msg.auto_trader.success": "§a命中！第 §e%s §a次刷新就出了 %s",
+  "msg.auto_trader.combo_success": "§a三附魔钻石工具已就位（模拟 §e%s §a次）",
   "msg.auto_trader.target_success": "§a命中！模拟 §e%s §a次后刷出 §e%s",
   "msg.auto_trader.task_cancelled": "§c村民已走远 / 被卸载，刷新任务已取消",
   "msg.auto_trader.task_started": "§a已开始刷新 §e%s §7（按原版概率分帧模拟，最多 §e%s §7次）",

@@ -35,7 +35,7 @@ VillagerDetails is a Fabric mod that provides a large collection of behavior fix
 | VillagerAutoTrader | Auto trade refresh — write an item / enchantment id on a name tag (`emerald`, `mending`, `经验修补`…) and right-click a villager: the trade table is re-rolled with **vanilla probabilities**, sliced across ticks (100 rolls/tick, 1000 rolls max), until the target shows up; enchanted books are topped up to max level on a hit. Default: **on** |
 | VillagerSilentTrader | Silent trade reroll — remove the name tag after rerolling |
 | VillagerAutoLockHitTrader | Auto-lock trades — lock rerolled enchanted books automatically |
-| VillagerGodTools | God tools — use `331a` / `331b` name tags to reroll triple-enchanted diamond tools |
+| VillagerGodTools | God tools — `331a` / `331b` name tags reroll a weaponsmith's trades (tick-sliced, up to 500 rolls) and always end with a triple-enchanted diamond pickaxe / shovel / axe |
 | VillagerTerracottaTrader | Terracotta trader — name tag `Terracotta` rerolls both terracotta and glazed terracotta |
 | VillagerHardWorking | Hard-working villagers — adjust restock amount per trade |
 | VillagerMoveController | Move controller — set a destination with a lead named `move` |
@@ -353,14 +353,14 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 | VillagerAutoTrader | 自动刷新交易 — 命名牌写物品 / 附魔（`绿宝石`、`mending`、`minecraft:emerald`），右键任意村民后按**原版概率**重掷交易表：分帧执行（每 tick 100 次、单任务上限 1000 次），命中后写回并把附魔书补到满级；`331a/331b` 与陶瓦另有独立规则。默认**开启** |
 | VillagerSilentTrader | 无感交易刷新 — 刷新后自动移除命名标签 |
 | VillagerAutoLockHitTrader | 自动锁定交易 — 刷新出的附魔书自动锁定 |
-| VillagerGodTools | 神装工具刷新 — 使用 `331a/331b` 命名牌刷三附魔钻石工具 |
-| VillagerTerracottaTrader | 陶瓦刷新 — 用陶瓦名称命名牌同时刷出陶瓦和带釉陶瓦 |
+| VillagerGodTools | 神装工具刷新 — 使用 `331a/331b` 命名牌刷三附魔钻石工具（同样走分帧调度，最多 500 次模拟，最终一定会补齐三件套） |
+| VillagerTerracottaTrader | 陶瓦刷新 — 用陶瓦名称命名牌同时刷出陶瓦和带釉陶瓦（分帧模拟，最多 2000 次） |
 | VillagerHardWorking | 勤劳的村民 — 调整村民每次补货数量 |
 | VillagerMoveController | 村民移动控制器 — 使用命名为 `move` 的拴绳设置目的地 |
 | VillagerToolsmithExchange | 钻石兑换反转 — 工具匠改为绿宝石换钻石 |
 | VillagerBookshelfDecompose | 书架自动拆解 — 用书架支付时自动拆成书 |
 | VillagerEmeraldDecompose | 绿宝石块自动拆解 — 用绿宝石块支付时自动拆成绿宝石 |
-| VillagerOneTickTraderCount | 每 tick 刷新交易次数调整 |
+| VillagerOneTickTraderCount | （已停用）重刷统一改为固定每 tick 100 次模拟，本规则不再生效 |
 | VillagerTradeSearch | 村民交易查询 — 区块卸载时把「已锁定交易」的村民快照收录进索引（id / 数量 / 可交易次数 / 附魔 id，主线程拷贝、服务端线程池解析，并异步落盘）；之后用 `/ec c TradeSearch item <物品>` 或 `/ec c TradeSearch book <附魔>` 直接搜内存缓存，不遍历世界。展示名由客户端本地化，每条只列命中的交易（最多 10 个村民，可点 UUID 复制） |
 
 #### 实体与怪物

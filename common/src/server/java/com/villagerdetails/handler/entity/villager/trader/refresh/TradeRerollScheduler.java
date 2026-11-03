@@ -11,7 +11,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
-import net.minecraft.util.Util;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -31,46 +31,48 @@ import java.util.UUID;
 import java.util.function.Predicate;
 
 /**
- * 命名牌「点名刷取」的分帧调度器：<b>真实概率模拟</b>，不塞目标、不改概率。
+ * 村民交易重刷的分帧调度器：<b>所有</b>重刷（点名刷物品/附魔、陶瓦成对、331a/331b 神装工具）
+ * 都走同一个队列、同一套「真实概率模拟」。
  *
- * <p>玩法：命名牌写物品 / 附魔 → 建一个任务 → 每 tick 用
- * {@link TradeTableBuilder#build} 按原版抽取规则重掷 1..n 级整表，检查有没有目标交易；
- * 全部落空就下一 tick 继续，直到 {@link #MAX_ATTEMPTS} 次或命中。
- *
- * <p>为什么必须分帧：
+ * <p>规则很硬：
  * <ul>
- *     <li><b>不卡主线程</b>：单 tick 最多 {@link #ATTEMPTS_PER_TICK} 次，且额外有
- *     {@link #TICK_BUDGET_NANOS} 的时间阀门（超过就提前收工，剩余次数顺延到下一 tick）；</li>
- *     <li><b>不跨线程碰实体</b>：任务<b>只存 UUID + 维度</b>，每 tick 用
- *     {@code level.getEntity(uuid)} 现查实体；实体卸载 / 死亡 / 换维度立刻取消任务，
- *     绝不强引用 {@link Villager} 实例（否则区块卸载后就是 NPE / 幽灵实体）。</li>
+ *     <li>每个 tick、每个任务固定最多跑 {@link #ATTEMPTS_PER_TICK} 次模拟，跑完就
+ *     {@code break} 去处理下一个任务，剩下的次数留到下一 tick；</li>
+ *     <li><b>没有时间阀门</b>：100 次模拟即使花掉 15ms 也仍在 50ms 的 tick 预算内；</li>
+ *     <li>任务<b>只存 UUID + 维度 + 谓词</b>，每 tick 用 {@code level.getEntity(uuid)} 现查实体；
+ *     实体卸载 / 死亡 / 换维度立刻取消（绝不强引用 {@link Villager}）；</li>
+ *     <li>同一村民再次发起：旧任务<b>立刻取消</b>，只留新的一个。</li>
  * </ul>
  *
- * <p>生成的整表全程只存在于任务里，命中那一刻才在主线程写回实体，所以
- * 「模拟」期间村民的交易表一个字节都不会动。
+ * <p>生成的整表只存在于任务里，命中那一刻才在主线程写回实体，所以「模拟」期间村民的
+ * 交易表一个字节都不会动。
  */
 public final class TradeRerollScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(TradeRerollScheduler.class);
 
     /**
-     * 每 tick 的真实模拟次数上限。
+     * 每 tick 每个任务的真实模拟次数（固定值）。
      */
     public static final int ATTEMPTS_PER_TICK = 100;
 
     /**
-     * 单个任务的模拟总次数上限（按 {@link #ATTEMPTS_PER_TICK} 算就是 10 tick）。
+     * 点名刷物品 / 附魔：单任务上限。
      */
     public static final int MAX_ATTEMPTS = 1000;
 
     /**
-     * 单 tick 的时间阀门：再便宜也不该为了刷交易把 50ms 的预算吃掉一大半。
-     * 超过这个时间就提前结束本 tick 的模拟，剩余次数顺延。
+     * 陶瓦成对（普通 + 釉陶）：概率更低，给 2000 次防脸黑。
      */
-    private static final long TICK_BUDGET_NANOS = 8_000_000L;
+    public static final int TERRACOTTA_MAX_ATTEMPTS = 2000;
 
     /**
-     * 同时进行的任务上限，防刷屏式命名把内存/CPU 顶满。
+     * 331a/331b 三件套：等级 5 的候选池小、命中率高一些，500 次足够。
+     */
+    public static final int COMBO_MAX_ATTEMPTS = 500;
+
+    /**
+     * 同时进行的任务上限，防刷屏式命名把内存 / CPU 顶满。
      */
     public static final int MAX_ACTIVE_TASKS = 64;
 
@@ -93,26 +95,43 @@ public final class TradeRerollScheduler {
     }
 
     /**
+     * 命中后、写回前对整张表做一次加工（331 的「补齐三件套 + 三附魔」就在这里）。
+     */
+    public interface Finisher {
+        void finish(MerchantOffers offers, ServerLevel level);
+    }
+
+    /**
      * 一个待执行的刷新任务。所有字段都是不可变值 / 谓词，<b>不含实体引用</b>。
      *
-     * @param villager      村民 UUID（每 tick 现查实体）
-     * @param dimension     村民所在维度
-     * @param player        发起刷新的玩家 UUID（离线就静默）
-     * @param label         玩家输入的原样名字，只用于提示
-     * @param requiredLevel 目标最低可出等级；命中后村民等级会被固定到这一级
-     * @param tests         命中条件：全部满足才算中（陶瓦要「普通 + 釉陶」两个）
-     * @param upgrade       命中后的结果升级，可为 {@code null}
+     * @param villager        村民 UUID（每 tick 现查实体）
+     * @param dimension       村民所在维度
+     * @param player          发起刷新的玩家 UUID（离线就静默）
+     * @param label           玩家输入的原样名字，只用于提示
+     * @param requiredLevel   目标等级：命中后村民等级会被固定到这一级
+     * @param maxAttempts     该任务的模拟总次数上限
+     * @param tests           命中条件：全部满足才算中（陶瓦两个、331 三件套）
+     * @param upgrade         命中后的附魔满级覆写，可为 {@code null}
+     * @param finisher        命中 / 用尽次数后对整表的加工，可为 {@code null}
+     * @param commitOnExhaust 次数用尽仍未命中时，是否仍用最后一次结果写回（331 用）
+     * @param successKey      成功提示的翻译键
      */
     public record Task(UUID villager,
                        ResourceKey<Level> dimension,
                        UUID player,
                        String label,
                        int requiredLevel,
+                       int maxAttempts,
                        List<Predicate<ItemStack>> tests,
-                       Upgrade upgrade) {
+                       Upgrade upgrade,
+                       Finisher finisher,
+                       boolean commitOnExhaust,
+                       String successKey) {
 
         public Task {
             tests = tests == null ? List.of() : List.copyOf(tests);
+            if (maxAttempts <= 0) maxAttempts = MAX_ATTEMPTS;
+            if (successKey == null) successKey = "msg.auto_trader.target_success";
         }
     }
 
@@ -120,7 +139,7 @@ public final class TradeRerollScheduler {
      * 提交结果。
      */
     public enum Submit {
-        /** 任务已排队（同一村民重复命名会覆盖旧任务）。 */
+        /** 任务已排队（同一村民的旧任务会被立刻取消）。 */
         QUEUED,
         /** 同时进行的任务太多。 */
         TOO_MANY
@@ -129,6 +148,7 @@ public final class TradeRerollScheduler {
     private static final class State {
         final Task task;
         int attempts;
+        MerchantOffers lastOffers;
 
         State(Task task) {
             this.task = task;
@@ -141,6 +161,8 @@ public final class TradeRerollScheduler {
 
     /**
      * 提交一个刷新任务。必须在主线程调用。
+     *
+     * <p>同一村民已有任务时<b>立刻取消旧任务</b>再加入新任务，避免同一个村民堆叠多个任务。
      */
     public static Submit submit(Task task) {
         if (task == null || task.villager() == null || task.tests().isEmpty()) {
@@ -149,7 +171,10 @@ public final class TradeRerollScheduler {
         if (!TASKS.containsKey(task.villager()) && TASKS.size() >= MAX_ACTIVE_TASKS) {
             return Submit.TOO_MANY;
         }
-        // 同一村民再命名：直接换成新任务（旧任务作废，不叠加）
+        if (TASKS.remove(task.villager()) != null) {
+            log.debug("村民 {} 已有刷新任务，已取消旧任务并替换为新任务（{}）",
+                    task.villager(), task.label());
+        }
         TASKS.put(task.villager(), new State(task));
         return Submit.QUEUED;
     }
@@ -158,8 +183,15 @@ public final class TradeRerollScheduler {
         return TASKS.size();
     }
 
+    /**
+     * 停服清空队列（{@code SERVER_STOPPING} 调用），不会抛异常。
+     */
     public static void clear() {
-        TASKS.clear();
+        try {
+            TASKS.clear();
+        } catch (Throwable t) {
+            log.warn("清空分帧刷新队列时出错（已忽略）", t);
+        }
     }
 
     // ==============================================================
@@ -167,96 +199,85 @@ public final class TradeRerollScheduler {
     // ==============================================================
 
     /**
-     * {@code END_SERVER_TICK} 调用：给每个任务跑最多 {@link #ATTEMPTS_PER_TICK} 次真实模拟。
+     * {@code END_SERVER_TICK} 调用：每个任务固定跑最多 {@link #ATTEMPTS_PER_TICK} 次模拟。
+     *
+     * <p>不做时间阀门：跑满 100 次就 {@code break} 去下一个任务，剩余次数留到下一 tick。
      */
     public static void tick(MinecraftServer server) {
         if (TASKS.isEmpty() || server == null) return;
 
-        long startedAt = Util.getNanos();
-        int attemptsBefore = 0;
         for (State state : new ArrayList<>(TASKS.values())) {
-            attemptsBefore += state.attempts;
-        }
-        for (State state : new ArrayList<>(TASKS.values())) {
-            // 前一任务可能已经清掉了它 / 被玩家重新命名覆盖
+            // 同一 tick 里前面的任务可能已经清掉 / 覆盖了它
             if (TASKS.get(state.task.villager()) != state) continue;
 
-            ServerLevel level = server.getLevel(state.task.dimension());
-            if (level == null) {
-                finishLost(server, state);
-                continue;
-            }
-            if (!(level.getEntity(state.task.villager()) instanceof Villager villager)
-                    || villager.isRemoved() || !villager.isAlive()) {
+            Task task = state.task;
+            ServerLevel level = server.getLevel(task.dimension());
+            Villager villager = level == null ? null : findVillager(level, task.villager());
+            if (villager == null) {
                 finishLost(server, state);
                 continue;
             }
 
-            if (runSlice(server, level, villager, state, startedAt)) {
-                logSlice(startedAt, attemptsBefore);
-                return;                     // 命中后本次 tick 不再处理其它任务（保持主线程轻量）
+            if (runSlice(server, level, villager, state)) continue;
+
+            // 次数用尽：331 这类「允许事后补齐」的任务仍然写回最后一次结果
+            if (state.attempts >= task.maxAttempts()) {
+                if (task.commitOnExhaust() && state.lastOffers != null) {
+                    apply(server, level, villager, state, state.lastOffers);
+                } else {
+                    finishFailed(server, state);
+                }
             }
         }
-        logSlice(startedAt, attemptsBefore);
     }
 
     /**
-     * 只在 DEBUG 下记一行：任务数 / 本 tick 模拟次数 / 耗时，方便调 {@link #ATTEMPTS_PER_TICK}。
-     */
-    private static void logSlice(long startedAt, int attemptsBefore) {
-        if (!log.isDebugEnabled()) return;
-        int after = 0;
-        for (State state : TASKS.values()) after += state.attempts;
-        log.debug("分帧刷新：剩余任务 {}，本 tick 模拟 {} 次，耗时 {} µs",
-                TASKS.size(), Math.max(0, after - attemptsBefore), (Util.getNanos() - startedAt) / 1000L);
-    }
-
-    /**
-     * 一个 tick 的模拟切片。
+     * 一个任务在本 tick 的模拟切片（固定 {@link #ATTEMPTS_PER_TICK} 次）。
      *
-     * @return {@code true} 表示命中并已写回（调用方可以直接结束本 tick）
+     * @return {@code true} 表示命中并已写回
      */
-    private static boolean runSlice(MinecraftServer server, ServerLevel level, Villager villager,
-                                    State state, long tickStartedAt) {
+    private static boolean runSlice(MinecraftServer server, ServerLevel level, Villager villager, State state) {
         Task task = state.task;
-        int budget = ATTEMPTS_PER_TICK;
-
-        while (budget-- > 0 && state.attempts < MAX_ATTEMPTS) {
+        for (int i = 0; i < ATTEMPTS_PER_TICK && state.attempts < task.maxAttempts(); i++) {
             state.attempts++;
             MerchantOffers offers = TradeTableBuilder.build(level, villager, task.requiredLevel(),
                     RandomSource.create(TradeTableBuilder.seedFor(task.villager(), state.attempts)));
+            if (offers.isEmpty()) continue;
 
-            if (!offers.isEmpty() && TradeTableBuilder.containsAll(offers, task.tests())) {
-                applyHit(server, level, villager, task, offers, state.attempts);
+            state.lastOffers = offers;
+            if (TradeTableBuilder.containsAll(offers, task.tests())) {
+                apply(server, level, villager, state, offers);
                 return true;
             }
-
-            if (Util.getNanos() - tickStartedAt > TICK_BUDGET_NANOS) {
-                break;                      // 时间阀门：剩下的顺延到下一 tick
-            }
-        }
-
-        if (state.attempts >= MAX_ATTEMPTS) {
-            finishFailed(server, state);
         }
         return false;
     }
 
+    private static Villager findVillager(ServerLevel level, UUID uuid) {
+        Entity entity = level.getEntity(uuid);
+        if (!(entity instanceof Villager villager)) return null;
+        if (villager.isRemoved() || !villager.isAlive()) return null;
+        return villager;
+    }
+
     /**
-     * 命中：主线程写回（附魔满级覆写 → 整表写回 → 锁等级 → 发包 → 刷索引 → 提示）。
+     * 命中 / 补齐：主线程加工（补齐三件套、满级覆写）→ 写回实体 → 提示。
      */
-    private static void applyHit(MinecraftServer server, ServerLevel level, Villager villager,
-                                 Task task, MerchantOffers offers, int attempts) {
+    private static void apply(MinecraftServer server, ServerLevel level, Villager villager,
+                              State state, MerchantOffers offers) {
+        Task task = state.task;
         TASKS.remove(task.villager());
 
-        // 附魔书：命中那笔的附魔等级强制覆写到满级
+        if (task.finisher() != null) {
+            task.finisher().finish(offers, level);
+        }
         if (task.upgrade() != null) {
             upgradeOffers(offers, task.tests().getFirst(), task.upgrade(), level);
         }
 
         AutoVillagerTrader.commit(level, villager, offers, task.requiredLevel(), true);
         notifyPlayer(server, task.player(), Component.translatable(
-                "msg.auto_trader.target_success", attempts, task.label()));
+                task.successKey(), state.attempts, task.label()));
     }
 
     /**

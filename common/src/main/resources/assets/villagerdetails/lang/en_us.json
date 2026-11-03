@@ -135,6 +135,7 @@
   "msg.auto_trader.not_producible": "§cNo level of this profession sells %s, try another profession or name",
   "msg.auto_trader.rule_disabled": "§cThe corresponding rule is disabled, please enable it first",
   "msg.auto_trader.success": "§aHit! Rolled §e%s §atime(s) and got %s",
+  "msg.auto_trader.combo_success": "§aGod tools ready after §e%s §asimulated roll(s)",
   "msg.auto_trader.target_success": "§aHit! Simulated §e%s §aroll(s) and got §e%s",
   "msg.auto_trader.task_cancelled": "§cThe villager moved away / was unloaded, refresh task cancelled",
   "msg.auto_trader.task_started": "§aStarted refreshing §e%s §7(vanilla probabilities, up to §e%s §7rolls across ticks)",

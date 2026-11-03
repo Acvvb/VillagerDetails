@@ -14,7 +14,6 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
@@ -57,11 +56,6 @@ public class AutoVillagerTrader {
 
     private static final int TERRACOTTA_MAX_LEVEL = 4;
     private static final int COMBO_LEVEL = 5;
-
-    /**
-     * 331 工具刷新重试上限用规则里的次数（默认 500），这里只兜一个上限。
-     */
-    private static final int COMBO_MAX_ATTEMPTS = 1000;
 
     /**
      * 兜底最大使用次数
@@ -139,42 +133,41 @@ public class AutoVillagerTrader {
     // ==============================================================
 
     /**
-     * 命名牌触发入口。
+     * 命名牌触发入口：<b>所有</b>路线（点名刷物品/附魔、陶瓦成对、331a/331b）都只是
+     * 「建一个任务丢给 {@link TradeRerollScheduler}」，模拟与写回全在调度器里分帧完成。
      *
-     * @return {@code 1} 任务已排队（点名路线，结果稍后由调度器提示）；
-     * {@code >1} 同步路线实际模拟次数（331a/331b）；
-     * 负数见 {@link #isSpecialName} 附近的约定：
-     * {@code -1} 已锁定 / 小孩 / 无工作站、{@code -2} 名字解析不出、{@code -3} 规则未开、
-     * {@code -4} 职业不支持、{@code -7} 这个职业根本刷不出、{@code -8} 任务过多
+     * @return 任务已排队时返回该任务的<b>模拟次数上限</b>（{@code >0}，方便提示玩家）；
+     * 负数约定：{@code -1} 已锁定 / 小孩 / 无工作站、{@code -2} 名字解析不出、
+     * {@code -3} 规则未开、{@code -4} 职业不支持、{@code -7} 这个职业根本刷不出、
+     * {@code -8} 任务过多
      */
-    public static int tickByName(Villager villager, String raw, int maxAttempts, ServerPlayer player) {
+    public static int tickByName(Villager villager, String raw, ServerPlayer player) {
         if (raw == null) return -2;
         String key = normalize(raw);
+        if (!(villager.level() instanceof ServerLevel level)) return -1;
 
-        // ===== 固定流程：331a（精准）/ 331b（时运）=====
-        if (key.equals("331a")) {
+        // ===== 331a（精准）/ 331b（时运）：三件套 + 三附魔，同样走调度器 =====
+        if (key.equals("331a") || key.equals("331b")) {
             if (!RuleCache.isEnabled(VILLAGER_GOD_TOOLS)) return -3;
             if (isProfessionAllowed(villager, GOD_TOOLS_PROFESSIONS)) return -4;
-            return tickGodTools(villager, true, maxAttempts, true);
-        }
-        if (key.equals("331b")) {
-            if (!RuleCache.isEnabled(VILLAGER_GOD_TOOLS)) return -3;
-            if (isProfessionAllowed(villager, GOD_TOOLS_PROFESSIONS)) return -4;
-            return tickGodTools(villager, false, maxAttempts, true);
+            if (isRerollable(villager)) return -1;
+            return enqueueCombo(level, villager, player, raw.trim(), key.equals("331a"));
         }
 
-        // ===== 点名：物品 / 附魔书 / 陶瓦 → 分帧真实模拟 =====
+        // ===== 点名：物品 / 附魔书 / 陶瓦 =====
         if (!RuleCache.isEnabled(VILLAGER_AUTO_TRADER)) return -3;
 
         Target target = resolveTarget(villager, raw);
         if (target == null) return -2;
         if (target.requiredLevel() == TradePoolChecker.NO_LEVEL) return -7;
         if (isRerollable(villager)) return -1;
-        if (!(villager.level() instanceof ServerLevel level)) return -1;
         if (target.route() == Route.TERRACOTTA && !RuleCache.isEnabled(VILLAGER_TERRACOTTA_TRADER)) {
             return -3;
         }
 
+        int attempts = target.route() == Route.TERRACOTTA
+                ? TradeRerollScheduler.TERRACOTTA_MAX_ATTEMPTS
+                : TradeRerollScheduler.MAX_ATTEMPTS;
         TradeRerollScheduler.Submit submit = TradeRerollScheduler.submit(
                 new TradeRerollScheduler.Task(
                         villager.getUUID(),
@@ -182,9 +175,38 @@ public class AutoVillagerTrader {
                         player == null ? null : player.getUUID(),
                         raw.trim(),
                         target.requiredLevel(),
+                        attempts,
                         target.tests(),
-                        target.upgrade()));
-        return submit == TradeRerollScheduler.Submit.QUEUED ? 1 : -8;
+                        target.upgrade(),
+                        null,
+                        false,
+                        "msg.auto_trader.target_success"));
+        return submit == TradeRerollScheduler.Submit.QUEUED ? attempts : -8;
+    }
+
+    /**
+     * 331a/331b：命中条件是「三件钻石工具齐全」，命中 / 次数用尽后由 finisher
+     * 统一改写三附魔并补齐缺件，所以最终一定拿得到完整套装。
+     */
+    private static int enqueueCombo(ServerLevel level, Villager villager, ServerPlayer player,
+                                    String label, boolean silkTouch) {
+        TradeRerollScheduler.Submit submit = TradeRerollScheduler.submit(
+                new TradeRerollScheduler.Task(
+                        villager.getUUID(),
+                        level.dimension(),
+                        player == null ? null : player.getUUID(),
+                        label,
+                        COMBO_LEVEL,
+                        TradeRerollScheduler.COMBO_MAX_ATTEMPTS,
+                        List.of(stack -> stack.is(Items.DIAMOND_PICKAXE),
+                                stack -> stack.is(Items.DIAMOND_SHOVEL),
+                                stack -> stack.is(Items.DIAMOND_AXE)),
+                        null,
+                        godToolsFinisher(silkTouch),
+                        true,
+                        "msg.auto_trader.combo_success"));
+        return submit == TradeRerollScheduler.Submit.QUEUED
+                ? TradeRerollScheduler.COMBO_MAX_ATTEMPTS : -8;
     }
 
     // ==============================================================
@@ -265,62 +287,47 @@ public class AutoVillagerTrader {
     }
 
     // ==============================================================
-    // 路线：331a / 331b（同步拒绝采样）
+    // 331a / 331b 的命中后加工
     // ==============================================================
 
-    private static int tickGodTools(Villager villager, boolean silkTouch, int maxAttempts, boolean doLock) {
-        if (isRerollable(villager)) return -1;
-        if (!(villager.level() instanceof ServerLevel level)) return -1;
-        if (isProfessionAllowed(villager, GOD_TOOLS_PROFESSIONS)) return -4;
+    /**
+     * 331 的「事后补齐」：三件钻石工具全部改写三附魔，缺哪件就补哪件。
+     *
+     * <p>为什么还要补齐：工具匠（{@link #GOD_TOOLS_PROFESSIONS}）的交易集里根本没有
+     * 钻石镐（`requiredLevel` 矩阵里 {@code weaponsmith -> diamond_pickaxe=-1}），
+     * 所以「三件套全齐」这个命中条件对它永远不成立 ——
+     * 500 次跑满后用最后一次结果补齐，行为与旧版一致。
+     */
+    private static TradeRerollScheduler.Finisher godToolsFinisher(boolean silkTouch) {
+        return (offers, level) -> {
+            boolean hasPickaxe = false, hasShovel = false, hasAxe = false;
+            Integer refMaxUses = null;
+            Integer refXp = null;
 
-        int attempts = Math.max(1, Math.min(maxAttempts, COMBO_MAX_ATTEMPTS));
-        MerchantOffers best = null;
-        int usedAttempts = 0;
-        for (int i = 0; i < attempts; i++) {
-            MerchantOffers offers = TradeTableBuilder.build(level, villager, COMBO_LEVEL,
-                    RandomSource.create(TradeTableBuilder.seedFor(villager.getUUID(), i + 1)));
-            usedAttempts = i + 1;
-            if (offers.isEmpty()) continue;
-            best = offers;
-            if (hasAny(offers, stack -> stack.is(Items.DIAMOND_PICKAXE))
-                    && hasAny(offers, stack -> stack.is(Items.DIAMOND_SHOVEL))
-                    && hasAny(offers, stack -> stack.is(Items.DIAMOND_AXE))) {
-                break;
+            for (MerchantOffer offer : offers) {
+                ItemStack result = offer.getResult();
+                boolean isPick = result.is(Items.DIAMOND_PICKAXE);
+                boolean isShovel = result.is(Items.DIAMOND_SHOVEL);
+                boolean isAxe = result.is(Items.DIAMOND_AXE);
+                if (!isPick && !isShovel && !isAxe) continue;
+
+                if (refMaxUses == null) {
+                    refMaxUses = offer.getMaxUses();
+                    refXp = offer.getXp();
+                }
+                applyGodEnchants(result, level, silkTouch);
+                if (isPick) hasPickaxe = true;
+                if (isShovel) hasShovel = true;
+                if (isAxe) hasAxe = true;
             }
-        }
-        if (best == null) return 0;
 
-        // 三件工具全部改写/补齐（缺哪件就补哪件），因此最终一定有完整的工具套装
-        boolean hasPickaxe = false, hasShovel = false, hasAxe = false;
-        Integer refMaxUses = null;
-        Integer refXp = null;
+            int maxUses = refMaxUses != null ? refMaxUses : FALLBACK_MAX_USES;
+            int xp = refXp != null ? refXp : FALLBACK_XP;
 
-        for (MerchantOffer offer : best) {
-            ItemStack result = offer.getResult();
-            boolean isPick = result.is(Items.DIAMOND_PICKAXE);
-            boolean isShovel = result.is(Items.DIAMOND_SHOVEL);
-            boolean isAxe = result.is(Items.DIAMOND_AXE);
-            if (!isPick && !isShovel && !isAxe) continue;
-
-            if (refMaxUses == null) {
-                refMaxUses = offer.getMaxUses();
-                refXp = offer.getXp();
-            }
-            applyGodEnchants(result, level, silkTouch);
-            if (isPick) hasPickaxe = true;
-            if (isShovel) hasShovel = true;
-            if (isAxe) hasAxe = true;
-        }
-
-        int maxUses = refMaxUses != null ? refMaxUses : FALLBACK_MAX_USES;
-        int xp = refXp != null ? refXp : FALLBACK_XP;
-
-        if (!hasPickaxe) best.add(buildGodOffer(Items.DIAMOND_PICKAXE, level, silkTouch, maxUses, xp));
-        if (!hasShovel) best.add(buildGodOffer(Items.DIAMOND_SHOVEL, level, silkTouch, maxUses, xp));
-        if (!hasAxe) best.add(buildGodOffer(Items.DIAMOND_AXE, level, silkTouch, maxUses, xp));
-
-        commit(level, villager, best, COMBO_LEVEL, doLock);
-        return usedAttempts;
+            if (!hasPickaxe) offers.add(buildGodOffer(Items.DIAMOND_PICKAXE, level, silkTouch, maxUses, xp));
+            if (!hasShovel) offers.add(buildGodOffer(Items.DIAMOND_SHOVEL, level, silkTouch, maxUses, xp));
+            if (!hasAxe) offers.add(buildGodOffer(Items.DIAMOND_AXE, level, silkTouch, maxUses, xp));
+        };
     }
 
     private static MerchantOffer buildGodOffer(Item tool, ServerLevel level, boolean silkTouch, int maxUses, int xp) {
@@ -403,10 +410,6 @@ public class AutoVillagerTrader {
             if (holder.value() == target) return true;
         }
         return false;
-    }
-
-    private static boolean hasAny(MerchantOffers offers, Predicate<ItemStack> want) {
-        return TradeTableBuilder.indexOfMatch(offers, want) >= 0;
     }
 
     /**
