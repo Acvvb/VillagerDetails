@@ -8,8 +8,6 @@ import com.villagerdetails.pojo.dto.TradeItemInfo;
 import com.villagerdetails.pojo.dto.VillagerTradeInfo;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Holder;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -29,18 +27,18 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 村民交易查询的<b>异步处理管线</b>（主线程只做「读 + 拷字符串」，写缓存交给线程池）。
+ * 村民交易查询的<b>异步处理管线</b>（主线程只做「读 + 拷数据」，写缓存交给线程池）。
  *
  * <p>两段式：
  * <ol>
  *     <li><b>主线程（实体 / 区块卸载）</b>：只挑「已锁定交易」的村民，
  *         把 UUID / 坐标 / 维度 / <b>每笔交易的结果与价格</b>拷成
- *         {@link TradeItemInfo}（纯字符串 + 整数）。这一步是<b>深拷贝</b>：不把
+ *         {@link TradeItemInfo}（id / 数量 / 可交易次数 / 附魔 id + 等级，全是标量）。
+ *         这一步是<b>深拷贝</b>：不把
  *         {@link Villager}、{@link MerchantOffer}、{@link ItemStack} 这些原版对象带进子线程，
  *         避免主线程继续改交易时出现 {@code ConcurrentModificationException}；</li>
  *     <li><b>线程池</b>：把快照包成 {@link VillagerTradeInfo} 写进
@@ -178,7 +176,7 @@ public final class VillagerTradePipeline {
     // ============================================================
 
     /**
-     * 把一份纯字符串快照交给项目的服务端线程池。
+     * 把一份纯数据快照交给项目的服务端线程池。
      *
      * <p><b>不自己 new Thread / ExecutorService</b>：池子是
      * {@link com.villagerdetails.concurrent.ServerThreadManager} 在服务端初始化时建好的那一个。
@@ -264,14 +262,19 @@ public final class VillagerTradePipeline {
         }
 
         /**
-         * 一笔交易 → 纯字符串快照；空结果返回 {@code null}。
+         * 一笔交易 → <b>纯数据</b>快照（id / 数量 / 可交易次数 / 附魔）；空结果返回 {@code null}。
          *
          * <p><b>不按物品做过滤</b>：只跳过「没有结果物品」这种无意义记录。曾经的「白名单」
          * （只收 {@code trade_index.json} 登记过的物品 / 附魔）会把书架、地图、命名牌、盔甲、
          * 食物这些正常出售交易全部误杀，而「收购绿宝石」方向又全都能过 —— 索引最后只剩
          * 一堆「X -> 1 绿宝石」。交易索引的用途是「查谁卖什么」，不该替玩家决定什么值得查。
          *
-         * <p>名字在这一步就解析好（{@code Component} 只有主线程能读），子线程只做字符串拼接。
+         * <p><b>读的是「规则生效之后」的 offer</b>：{@code VillagerToolsmithExchange} 这类规则
+         * 是在 {@code AbstractVillager#getOffers()} 的 RETURN 上原地改写列表
+         * （{@code offers.set(j, new MerchantOffer(...))}），所以这里 {@code villager.getOffers()}
+         * 拿到的就是改写后的真实交易 —— 价格物 / 结果物会跟着规则变，不需要额外处理。
+         *
+         * <p><b>不拼展示文本</b>：只留 id 与数量，名字由客户端按自己的语言本地化。
          */
         private static TradeItemInfo toTradeItem(MerchantOffer offer) {
             if (offer == null) {
@@ -282,93 +285,32 @@ public final class VillagerTradePipeline {
                 return null;
             }
 
-            String resultId = TradeItemNameResolver.itemId(result);
-            String resultName = TradeItemNameResolver.itemName(result);
-            if (resultName.isBlank()) {
-                resultName = resultId;
-            }
-            List<TradeItemNameResolver.EnchantmentText> enchantments =
-                    TradeItemNameResolver.enchantmentTexts(result);
-            List<String> enchantmentNames = new ArrayList<>(enchantments.size());
-
-            // 价格：getCostA() / getCostB() 返回的是「已经计入供需涨价 + 声望折扣」的实际价格
-            // （ItemStack 形态），getItemCostA() / getItemCostB() 才是原始标价（ItemCost）。
-            // 展示必须用前者 —— 否则行情涨了以后，玩家照展示价带钱会不够。
+            // 价格：getCostA() / getCostB() 是「已经计入供需涨价 + 声望折扣」的实际价格（ItemStack），
+            // getItemCostA() / getItemCostB() 才是原始标价（ItemCost）。取前者，取不到再退回后者。
             ItemStack priceStackA = offer.getCostA();
             ItemCost baseCostA = offer.getItemCostA();
             String price1Id = isPresent(priceStackA) ? TradeItemNameResolver.itemId(priceStackA)
-                    : (baseCostA == null ? "" : itemIdOf(baseCostA.item()));
+                    : TradeItemNameResolver.itemId(baseCostA == null ? null : baseCostA.item());
             int price1Count = isPresent(priceStackA) ? priceStackA.getCount()
                     : (baseCostA == null ? 0 : baseCostA.count());
-            String price1Name = TradeItemNameResolver.itemNameOfId(price1Id);
 
             // costB 是「第二样东西」：原版大多数交易没有（取不到就是空栈 / 空 Optional）
             ItemStack priceStackB = offer.getCostB();
             ItemCost baseCostB = offer.getItemCostB().orElse(null);
             String price2Id = isPresent(priceStackB) ? TradeItemNameResolver.itemId(priceStackB)
-                    : (baseCostB == null ? "" : itemIdOf(baseCostB.item()));
+                    : TradeItemNameResolver.itemId(baseCostB == null ? null : baseCostB.item());
             int price2Count = isPresent(priceStackB) ? priceStackB.getCount()
                     : (baseCostB == null ? 0 : baseCostB.count());
-            String price2Name = price2Count > 0 ? TradeItemNameResolver.itemNameOfId(price2Id) : "";
-
-            // ---- 展示文本：10 Emerald -> 1 Enchanted Book[经验修补] ----
-            StringBuilder display = new StringBuilder(price1Name.length() + price2Name.length()
-                    + resultName.length() + 24);
-            display.append(price1Count).append(' ').append(price1Name.isBlank() ? price1Id : price1Name);
-            if (price2Count > 0) {
-                display.append(" + ").append(price2Count).append(' ')
-                        .append(price2Name.isBlank() ? price2Id : price2Name);
-            }
-            display.append(" -> ").append(resultCount(result)).append(' ')
-                    .append(resultName.isBlank() ? resultId : resultName);
-
-            // ---- 搜索文本：把价格物品、结果物品、附魔都塞进去 ----
-            List<String> searchTokens = new ArrayList<>(8 + enchantments.size() * 2);
-            searchTokens.add(resultId);
-            searchTokens.add(resultName);
-            searchTokens.add(price1Id);
-            searchTokens.add(price1Name);
-            if (price2Count > 0) {
-                searchTokens.add(price2Id);
-                searchTokens.add(price2Name);
-            }
-            for (TradeItemNameResolver.EnchantmentText enchantment : enchantments) {
-                enchantmentNames.add(enchantment.displayName());
-                if (!enchantment.id().isBlank()) {
-                    searchTokens.add(enchantment.id());
-                }
-                searchTokens.add(enchantment.displayName());
-            }
-            if (!enchantmentNames.isEmpty()) {
-                display.append('[').append(String.join(", ", enchantmentNames)).append(']');
-            }
-            String displayText = display.toString();
-            searchTokens.add(displayText);
 
             return new TradeItemInfo(
-                    resultId,
-                    resultCount(result),
+                    TradeItemNameResolver.itemId(result),
+                    result.getCount(),
                     price1Id,
                     price1Count,
                     price2Id,
                     price2Count,
-                    displayText,
-                    String.join(" ", searchTokens).toLowerCase(Locale.ROOT));
-        }
-
-        private static int resultCount(ItemStack result) {
-            return result == null ? 0 : result.getCount();
-        }
-
-        /**
-         * {@code Holder<Item>} → 注册 id；解析不出来时返回空串（不抛）。
-         */
-        private static String itemIdOf(Holder<Item> holder) {
-            if (holder == null) {
-                return "";
-            }
-            net.minecraft.resources.Identifier id = BuiltInRegistries.ITEM.getKey(holder.value());
-            return id == null ? "" : id.toString();
+                    offer.getMaxUses(),
+                    TradeItemNameResolver.enchantments(result));
         }
 
         /**

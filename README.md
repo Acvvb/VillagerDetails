@@ -460,13 +460,18 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 
 `VillagerTradeSearch` 维护一份「已锁定交易」的村民索引（内存 + `<存档>/villagerdetails/villager_trade_cache.json`）。
 索引在村民随区块卸载时填充（主入口是 `ServerEntityEvents.ENTITY_UNLOAD`，另有 `ServerChunkEvents.CHUNK_UNLOAD` 的整区块
-兜底）：主线程只拷贝 UUID、坐标、维度和每笔交易的**字符串**（卖什么 / 要什么价 / 各多少；`Villager` /
-`MerchantOffer` / `ItemStack` 绝不跨线程传递），服务端线程池再组装成 `VillagerTradeInfo` 存进
+兜底）：主线程只拷贝 UUID、坐标、维度和每笔交易的**纯数据**（结果物 / 价格物的 id、数量、可交易次数、附魔 id + 等级；
+`Villager` / `MerchantOffer` / `ItemStack` 绝不跨线程传递），服务端线程池再组装成 `VillagerTradeInfo` 存进
 `VillagerTradeCache`；村民死亡时由 `ServerLivingEntityEvents.AFTER_DEATH` 清掉对应条目。
 
 村民挂出来的**每笔交易都会收录**（买卖两个方向都收），不再按 `trade_index.json` 做白名单过滤：
 早期版本只收录索引里登记过的物品 / 附魔，结果书架、地图、命名牌、盔甲、食物这些正常出售交易全被误杀，
 而「收购绿宝石」方向又全都能过 —— 查「谁卖书架」永远查不到。
+
+**索引里不存展示文本**（`format: 2`）：只有 id 和数量。聊天栏里的 `1 绿宝石 + 1 书 -> 1 附魔书[经验修补]（可交易 12 次）`
+是服务端发 `Component.translatable("item.minecraft.xxx")` 下去、由**客户端按自己的语言**渲染的 ——
+所以中文客户端看到中文、英文客户端看到英文，服务端一行语言表都不需要，旧记录也不会再出现中英混排。
+搜索时除了直接匹配 id，还会用 `trade_index.json` 里的中文叫法做一层兜底（服务端本身只有 `en_us`）。
 
 ```
 /ec TradeSearch true|false              # 开启 / 关闭规则
@@ -476,7 +481,7 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 每次最多显示 10 个村民（每个村民最多列 6 件商品），点结果里的 `[x, y, z]` 复制坐标（不再提供传送）。
 索引**会落盘**：内存标脏后每 1200 tick 检查一次、脏了就丢进服务端线程池异步写盘（主线程不做 I/O），
 停服 / 关闭规则时同步刷一次再清内存，所以重启后仍能查询；「交易已锁定但区块一直没卸载」时，仍要等
-下一次区块卸载才会出现在查询结果里。
+下一次区块卸载才会出现在查询结果里。旧版本（`format: 1`）的缓存文件会被静默作废，随区块卸载重建。
 
 `/ec c reload` 以**物理文件**为单位整份重读：`villagerdetails/config.json` 的所有 section、
 `villager_details_binding.json` 和 `trade_index.json` 一起重新加载，手改配置不用重启就生效；

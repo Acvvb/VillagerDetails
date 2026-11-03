@@ -76,8 +76,12 @@ public final class VillagerTradeStorage {
 
     /**
      * 文件格式版本。以后字段不兼容时靠它决定「整个丢掉」还是「迁移」。
+     *
+     * <p><b>2</b>：交易条目只存 id / 数量 / 可交易次数 / 附魔（id + 等级），不再存
+     * {@code display} / {@code search} 这两段烘焙好的文本 —— 展示交给客户端按自己的语言本地化。
+     * 读到旧版本（1）时整份丢弃，随区块卸载重建。
      */
-    private static final int FORMAT_VERSION = 1;
+    private static final int FORMAT_VERSION = 2;
 
     /**
      * 主缓存：村民 UUID → 交易快照。
@@ -223,7 +227,8 @@ public final class VillagerTradeStorage {
         int format = root.has("format") && root.get("format").isJsonPrimitive()
                 ? root.get("format").getAsInt() : FORMAT_VERSION;
         if (format != FORMAT_VERSION) {
-            log.warn("村民交易索引格式版本不匹配（文件 {}，期望 {}），本次按空缓存继续",
+            // 预期行为：格式升版后旧文件整份作废（不读、不写坏），随下一个区块卸载重建
+            log.info("村民交易索引是旧格式（文件 {}，当前 {}）：旧格式已作废，将随区块卸载重建",
                     format, FORMAT_VERSION);
             return new ParsedIndex(result, 0);
         }
@@ -292,8 +297,35 @@ public final class VillagerTradeStorage {
                 intValue(object, "price1Count"),
                 string(object, "price2"),
                 intValue(object, "price2Count"),
-                string(object, "display"),
-                string(object, "search"));
+                intValue(object, "maxUses"),
+                parseEnchantments(object));
+    }
+
+    /**
+     * 读附魔数组：{@code [{"id": "minecraft:mending", "level": 1}, ...]}。
+     *
+     * <p>单项写坏（缺 id / 结构不对）只跳过自己 —— 附魔是「锦上添花」的信息，
+     * 为它把整笔交易丢掉不值得。
+     */
+    private static List<TradeItemInfo.EnchantmentEntry> parseEnchantments(JsonObject object) {
+        JsonElement element = object.get("enchantments");
+        if (element == null || !element.isJsonArray()) {
+            return List.of();
+        }
+        List<TradeItemInfo.EnchantmentEntry> entries = new ArrayList<>();
+        for (JsonElement enchantmentElement : element.getAsJsonArray()) {
+            try {
+                JsonObject enchantment = enchantmentElement.getAsJsonObject();
+                String id = string(enchantment, "id");
+                if (id.isBlank()) {
+                    continue;
+                }
+                entries.add(new TradeItemInfo.EnchantmentEntry(id, intValue(enchantment, "level")));
+            } catch (Exception e) {
+                // 单条坏数据跳过
+            }
+        }
+        return entries;
     }
 
     private static String string(JsonObject object, String key) {
@@ -438,19 +470,42 @@ public final class VillagerTradeStorage {
 
         JsonArray offers = new JsonArray();
         for (TradeItemInfo offer : info.offers()) {
-            JsonObject item = new JsonObject();
-            item.addProperty("result", offer.resultItemId());
-            item.addProperty("resultCount", offer.resultCount());
-            item.addProperty("price1", offer.price1Id());
-            item.addProperty("price1Count", offer.price1Count());
-            item.addProperty("price2", offer.price2Id());
-            item.addProperty("price2Count", offer.price2Count());
-            item.addProperty("display", offer.displayText());
-            item.addProperty("search", offer.searchText());
-            offers.add(item);
+            offers.add(offerToJson(offer));
         }
         object.add("offers", offers);
         return object;
+    }
+
+    /**
+     * 一笔交易 → JSON：<b>只写纯数据</b>（id / 数量 / 可交易次数 / 附魔）。
+     *
+     * <p>没有第二样价格时不写 {@code price2*}；没有附魔时不写 {@code enchantments} ——
+     * 文件比旧版小一大截，而展示文本一个字节都不落盘。
+     */
+    private static JsonObject offerToJson(TradeItemInfo offer) {
+        JsonObject item = new JsonObject();
+        item.addProperty("result", offer.resultItemId());
+        item.addProperty("resultCount", offer.resultCount());
+        item.addProperty("price1", offer.price1Id());
+        item.addProperty("price1Count", offer.price1Count());
+        if (offer.hasSecondPrice()) {
+            item.addProperty("price2", offer.price2Id());
+            item.addProperty("price2Count", offer.price2Count());
+        }
+        if (offer.maxUses() > 0) {
+            item.addProperty("maxUses", offer.maxUses());
+        }
+        if (!offer.enchantments().isEmpty()) {
+            JsonArray enchantments = new JsonArray();
+            for (TradeItemInfo.EnchantmentEntry enchantment : offer.enchantments()) {
+                JsonObject entry = new JsonObject();
+                entry.addProperty("id", enchantment.id());
+                entry.addProperty("level", enchantment.level());
+                enchantments.add(entry);
+            }
+            item.add("enchantments", enchantments);
+        }
+        return item;
     }
 
     /**

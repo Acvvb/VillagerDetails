@@ -1,7 +1,9 @@
 package com.villagerdetails.cache.impl;
 
 import com.villagerdetails.cache.base.SessionState;
+import com.villagerdetails.config.impl.IdTranslationConfig;
 import com.villagerdetails.config.impl.VillagerTradeStorage;
+import com.villagerdetails.pojo.dto.TradeItemInfo;
 import com.villagerdetails.pojo.dto.VillagerTradeInfo;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -274,6 +276,15 @@ public final class VillagerTradeCache implements SessionState {
     /**
      * 按关键词搜索全部索引。
      *
+     * <p>匹配分两层：
+     * <ol>
+     *     <li>{@link VillagerTradeInfo#matches}：UUID / 维度 / 坐标 / 交易里所有<b>原始 id</b>
+     *         （{@code stone}、{@code minecraft:enchanted_book}、{@code mending} 都算）；</li>
+     *     <li><b>别名表兜底</b>：把交易里每个 id 过一遍 {@link IdTranslationConfig#displayNameOf}，
+     *         用中文 / 自定叫法做包含匹配 —— 中文玩家搜「绿宝石」「书架」也能命中。
+     *         这一层刻意放在服务端：{@code TradeItemInfo} 是两端共用的 DTO，不能依赖服务端配置。</li>
+     * </ol>
+     *
      * <p>结果排序固定为「维度 id → 坐标 → UUID」，同一份缓存每次搜索的顺序都一样，
      * 玩家点聊天栏里的第 N 条永远对得上。
      *
@@ -287,7 +298,7 @@ public final class VillagerTradeCache implements SessionState {
 
         List<VillagerTradeInfo> matches = new ArrayList<>();
         for (VillagerTradeInfo info : store().values()) {
-            if (info.matches(needle)) {
+            if (info.matches(needle) || matchesAlias(info, needle)) {
                 matches.add(info);
             }
         }
@@ -296,6 +307,36 @@ public final class VillagerTradeCache implements SessionState {
                 .thenComparingLong(info -> info.pos().asLong())
                 .thenComparing(VillagerTradeInfo::uuid));
         return matches;
+    }
+
+    /**
+     * 别名表兜底：这只村民的任意一个 id（结果物 / 价格物 / 附魔）配的叫法里含有关键词。
+     *
+     * <p>{@link IdTranslationConfig#displayNameOf} 的优先级是「{@code trade_index.json} →
+     * 内置兜底」，正是玩家手工配中文名的那张表。
+     */
+    private static boolean matchesAlias(VillagerTradeInfo info, String needle) {
+        for (TradeItemInfo offer : info.offers()) {
+            if (aliasContains(offer.resultItemId(), needle)
+                    || aliasContains(offer.price1Id(), needle)
+                    || aliasContains(offer.price2Id(), needle)) {
+                return true;
+            }
+            for (TradeItemInfo.EnchantmentEntry enchantment : offer.enchantments()) {
+                if (aliasContains(enchantment.id(), needle)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean aliasContains(String idText, String needle) {
+        if (idText == null || idText.isBlank()) {
+            return false;
+        }
+        String name = IdTranslationConfig.displayNameOf(idText);
+        return name != null && name.toLowerCase(Locale.ROOT).contains(needle);
     }
 
     // ============================================================

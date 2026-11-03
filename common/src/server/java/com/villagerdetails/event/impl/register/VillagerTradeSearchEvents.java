@@ -4,7 +4,6 @@ import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.cache.impl.VillagerTradeCache;
 import com.villagerdetails.config.impl.VillagerTradeStorage;
 import com.villagerdetails.event.server.ServerEventRegisterServer;
-import com.villagerdetails.handler.entity.villager.trade.TradeItemNameResolver;
 import com.villagerdetails.handler.entity.villager.trade.VillagerTradePipeline;
 import com.villagerdetails.rule.type.RuleType;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
@@ -65,9 +64,6 @@ public final class VillagerTradeSearchEvents implements ServerEventRegisterServe
 
     @Override
     public void register() {
-        // 原版 en_us 表在启动期读一次，避免第一次区块卸载在服务端线程上读盘
-        TradeItemNameResolver.preload();
-
         ServerEntityEvents.ENTITY_UNLOAD.register(VillagerTradePipeline::onEntityUnload);
         ServerChunkEvents.CHUNK_UNLOAD.register(VillagerTradePipeline::onChunkUnload);
         ServerLivingEntityEvents.AFTER_DEATH.register(

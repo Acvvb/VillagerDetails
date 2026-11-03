@@ -69,23 +69,25 @@ public final class IdTranslationConfig implements ReloadableConfig {
     /**
      * 常见交易物品的中文叫法兜底：<b>id（不带命名空间）→ 中文</b>。
      *
-     * <p>为什么需要它：服务端 jar 只带原版 {@code en_us} 语言表（{@code assets/minecraft/lang/}
-     * 里没有 {@code zh_cn}），所以没有别名的物品拼出来就是英文 ——
-     * {@code 20 Stone -> 1 绿宝石} 这种中英混排，玩家搜「石头」也搜不到。
+     * <p><b>注意它的角色已经变了</b>：交易索引现在只存 id，展示走客户端的
+     * {@code Component.translatable("item.<ns>.<path>")}，所以<b>展示不再需要这张表</b>。
+     * 它只剩三个用途：
+     * <ul>
+     *     <li>服务端搜索的<b>中文兜底</b>（{@code VillagerTradeCache.search}：服务端只有
+     *         {@code en_us}，没有中文名就搜不到「石头」「书架」）；</li>
+     *     <li>Tab 补全（{@link #searchableNames}）；</li>
+     *     <li>中文叫法 → id 的解析（{@link #resolveId}），给别的命令当 id 别名用。</li>
+     * </ul>
      *
-     * <p>所以这里放一份<b>只读兜底</b>：查不到文件里的叫法时才用它。三个承诺：
+     * <p>三个承诺：
      * <ul>
      *     <li><b>不写盘</b>：{@code trade_index.json} 的内容永远只由玩家 / 默认表决定，
      *         这份兜底不会把文件撑大，也不会在重载后「凭空多出条目」；</li>
      *     <li><b>文件优先</b>：玩家在文件里给同一个 id 配了自己的叫法，以文件为准；</li>
      *     <li><b>只放村民交易里高频出现的物品</b>（付款物 / 矿石材料 / 食物 / 常见成品 /
-     *         带釉陶瓦）。不追求覆盖全游戏 —— 只补「交易查询里经常被看到、被搜到」的那一批，
+     *         带釉陶瓦）。不追求覆盖全游戏 —— 只补「交易查询里经常被搜到」的那一批，
      *         既不值得、也没必要把上万条原版翻译搬进来。</li>
      * </ul>
-     *
-     * <p>顺带的好处：这些叫法也会进 {@link #searchableNames}（Tab 补全）和
-     * {@code resolveId}（中文叫法 → id），所以 {@code /ec c TradeSearch 石头}、
-     * 甚至拿「石头」当 id 参数的命令都能用。
      *
      * <p><b>声明顺序有讲究</b>：下面 {@link #nameToId} / {@link #searchableNames} 的静态初始化
      * 会读这两个表，所以它们必须声明在前面（Java 静态字段按声明顺序初始化）。
@@ -316,7 +318,7 @@ public final class IdTranslationConfig implements ReloadableConfig {
     }
 
     /**
-     * 内置兜底叫法（{@code id → 中文}）；只读，给交易展示名 / Tab 补全用。
+     * 内置兜底叫法（{@code id → 中文}）；只读，给搜索兜底 / Tab 补全用。
      */
     public static Map<String, String> builtinItemAliasesView() {
         return BUILTIN_ID_TO_NAME;

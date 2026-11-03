@@ -39,11 +39,12 @@ public record VillagerTradeInfo(
     }
 
     /**
-     * 关键词是否命中这只村民。
+     * 关键词是否命中这只村民。<b>这里只比「数据本身」</b>：UUID、维度 id、坐标、以及每笔交易的
+     * 原始 item id（见 {@link TradeItemInfo#matchesId}）。
      *
-     * <p>除了每件物品（{@link TradeItemInfo#matches}），还允许按 UUID、
-     * 维度 id（{@code minecraft:the_nether} / {@code the_nether}）以及
-     * {@code x,y,z} / {@code x y z} 两种坐标写法搜。
+     * <p><b>名字不在这里比</b>：中文 / 本地化名字依赖服务端的别名表（{@code IdTranslationConfig}），
+     * 而这个 DTO 是两端共用的，不能反向依赖服务端类。服务端在
+     * {@code VillagerTradeCache.search} 里补上「别名表兜底」那一层。
      *
      * @param lowerKeyword 已经 {@code trim + toLowerCase} 过的关键词
      */
@@ -67,7 +68,7 @@ public record VillagerTradeInfo(
         }
 
         for (TradeItemInfo offer : offers) {
-            if (offer.matches(lowerKeyword)) {
+            if (offer.matchesId(lowerKeyword)) {
                 return true;
             }
         }

@@ -253,8 +253,9 @@ public enum RuleType implements RegisterTypeServer {
      * <p>实现上不在查询时遍历世界（那会卡主线程），而是：
      * <ol>
      *     <li>区块卸载时（实体被移出追踪的 {@code ENTITY_UNLOAD}，以及整区块兜底的
-     *         {@code CHUNK_UNLOAD}），主线程把村民深拷贝成纯字符串快照
-     *         （UUID / 坐标 / 维度 / 卖出物 + 价格 + 数量，不持有任何原版对象）；</li>
+     *         {@code CHUNK_UNLOAD}），主线程把村民深拷贝成纯数据快照
+     *         （UUID / 坐标 / 维度 / 卖出物 + 价格 + 数量 + 可交易次数 + 附魔 id 与等级，
+     *         不持有任何原版对象，也<b>不存任何展示文本</b>）；</li>
      *     <li><b>不做「值不值得收录」的过滤</b>：村民卖什么就收什么（只跳过没有结果物品的空交易）。
      *         按交易索引做白名单会把书架、地图、命名牌、盔甲、食物这些正常出售交易全部误杀，
      *         而「收购绿宝石」方向又全都能过 —— 索引不该替玩家判断哪个物品值得查；</li>
@@ -263,8 +264,9 @@ public enum RuleType implements RegisterTypeServer {
      *     <li>村民死亡（{@code AFTER_DEATH}）时主线程清掉对应缓存。</li>
      * </ol>
      *
-     * <p>索引<b>会落盘</b>（{@code <存档>/villagerdetails/villager_trade_cache.json}）：
+     * <p>索引<b>会落盘</b>（{@code <存档>/villagerdetails/villager_trade_cache.json}，格式版本 2）：
      * 内存标脏 + 每 1200 tick / 停服时异步写盘，所以<b>重启后仍能查询</b>。
+     * 展示与本地化在<b>客户端</b>做（服务端只发 {@code Component.translatable}），服务端不维护物品名。
      * 已知边界：交易刚锁定但区块一直没卸载时，索引要等下一次区块卸载才会更新。
      */
     VILLAGER_TRADE_SEARCH("TradeSearch", "setting.villager_trade_search", "setting.villager_trade_search.desc", List.of(VILLAGER, COMMAND), new ArrayList<>(), () -> TradeSearchCommand.INSTANCE, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
