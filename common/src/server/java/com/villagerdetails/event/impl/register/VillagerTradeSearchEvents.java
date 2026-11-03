@@ -1,6 +1,7 @@
 package com.villagerdetails.event.impl.register;
 
 import com.villagerdetails.cache.RuleCache;
+import com.villagerdetails.cache.impl.TradeItemCompletionCache;
 import com.villagerdetails.cache.impl.VillagerTradeCache;
 import com.villagerdetails.config.impl.VillagerTradeStorage;
 import com.villagerdetails.event.server.ServerEventRegisterServer;
@@ -70,10 +71,21 @@ public final class VillagerTradeSearchEvents implements ServerEventRegisterServe
                 (entity, _) -> VillagerTradePipeline.onLivingDeath(entity));
         RuleCache.addListener(this::onRuleChanged);
 
-        // 启动：把上一次会话写下的索引读回内存（读盘失败只 WARN，不影响启动）
+        // 启动：把上一次会话写下的索引读回内存（读盘失败只 WARN，不影响启动），
+        // 并扫一遍 VILLAGER_TRADE 注册表，刷新 Tab 补全用的「交易关联物品」缓存
         ServerLifecycleEvents.SERVER_STARTED.register(startedServer -> {
             server = startedServer;
             VillagerTradeStorage.INSTANCE.load(startedServer);
+            TradeItemCompletionCache.refresh(startedServer);
+        });
+        // 数据包重载后交易注册表整体换了一份：必须重新扫，否则补全里还是旧数据包的物品。
+        // 重载失败时保持上一次的结果（注册表里多半还是旧内容，空掉反而更糟）。
+        ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((reloadedServer, _, success) -> {
+            if (!success) {
+                log.warn("数据包重载失败，交易补全缓存保持上一次的结果");
+                return;
+            }
+            TradeItemCompletionCache.refresh(reloadedServer);
         });
         // 定时异步落盘：主线程只做「标脏检查 + 一次 HashMap 拷贝」
         ServerTickEvents.END_SERVER_TICK.register(this::onEndServerTick);
