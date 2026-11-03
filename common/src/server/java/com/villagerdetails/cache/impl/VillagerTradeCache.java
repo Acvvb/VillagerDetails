@@ -17,7 +17,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 全存档「已锁定交易」的村民交易索引（<b>内存是唯一数据源</b>）。
  *
- * <p>写入方只有一条：区块卸载时主线程抓快照 → 丢进服务端线程池 → 异步解析完 {@link #put}。
+ * <p>写入方只有一类：区块卸载（{@code ENTITY_UNLOAD} 主入口 + {@code CHUNK_UNLOAD} 兜底）时
+ * 主线程抓快照 → 丢进服务端线程池 → 异步解析完 {@link #put}。
  * 读取方也只有一条：{@code /ec c TradeSearch <关键词>} 直接遍历这里，<b>不再碰世界</b>，
  * 所以查询是 O(缓存条目数)，不会因为全图村民卡主线程。
  *
@@ -32,6 +33,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * 就会把死掉的村民重新塞回缓存。{@link #put(VillagerTradeInfo, long)} 用「快照时间戳 &gt; 移除时间戳」
  * 拦住这种迟到写入；时间戳取 {@link System#nanoTime()}（单调递增，跨线程可比）。
  * 墓碑表<b>不落盘</b>：重启后重新记录即可，存下去只会变成垃圾数据。
+ *
+ * <p><b>快照之间也要比新旧</b>：两个抓取入口 + 2~4 条 worker，同一只村民的两份快照完全可能
+ * 乱序到达。{@link #LAST_SNAPSHOT} 只放行「严格更新」的那一份，否则旧坐标 / 旧交易表会
+ * 盖掉刚写进去的新数据（时间戳同样取 {@code nanoTime}）。
  */
 public final class VillagerTradeCache implements SessionState {
 
@@ -46,6 +51,20 @@ public final class VillagerTradeCache implements SessionState {
      * 数量上限 = 本会话内死掉的村民数，停服时整张表清空。
      */
     private static final Map<UUID, Long> REMOVED_AT = new ConcurrentHashMap<>();
+
+    /**
+     * 每个村民「已经写进索引的最新快照时刻」：村民 UUID → {@link System#nanoTime()}。
+     *
+     * <p><b>为什么要它</b>：抓快照有 {@code ENTITY_UNLOAD} 与 {@code CHUNK_UNLOAD} 两个入口，
+     * 而池子有 2~4 条 worker —— 同一只村民的两份快照完全可能<b>乱序到达</b>。
+     * 直接 {@code store().put(uuid, info)} 是「谁最后跑谁赢」，旧坐标 / 旧交易表会盖掉新的。
+     * 所以只有「严格更新」的那一份才允许写：{@code snapshotNanos > LAST_SNAPSHOT[uuid]}。
+     *
+     * <p>写索引同时清墓碑的逻辑不变：能走到写入，就说明这份数据比死亡记录还新。
+     *
+     * <p>数量上限 = 本会话内进过索引的村民数（和主缓存同量级），停服 / 关规则时整张表清空。
+     */
+    private static final Map<UUID, Long> LAST_SNAPSHOT = new ConcurrentHashMap<>();
 
     /**
      * 最近一次整份清空（停服 / 规则关闭）的时刻。
@@ -80,7 +99,15 @@ public final class VillagerTradeCache implements SessionState {
     }
 
     /**
-     * 存入一只村民的快照，并拒绝「比死亡记录还旧」的迟到写入。
+     * 存入一只村民的快照，并拒绝「比死亡记录还旧」或「比已存快照还旧」的迟到写入。
+     *
+     * <p>三条拒绝规则（顺序无关，但都要在 {@code store().put} 之前）：
+     * <ol>
+     *     <li>快照早于最近一次整份清空（{@link #clearedAt}）→ 清理之后才跑完的作废数据；</li>
+     *     <li>快照早于村民死亡时刻（{@link #REMOVED_AT}）→ 墓碑挡住迟到写，避免把死掉的村民塞回来；</li>
+     *     <li>快照不严格新于已存的快照（{@link #LAST_SNAPSHOT}）→ 双入口 + 多 worker 乱序时，
+     *         不让旧坐标 / 旧交易表覆盖新的。</li>
+     * </ol>
      *
      * @param info          已解析完的快照
      * @param snapshotNanos 主线程抓快照那一刻的 {@link System#nanoTime()}
@@ -99,6 +126,12 @@ public final class VillagerTradeCache implements SessionState {
             // 快照比村民死亡还早：这是一份已经没有意义的旧数据，直接丢掉
             return;
         }
+        // 同一只村民的两份快照可能乱序到：只有严格更新的那一份才允许写（原子抢占）
+        if (!claimSnapshot(uuid, snapshotNanos)) {
+            log.debug("丢弃乱序到达的旧快照：uuid={}, snapshot={}，已存={}",
+                    uuid, snapshotNanos, LAST_SNAPSHOT.get(uuid));
+            return;
+        }
         store().put(uuid, info);
         // 标脏：真正的写盘交给定时任务 / 停服兜底，这里绝不做 I/O
         VillagerTradeStorage.INSTANCE.markDirty();
@@ -108,6 +141,25 @@ public final class VillagerTradeCache implements SessionState {
         }
         log.debug("村民交易快照已缓存：uuid={}, dimension={}, pos={}, offers={}",
                 uuid, info.dimension().identifier(), info.pos(), info.offers().size());
+    }
+
+    /**
+     * 抢占「这只村民的最新快照时刻」：成功返回 {@code true}（本次快照确实更新）。
+     *
+     * <p>用 {@link ConcurrentHashMap#compute} 而不是「先 get 再 put」：后者在两条 worker
+     * 同时提交时都能通过判断，最后写进去的还是可能更旧的那一份。{@code compute} 对同一
+     * key 是原子的，比较和替换在同一个原子操作里完成。
+     */
+    private static boolean claimSnapshot(UUID uuid, long snapshotNanos) {
+        boolean[] claimed = {false};
+        LAST_SNAPSHOT.compute(uuid, (_, previous) -> {
+            if (previous == null || snapshotNanos > previous) {
+                claimed[0] = true;
+                return snapshotNanos;
+            }
+            return previous;
+        });
+        return claimed[0];
     }
 
     /**
@@ -184,6 +236,7 @@ public final class VillagerTradeCache implements SessionState {
 
         clearedAt = System.nanoTime();
         REMOVED_AT.clear();
+        LAST_SNAPSHOT.clear();
         VillagerTradeStorage.INSTANCE.clearMemory();
         if (cached > 0 || tombstones > 0) {
             log.info("村民交易缓存已清空（快照 {} 条，墓碑 {} 条；磁盘文件保留）", cached, tombstones);

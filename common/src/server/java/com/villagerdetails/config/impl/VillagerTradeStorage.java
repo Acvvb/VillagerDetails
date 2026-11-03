@@ -46,7 +46,11 @@ import java.util.concurrent.locks.ReentrantLock;
  *     <li><b>代际号防止丢写</b>：写盘期间完全可能又有新的村民进来。写完只在
  *         「代际号没变」时才清脏标志，否则下一次定时任务会把这些新数据再写一遍
  *         —— 用 {@link AtomicBoolean} 一个标志搞不定这件事，所以额外维护
- *         {@link #generation}（每次 {@link #markDirty()} +1）。</li>
+ *         {@link #generation}（每次 {@link #markDirty()} +1）。<b>读代际必须在拷快照之前</b>，
+ *         否则两步之间的 {@code put} 会被误清脏而永久漏存（见 {@link #flushAsync}）；</li>
+ *     <li><b>过期写直接丢弃</b>：排队中的异步写可能晚于 {@link #flushSync()} 抢到锁，
+ *         把磁盘回滚成旧内容。所以每次写盘前和 {@link #lastWrittenGeneration} 比一下，
+ *         比已经落盘的代际还旧就不写。</li>
  * </ol>
  *
  * <p><b>写盘是原子的</b>（{@link JsonIO#writeObject} 临时文件 + 整体替换），且用
@@ -88,8 +92,24 @@ public final class VillagerTradeStorage {
 
     /**
      * 写代际：每次 {@link #markDirty()} +1。写盘开始时记下值，写完如果没变才清脏标志。
+     *
+     * <p><b>读代际必须发生在拷快照之前</b>（见 {@link #flushAsync}）：反过来的话，落在
+     * 「拷完快照、还没读代际」之间的那次 {@code put} 不在快照里，却因为代际号没变而被
+     * {@link #markClean()} 吞掉 —— 那条村民只在内存里，下一次 {@code flushSync} 又因
+     * {@code dirty == false} 直接返回，等于永久丢失。
      */
     private final AtomicLong generation = new AtomicLong();
+
+    /**
+     * 已经<b>落过盘</b>的最大代际。
+     *
+     * <p>异步写是排队执行的，可能出现「{@code flushSync} 已经写下第 N+1 代，排队中的第 N 代
+     * 才开始写」—— 那会把磁盘回滚成更旧的内容。所以每次写盘前比一下：比已落盘的代际还旧，
+     * 直接丢弃这次写入（它要表达的内容已经被更新的一份覆盖了）。
+     *
+     * <p>只用 {@code accumulateAndGet(..., Math::max)} 往大走，永不回退。
+     */
+    private final AtomicLong lastWrittenGeneration = new AtomicLong(Long.MIN_VALUE);
 
     /**
      * 串行化写盘（定时任务 / 停服兜底可能撞车）。
@@ -278,6 +298,9 @@ public final class VillagerTradeStorage {
      * <p>由 {@code VillagerTradeSearchEvents} 每 1200 tick 调一次；主线程只做
      * {@code new HashMap<>(cache)} 这一次拷贝（几十上百条记录，微秒级）。
      *
+     * <p><b>先读代际、再拷快照</b>，顺序不能反：反了就会漏掉落在两步之间的那次 {@code put}
+     * （见 {@link #generation} 的注释）。
+     *
      * <p>线程池不可用（停服过程中）时什么都不做 —— 那时会走 {@link #flushSync()}。
      */
     public void flushAsync(MinecraftServer server) {
@@ -289,8 +312,9 @@ public final class VillagerTradeStorage {
             return;
         }
 
-        Map<UUID, VillagerTradeInfo> snapshot = new HashMap<>(cache);
+        // 先读代际、再拷快照：这两步之间的 put 会让代际变化，写完之后就不会误清脏标志
         long capturedGeneration = generation.get();
+        Map<UUID, VillagerTradeInfo> snapshot = new HashMap<>(cache);
         Path target = file;
 
         pool.execute(() -> writeSnapshot(snapshot, target, capturedGeneration, false));
@@ -300,16 +324,22 @@ public final class VillagerTradeStorage {
      * 同步落盘（停服 / 关规则时兜底）。
      *
      * <p>只在服务端收尾路径调用：那时线程池可能已经关了，而「最后一分钟的交易」必须存下来。
+     *
+     * <p>同样先读代际再拷快照；并且会挡住「排队中被 {@code flushSync} 抢先写下的旧快照」。
      */
     public void flushSync() {
         if (!dirty.get() || file == null) {
             return;
         }
-        writeSnapshot(new HashMap<>(cache), file, generation.get(), true);
+        long capturedGeneration = generation.get();
+        writeSnapshot(new HashMap<>(cache), file, capturedGeneration, true);
     }
 
     /**
      * 真正写盘：序列化 + {@link JsonIO#writeObject}（原子写）。任何异常只记日志。
+     *
+     * <p><b>过期写入直接丢弃</b>：如果这一份快照的代际比已经落盘的还旧，说明磁盘上已经是更新的
+     * 内容（典型场景：{@code flushSync} 抢在排队的异步任务之前写完了），写下去只会回滚。
      *
      * @param snapshot          写盘用的快照（普通 HashMap，已脱离并发容器）
      * @param target            目标文件
@@ -318,10 +348,25 @@ public final class VillagerTradeStorage {
      */
     private void writeSnapshot(Map<UUID, VillagerTradeInfo> snapshot, Path target,
                                long capturedGeneration, boolean sync) {
+        // 快速路径：明显过期的不去抢锁
+        if (capturedGeneration < lastWrittenGeneration.get()) {
+            log.debug("跳过过期的村民交易索引入队写入（代际 {} < 已落盘 {}）",
+                    capturedGeneration, lastWrittenGeneration.get());
+            return;
+        }
         writeLock.lock();
         try {
+            // 等锁期间可能已经有更新的一份写完，进锁后再判一次
+            long written = lastWrittenGeneration.get();
+            if (capturedGeneration < written) {
+                log.debug("跳过过期的村民交易索引写入（代际 {} < 已落盘 {}）",
+                        capturedGeneration, written);
+                return;
+            }
             JsonObject root = toJson(snapshot);
             JsonIO.writeObject(target, root);
+            // 先记代际再清脏：两者都基于同一个 capturedGeneration，顺序不影响正确性
+            lastWrittenGeneration.accumulateAndGet(capturedGeneration, Math::max);
 
             if (generation.get() == capturedGeneration) {
                 markClean();
