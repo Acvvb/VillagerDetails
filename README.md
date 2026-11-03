@@ -1,4 +1,4 @@
-
+﻿
 # VillagerDetails
 
 A mod that fixes the infuriating villager AI behavior that makes players rage.
@@ -43,7 +43,7 @@ VillagerDetails is a Fabric mod that provides a large collection of behavior fix
 | VillagerBookshelfDecompose | Auto bookshelf decomposition — bookshelves auto-decompose into books when used as payment |
 | VillagerEmeraldDecompose | Auto emerald block decomposition — emerald blocks auto-decompose into emeralds when used as payment |
 | VillagerOneTickTraderCount | Adjust trades refreshed per tick |
-| VillagerTradeSearch | Villager trade search — locked trades are snapshotted when a chunk unloads (item strings are copied on the main thread, parsed on the server thread pool) and kept in a memory-only index; `/ec c TradeSearch <keyword>` searches that index without touching the world. Results show up to 10 villagers with a clickable `[Teleport]` button |
+| VillagerTradeSearch | Villager trade search — locked trades are snapshotted when a chunk unloads (raw ids / counts / max uses / enchantment ids are copied on the main thread, parsed on the server thread pool) and indexed in memory + `villagerdetails/villager_trade_cache.json`; `/ec c TradeSearch item <item>` and `/ec c TradeSearch book <enchantment>` search that index without touching the world. Names are localized on the client; results list only the matched offers (up to 10 villagers, UUID click-to-copy) |
 
 #### Entities & Mobs
 
@@ -146,23 +146,27 @@ rule name — the old spelling no longer parses.
 
 #### Villager trade search
 
-`VillagerTradeSearch` keeps a **memory-only** index of villagers whose trades are already locked. The
-index is filled when a villager is unloaded with its chunk (`ServerEntityEvents.ENTITY_UNLOAD`, plus a
-whole-chunk fallback on `ServerChunkEvents.CHUNK_UNLOAD`): the main thread copies UUID, position,
-dimension and the **strings** of every result item (no `Villager` / `MerchantOffer` / `ItemStack` ever
-crosses a thread boundary), and the server thread pool turns them into `VillagerTradeInfo` and stores
-them in `VillagerTradeCache`. Villagers are removed from the cache on
-`ServerLivingEntityEvents.AFTER_DEATH`.
+`VillagerTradeSearch` keeps an index of villagers whose trades are already locked (memory + 
+`<world>/villagerdetails/villager_trade_cache.json`). The index is filled when a villager is unloaded
+with its chunk (`ServerEntityEvents.ENTITY_UNLOAD`, plus a whole-chunk fallback on
+`ServerChunkEvents.CHUNK_UNLOAD`): the main thread copies UUID, position, dimension and the **raw data**
+of every offer (item ids, counts, max uses, enchantment ids + levels — no `Villager` / `MerchantOffer` /
+`ItemStack` ever crosses a thread boundary, and no display text is stored at all), and the server thread
+pool turns them into `VillagerTradeInfo` and stores them in `VillagerTradeCache`. Villagers are removed
+from the cache on `ServerLivingEntityEvents.AFTER_DEATH`. Names are localized on the client.
 
 ```
-/ec TradeSearch true|false              # enable / disable the rule
-/ec c TradeSearch <keyword>             # search item name / id / enchantment / coordinates / dimension / UUID
-/ec c TradeSearch teleport <uuid>       # teleport to that villager (the [Teleport] button runs this)
+/ec TradeSearch true|false               # enable / disable the rule
+/ec c TradeSearch item <item>            # item trades only (enchanted-book trades are excluded)
+/ec c TradeSearch book <enchantment>     # enchanted-book trades; keyword is an enchantment id or name
 ```
 
-Results are capped at 10 villagers (6 offers per villager are shown). The cache is not persisted: it
-is cleared on server stop and when the rule is turned off, and it rebuilds as chunks unload. A trade
-locked while its chunk stays loaded therefore appears only after the chunk unloads.
+Results are capped at 10 villagers, and each villager lists only the **matched** offers (6 per villager,
+the rest folded into "…and N more"). Tab completion for `item` is collected from the `VILLAGER_TRADE`
+registry (so datapack/modded trades are included); `book` completes enchantment ids (`mending`,
+`minecraft:mending`) and their localized names. The index *is* persisted (asynchronously, checked once a
+minute and flushed on stop / rule off), so it survives restarts; a trade locked while its chunk stays
+loaded still appears only after the chunk unloads.
 
 `/ec c reload` reloads **whole files** — every section of `villagerdetails/config.json`,
 `villager_details_binding.json` and `trade_index.json` — so hand edits take effect without a
@@ -357,7 +361,7 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 | VillagerBookshelfDecompose | 书架自动拆解 — 用书架支付时自动拆成书 |
 | VillagerEmeraldDecompose | 绿宝石块自动拆解 — 用绿宝石块支付时自动拆成绿宝石 |
 | VillagerOneTickTraderCount | 每 tick 刷新交易次数调整 |
-| VillagerTradeSearch | 村民交易查询 — 区块卸载时把「已锁定交易」的村民快照收录到内存（物品名在主线程深拷贝成字符串，解析在服务端线程池里做），之后用 `/ec c TradeSearch <关键词>` 直接搜内存缓存，不遍历世界。每次最多显示 10 条，结果里的 `[传送]` 可以直接传送到村民身边 |
+| VillagerTradeSearch | 村民交易查询 — 区块卸载时把「已锁定交易」的村民快照收录进索引（id / 数量 / 可交易次数 / 附魔 id，主线程拷贝、服务端线程池解析，并异步落盘）；之后用 `/ec c TradeSearch item <物品>` 或 `/ec c TradeSearch book <附魔>` 直接搜内存缓存，不遍历世界。展示名由客户端本地化，每条只列命中的交易（最多 10 个村民，可点 UUID 复制） |
 
 #### 实体与怪物
 
@@ -475,12 +479,20 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 
 ```
 /ec TradeSearch true|false              # 开启 / 关闭规则
-/ec c TradeSearch <关键词>             # 搜物品名 / id / 附魔 / 价格 / 坐标 / 维度 / UUID（TAB 补全中英文交易名）
+/ec c TradeSearch item <物品>           # 只查普通物品交易（附魔书交易已排除）
+/ec c TradeSearch book <附魔>           # 只查附魔书交易；关键词是附魔 id 或中文名
 ```
 
 每次最多显示 10 个村民，每个村民**只列命中的那几笔交易**（最多 6 条，多出来的折叠成「另有 N 件」）——
 搜「纸」不会再把这个商人的附魔书、书架一起倒出来。第一行是「维度 + 坐标 + UUID」：点坐标复制
 `x y z`，点 UUID 复制完整 UUID（显示只取前 8 位）；不再提供传送。
+
+`item` / `book` 拆开的原因：附魔书的关键词是「附魔」，和物品不是一套词。`item` 的 Tab 补全来自
+**`VILLAGER_TRADE` 注册表动态扫描**（数据包 / 模组新增的交易也能补全，物品 id + 中文叫法）；
+`book` 的补全来自交易里 `enchant_randomly` 的候选附魔（`mending` / `minecraft:mending` / 经验修补），
+扫不到时退回「服务器认识的全部附魔」。搜索同理：`item` 匹配结果物 / 价格物的 id 与中文叫法，
+`book` 只匹配每笔交易的附魔 id 与中文名。
+
 索引**会落盘**：内存标脏后每 1200 tick 检查一次、脏了就丢进服务端线程池异步写盘（主线程不做 I/O），
 停服 / 关闭规则时同步刷一次再清内存，所以重启后仍能查询；「交易已锁定但区块一直没卸载」时，仍要等
 下一次区块卸载才会出现在查询结果里。旧版本（`format: 1`）的缓存文件会被静默作废，随区块卸载重建。

@@ -289,37 +289,42 @@ public final class VillagerTradeCache implements SessionState {
     }
 
     /**
-     * 按关键词搜索全部索引，<b>按交易粒度</b>收集命中项。
+     * 附魔书的物品 id：这类交易归 {@code book} 子命令，{@code item} 子命令里要排除。
+     */
+    private static final String ENCHANTED_BOOK_ID = "minecraft:enchanted_book";
+
+    /**
+     * 按关键词搜索<b>普通物品</b>交易（{@code /ec c TradeSearch item}）。
      *
-     * <p>匹配分三层：
+     * <p>匹配范围：
      * <ol>
      *     <li>{@link VillagerTradeInfo#matchesLocation}：UUID / 维度 / 坐标命中 → 该村民的
-     *         <b>全部</b>交易都算命中（玩家找的就是这只村民）；</li>
-     *     <li>{@link TradeItemInfo#matchesId}：结果物 / 价格物 / 附魔的<b>原始 id</b>
-     *         （{@code stone}、{@code minecraft:enchanted_book}、{@code mending} 都算）；</li>
+     *         普通物品交易全算命中（玩家找的就是这只村民）；</li>
+     *     <li>{@code price1Id} / {@code price2Id} / {@code resultItemId} 的<b>原始 id</b>
+     *         （{@code stone}、{@code minecraft:bookshelf}）；</li>
      *     <li><b>别名表兜底</b>：把 id 过一遍 {@link IdTranslationConfig#displayNameOf}，
-     *         用中文 / 自定叫法做包含匹配 —— 中文玩家搜「绿宝石」「书架」也能命中。
-     *         这一层刻意放在服务端：{@code TradeItemInfo} 是两端共用的 DTO，不能依赖服务端配置。</li>
+     *         用中文 / 自定叫法做包含匹配 —— 中文玩家搜「绿宝石」「书架」也能命中。</li>
      * </ol>
      *
-     * <p>一只村民有多笔交易命中就都收进来（搜「绿宝石」时「收绿宝石」和「卖绿宝石」都会列出）。
-     * 结果排序固定为「维度 id → 坐标 → UUID」，同一份缓存每次搜索的顺序都一样，
-     * 玩家点聊天栏里的第 N 条永远对得上。
+     * <p><b>附魔书交易整笔跳过</b>：它属于 {@link #searchBook}。否则搜「绿宝石」会同时搜出
+     * 「57 绿宝石 + 1 书 -> 1 附魔书」，把物品结果淹掉。
      *
      * @param keyword 已 trim 的原始关键词；空串直接返回空列表（不把整个缓存倒出来）
      */
-    public List<SearchResult> search(String keyword) {
-        String needle = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
+    public List<SearchResult> searchItem(String keyword) {
+        String needle = normalize(keyword);
         if (needle.isEmpty()) {
             return List.of();
         }
-
         List<SearchResult> results = new ArrayList<>();
         for (VillagerTradeInfo info : store().values()) {
             boolean wholeVillager = info.matchesLocation(needle);
             List<TradeItemInfo> matched = new ArrayList<>();
             for (TradeItemInfo offer : info.offers()) {
-                if (wholeVillager || offer.matchesId(needle) || matchesAlias(offer, needle)) {
+                if (isEnchantedBookOffer(offer)) {
+                    continue;
+                }
+                if (wholeVillager || matchesItem(offer, needle)) {
                     matched.add(offer);
                 }
             }
@@ -327,39 +332,111 @@ public final class VillagerTradeCache implements SessionState {
                 results.add(new SearchResult(info, matched));
             }
         }
-        results.sort(Comparator
-                .comparing((SearchResult result) -> result.info().dimension().identifier().toString())
-                .thenComparingLong(result -> result.info().pos().asLong())
-                .thenComparing(result -> result.info().uuid()));
+        sort(results);
         return results;
     }
 
     /**
-     * 别名表兜底：这一笔交易的任意一个 id（结果物 / 价格物 / 附魔）配的叫法里含有关键词。
+     * 按关键词搜索<b>附魔书</b>交易（{@code /ec c TradeSearch book}）。
      *
-     * <p>{@link IdTranslationConfig#displayNameOf} 的优先级是「{@code trade_index.json} →
-     * 内置兜底」，正是玩家手工配中文名的那张表。
+     * <p>只认「结果是附魔书」的那几笔交易，匹配点只有<b>附魔</b>：
+     * <ul>
+     *     <li>附魔 id 包含关键词（{@code mending} 天然包含在 {@code minecraft:mending} 里）；</li>
+     *     <li>或附魔的中文叫法（{@code 经验修补}）包含关键词。</li>
+     * </ul>
+     *
+     * <p>按 UUID / 维度 / 坐标搜时，列出这只村民的<b>全部附魔书交易</b>（玩家找的是村民）。
+     *
+     * @param keyword 已 trim 的原始关键词；空串直接返回空列表
      */
-    private static boolean matchesAlias(TradeItemInfo offer, String needle) {
-        if (aliasContains(offer.resultItemId(), needle)
-                || aliasContains(offer.price1Id(), needle)
-                || aliasContains(offer.price2Id(), needle)) {
-            return true;
+    public List<SearchResult> searchBook(String keyword) {
+        String needle = normalize(keyword);
+        if (needle.isEmpty()) {
+            return List.of();
         }
+        List<SearchResult> results = new ArrayList<>();
+        for (VillagerTradeInfo info : store().values()) {
+            boolean wholeVillager = info.matchesLocation(needle);
+            List<TradeItemInfo> matched = new ArrayList<>();
+            for (TradeItemInfo offer : info.offers()) {
+                if (!isEnchantedBookOffer(offer)) {
+                    continue;
+                }
+                if (wholeVillager || matchesEnchantment(offer, needle)) {
+                    matched.add(offer);
+                }
+            }
+            if (!matched.isEmpty()) {
+                results.add(new SearchResult(info, matched));
+            }
+        }
+        sort(results);
+        return results;
+    }
+
+    /**
+     * 这笔交易卖的是不是附魔书（决定归 {@code item} 还是 {@code book}）。
+     */
+    private static boolean isEnchantedBookOffer(TradeItemInfo offer) {
+        return offer != null && ENCHANTED_BOOK_ID.equals(offer.resultItemId());
+    }
+
+    /**
+     * 普通物品匹配：结果物 / 两样价格物的 id 或别名。
+     */
+    private static boolean matchesItem(TradeItemInfo offer, String needle) {
+        return idOrAlias(offer.resultItemId(), needle)
+                || idOrAlias(offer.price1Id(), needle)
+                || idOrAlias(offer.price2Id(), needle);
+    }
+
+    /**
+     * 附魔匹配：只看 {@link TradeItemInfo#enchantments()}，id 或中文叫法。
+     */
+    private static boolean matchesEnchantment(TradeItemInfo offer, String needle) {
         for (TradeItemInfo.EnchantmentEntry enchantment : offer.enchantments()) {
-            if (aliasContains(enchantment.id(), needle)) {
+            if (enchantment.id().contains(needle) || aliasContains(enchantment.id(), needle)) {
                 return true;
             }
         }
         return false;
     }
 
+    /**
+     * id 直接包含关键词，或它的别名（{@code trade_index.json} + 内置兜底）包含关键词。
+     */
+    private static boolean idOrAlias(String idText, String needle) {
+        if (idText == null || idText.isBlank()) {
+            return false;
+        }
+        return idText.contains(needle) || aliasContains(idText, needle);
+    }
+
+    /**
+     * {@link IdTranslationConfig#displayNameOf} 的优先级是「{@code trade_index.json} →
+     * 内置兜底」，正是玩家手工配中文名的那张表。
+     */
     private static boolean aliasContains(String idText, String needle) {
         if (idText == null || idText.isBlank()) {
             return false;
         }
         String name = IdTranslationConfig.displayNameOf(idText);
         return name != null && name.toLowerCase(Locale.ROOT).contains(needle);
+    }
+
+    private static String normalize(String keyword) {
+        return keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * 结果排序固定为「维度 id → 坐标 → UUID」，同一份缓存每次搜索的顺序都一样，
+     * 玩家点聊天栏里的第 N 条永远对得上。
+     */
+    private static void sort(List<SearchResult> results) {
+        results.sort(Comparator
+                .comparing((SearchResult result) -> result.info().dimension().identifier().toString())
+                .thenComparingLong(result -> result.info().pos().asLong())
+                .thenComparing(result -> result.info().uuid()));
     }
 
     // ============================================================

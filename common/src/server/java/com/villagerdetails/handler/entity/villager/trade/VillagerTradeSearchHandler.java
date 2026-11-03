@@ -21,11 +21,18 @@ import net.minecraft.world.level.Level;
 import java.util.List;
 import java.util.StringJoiner;
 import java.util.UUID;
+import java.util.function.Function;
 
 import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
 
 /**
- * {@code /ec c TradeSearch} 的业务实现：<b>只查内存缓存</b>，不遍历世界。
+ * {@code /ec c TradeSearch <item|book>} 的业务实现：<b>只查内存缓存</b>，不遍历世界。
+ *
+ * <p>两个子命令共用同一套展示，只有标题和搜索范围不同：
+ * <ul>
+ *     <li>{@link #searchItems}：普通物品交易（附魔书交易已由缓存层排除）；</li>
+ *     <li>{@link #searchBooks}：附魔书交易，关键词是附魔 id / 中文名。</li>
+ * </ul>
  *
  * <p>结果按「最多 {@value #MAX_RESULTS} 个村民、每个村民最多 {@value #MAX_OFFERS_PER_ENTRY} 笔
  * <b>命中的</b>交易」截断，防止聊天栏刷屏；每个村民都会带上 UUID（点一下复制完整值），
@@ -54,7 +61,8 @@ public final class VillagerTradeSearchHandler {
     private static final String K_USAGE = "command.villager_trade_search.usage";
     private static final String K_EMPTY = "command.villager_trade_search.empty";
     private static final String K_NO_MATCH = "command.villager_trade_search.no_match";
-    private static final String K_HEADER = "command.villager_trade_search.header";
+    private static final String K_HEADER_ITEM = "command.villager_trade_search.header.item";
+    private static final String K_HEADER_BOOK = "command.villager_trade_search.header.book";
     private static final String K_TRUNCATED = "command.villager_trade_search.truncated";
     private static final String K_ENTRY_USES = "command.villager_trade_search.entry.uses";
     private static final String K_MORE_OFFERS = "command.villager_trade_search.entry.more";
@@ -75,11 +83,34 @@ public final class VillagerTradeSearchHandler {
     }
 
     /**
-     * {@code /ec c TradeSearch <关键词>}
+     * {@code /ec c TradeSearch item <关键词>}：普通物品交易（附魔书交易已排除）。
      *
      * @return 实际显示的结果条数；0 表示没命中 / 缓存为空
      */
-    public static int search(ServerPlayer player, String keyword) {
+    public static int searchItems(ServerPlayer player, String keyword) {
+        return render(player, keyword, VillagerTradeCache.INSTANCE::searchItem, K_HEADER_ITEM);
+    }
+
+    /**
+     * {@code /ec c TradeSearch book <关键词>}：附魔书交易，关键词是附魔 id / 中文名。
+     *
+     * @return 实际显示的结果条数；0 表示没命中 / 缓存为空
+     */
+    public static int searchBooks(ServerPlayer player, String keyword) {
+        return render(player, keyword, VillagerTradeCache.INSTANCE::searchBook, K_HEADER_BOOK);
+    }
+
+    /**
+     * 两个子命令共用的渲染：只差标题的翻译键，其余（截断、UUID、命中交易逐行）完全一致。
+     *
+     * @param player    命令来源（{@code null} = 控制台 / 命令方块，物品名走别名表兜底）
+     * @param keyword   玩家输入的关键词（未处理）
+     * @param searcher  对应的搜索方法引用
+     * @param headerKey 标题翻译键（{@code item} / {@code book} 各一个）
+     */
+    private static int render(ServerPlayer player, String keyword,
+                              Function<String, List<VillagerTradeCache.SearchResult>> searcher,
+                              String headerKey) {
         String trimmed = keyword == null ? "" : keyword.trim();
         if (trimmed.isEmpty()) {
             return showUsage(player);
@@ -87,7 +118,7 @@ public final class VillagerTradeSearchHandler {
         // 关键词会原样拼进聊天栏标题 / 提示：去掉 § 颜色码，免得玩家用关键词给整行染色
         String displayKeyword = trimmed.replace('§', ' ');
 
-        List<VillagerTradeCache.SearchResult> matches = VillagerTradeCache.INSTANCE.search(trimmed);
+        List<VillagerTradeCache.SearchResult> matches = searcher.apply(trimmed);
         if (matches.isEmpty()) {
             if (VillagerTradeCache.INSTANCE.size() == 0) {
                 // 缓存空 = 还没积累到任何快照（区块卸载才会写缓存），单独给一句提示
@@ -103,7 +134,7 @@ public final class VillagerTradeSearchHandler {
         // 用服务端别名表（trade_index.json + 内置）兜底，免得日志里全是 item.minecraft.xxx
         boolean console = player == null;
         MutableComponent out = Component.translatable(
-                K_HEADER, displayKeyword, String.valueOf(matches.size()), String.valueOf(shown));
+                headerKey, displayKeyword, String.valueOf(matches.size()), String.valueOf(shown));
         for (int i = 0; i < shown; i++) {
             out.append("\n").append(entry(matches.get(i), i + 1, console));
         }
