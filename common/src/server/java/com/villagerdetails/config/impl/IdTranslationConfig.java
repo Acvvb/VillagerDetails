@@ -69,19 +69,23 @@ public final class IdTranslationConfig implements ReloadableConfig {
     /**
      * 常见交易物品的中文叫法兜底：<b>id（不带命名空间）→ 中文</b>。
      *
-     * <p>为什么需要它：{@code trade_index.json} 里登记的是附魔 / 陶瓦（这些是「卖什么」的判定依据），
-     * 而<b>价格物品</b>（绿宝石、书、纸……）从来没人登记过。服务端又只有原版 {@code en_us}
-     * 语言表，光靠它拼出来的展示文本会是 {@code 10 Emerald -> 1 Enchanted Book[经验修补]}
-     * —— 中文玩家搜「绿宝石」就成了空结果。
+     * <p>为什么需要它：服务端 jar 只带原版 {@code en_us} 语言表（{@code assets/minecraft/lang/}
+     * 里没有 {@code zh_cn}），所以没有别名的物品拼出来就是英文 ——
+     * {@code 20 Stone -> 1 绿宝石} 这种中英混排，玩家搜「石头」也搜不到。
      *
      * <p>所以这里放一份<b>只读兜底</b>：查不到文件里的叫法时才用它。三个承诺：
      * <ul>
      *     <li><b>不写盘</b>：{@code trade_index.json} 的内容永远只由玩家 / 默认表决定，
      *         这份兜底不会把文件撑大，也不会在重载后「凭空多出条目」；</li>
      *     <li><b>文件优先</b>：玩家在文件里给同一个 id 配了自己的叫法，以文件为准；</li>
-     *     <li><b>只放常见物</b>：冷门物品（泥土、砂砾……）刻意不列，它们同时也不在
-     *         「白名单」里 —— 这正是村民交易索引要丢掉的那批交易。</li>
+     *     <li><b>只放村民交易里高频出现的物品</b>（付款物 / 矿石材料 / 食物 / 常见成品 /
+     *         带釉陶瓦）。不追求覆盖全游戏 —— 只补「交易查询里经常被看到、被搜到」的那一批，
+     *         既不值得、也没必要把上万条原版翻译搬进来。</li>
      * </ul>
+     *
+     * <p>顺带的好处：这些叫法也会进 {@link #searchableNames}（Tab 补全）和
+     * {@code resolveId}（中文叫法 → id），所以 {@code /ec c TradeSearch 石头}、
+     * 甚至拿「石头」当 id 参数的命令都能用。
      *
      * <p><b>声明顺序有讲究</b>：下面 {@link #nameToId} / {@link #searchableNames} 的静态初始化
      * 会读这两个表，所以它们必须声明在前面（Java 静态字段按声明顺序初始化）。
@@ -215,13 +219,58 @@ public final class IdTranslationConfig implements ReloadableConfig {
     private static Map<String, String> builtinItemAliases() {
         Map<String, String> map = new LinkedHashMap<>();
 
-        // 付款物（原版村民交易几乎只用这几样付钱）
+        // ---- 付款物 / 通用交易物（几乎所有村民都用这几样付钱）----
         map.put("emerald", "绿宝石");
         map.put("book", "书");
         map.put("paper", "纸");
-
-        // 常见产物（附魔书靠附魔名区分，物品名本身也补一个）
+        map.put("clay_ball", "黏土球");
+        map.put("brick", "红砖");
+        map.put("nether_brick", "下界砖");
+        map.put("quartz", "下界石英");
         map.put("enchanted_book", "附魔书");
+
+        // ---- 矿石 / 材料（村民大量收购，也是交易界里的「价格物品」）----
+        map.put("stone", "石头");
+        map.put("andesite", "安山岩");
+        map.put("diorite", "闪长岩");
+        map.put("granite", "花岗岩");
+        map.put("coal", "煤炭");
+        map.put("charcoal", "木炭");
+        map.put("iron_ingot", "铁锭");
+        map.put("gold_ingot", "金锭");
+        map.put("diamond", "钻石");
+        map.put("lapis_lazuli", "青金石");
+        map.put("redstone", "红石");
+        map.put("string", "线");
+        map.put("leather", "皮革");
+        map.put("flint", "燧石");
+        map.put("glowstone", "荧石");
+        map.put("ender_pearl", "末影珍珠");
+        map.put("experience_bottle", "附魔之瓶");
+        map.put("rotten_flesh", "腐肉");
+        map.put("rabbit_foot", "兔子脚");
+        map.put("pumpkin", "南瓜");
+        map.put("wheat", "小麦");
+        map.put("wheat_seeds", "小麦种子");
+        map.put("potato", "马铃薯");
+        map.put("carrot", "胡萝卜");
+        map.put("beetroot", "甜菜根");
+
+        // ---- 食物（农民 / 屠夫出售）----
+        map.put("bread", "面包");
+        map.put("cake", "蛋糕");
+        map.put("cookie", "曲奇");
+        map.put("pumpkin_pie", "南瓜派");
+        map.put("apple", "苹果");
+        map.put("cooked_porkchop", "熟猪排");
+        map.put("cooked_chicken", "熟鸡肉");
+
+        // ---- 常见成品（图书管理员 / 制图师 / 牧羊人 / 盔甲匠出售）----
+        map.put("bookshelf", "书架");
+        map.put("painting", "画");
+        map.put("name_tag", "命名牌");
+        map.put("saddle", "鞍");
+        map.put("bell", "钟");
         map.put("glass", "玻璃");
         map.put("glass_pane", "玻璃板");
         map.put("lantern", "灯笼");
@@ -229,11 +278,33 @@ public final class IdTranslationConfig implements ReloadableConfig {
         map.put("clock", "时钟");
         map.put("compass", "指南针");
         map.put("ink_sac", "墨囊");
-        map.put("clay_ball", "黏土球");
-        map.put("brick", "红砖");
-        map.put("nether_brick", "下界砖");
-        map.put("quartz", "下界石英");
         map.put("arrow", "箭");
+        map.put("leather_helmet", "皮革帽子");
+        map.put("leather_chestplate", "皮革外套");
+        map.put("leather_leggings", "皮革裤子");
+        map.put("leather_boots", "皮革靴子");
+        map.put("iron_helmet", "铁头盔");
+        map.put("iron_chestplate", "铁胸甲");
+        map.put("iron_leggings", "铁护腿");
+        map.put("iron_boots", "铁靴子");
+
+        // ---- 带釉陶瓦（陶瓦刷新规则产出的那一族，和默认表里的素陶瓦配套）----
+        map.put("white_glazed_terracotta", "白色带釉陶瓦");
+        map.put("orange_glazed_terracotta", "橙色带釉陶瓦");
+        map.put("magenta_glazed_terracotta", "品红色带釉陶瓦");
+        map.put("light_blue_glazed_terracotta", "淡蓝色带釉陶瓦");
+        map.put("yellow_glazed_terracotta", "黄色带釉陶瓦");
+        map.put("lime_glazed_terracotta", "黄绿色带釉陶瓦");
+        map.put("pink_glazed_terracotta", "粉红色带釉陶瓦");
+        map.put("gray_glazed_terracotta", "灰色带釉陶瓦");
+        map.put("light_gray_glazed_terracotta", "淡灰色带釉陶瓦");
+        map.put("cyan_glazed_terracotta", "青色带釉陶瓦");
+        map.put("purple_glazed_terracotta", "紫色带釉陶瓦");
+        map.put("blue_glazed_terracotta", "蓝色带釉陶瓦");
+        map.put("brown_glazed_terracotta", "棕色带釉陶瓦");
+        map.put("green_glazed_terracotta", "绿色带釉陶瓦");
+        map.put("red_glazed_terracotta", "红色带釉陶瓦");
+        map.put("black_glazed_terracotta", "黑色带釉陶瓦");
 
         return Collections.unmodifiableMap(map);
     }
@@ -245,7 +316,7 @@ public final class IdTranslationConfig implements ReloadableConfig {
     }
 
     /**
-     * 内置兜底叫法（{@code id → 中文}）；只读，给补全 / 白名单 / 展示名用。
+     * 内置兜底叫法（{@code id → 中文}）；只读，给交易展示名 / Tab 补全用。
      */
     public static Map<String, String> builtinItemAliasesView() {
         return BUILTIN_ID_TO_NAME;

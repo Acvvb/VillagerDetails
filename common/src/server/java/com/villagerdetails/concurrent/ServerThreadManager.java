@@ -44,10 +44,14 @@ public final class ServerThreadManager {
      *
      * <p>原来是 1000：配合 {@code LinkedBlockingQueue}，队列没满就永远不会超过核心线程数，
      * 于是 {@code maxSize=4} 形同虚设、拒绝策略也几乎触发不到（真触发了就是静默丢任务）。
-     * 现在压到 64，池子才真的能在积压时从 2 扩到 4；满了走 {@link #rejectWithWarn()}：
-     * 抛给调用方兜底，<b>不会</b>把任务拉回调用线程执行。
+     * 后来压到 64，池子才真的能在积压时从 2 扩到 4。
+     *
+     * <p>现在放到 <b>256</b>：64 在「密集型刷怪塔 / 村民牧场一次性卸载」的并发洪峰下太窄，
+     * 队列几毫秒就满，交易快照会被成批拒绝（只打 WARN 丢弃）。256 只是把水位抬高、
+     * 让洪峰被 worker 消化掉，<b>不是</b>放宽「不在调用线程执行」那条底线 ——
+     * 真被打满时依旧走 {@link #rejectWithWarn()}：抛给调用方兜底。
      */
-    private static final int QUEUE_CAPACITY = 64;
+    private static final int QUEUE_CAPACITY = 256;
 
     private static final int CORE_SIZE = 2;
     private static final int MAX_SIZE = 4;
