@@ -35,9 +35,9 @@ import java.util.concurrent.RejectedExecutionHandler;
 @Environment(EnvType.SERVER)
 public final class ServerThreadManager {
 
-    private static final Logger log = LoggerFactory.getLogger("VillagerDetails-Server");
+    private static final String POOL_NAME = "VillagerDetails-ServerThread";
 
-    private static final String POOL_NAME = "VillagerDetails-Server";
+    private static final Logger log = LoggerFactory.getLogger(POOL_NAME);
 
     /**
      * 队列容量。
@@ -47,7 +47,7 @@ public final class ServerThreadManager {
      * <b>不是</b>放宽「不在调用线程执行」那条底线 ——
      * 真被打满时依旧走 {@link #rejectWithWarn()}：抛给调用方兜底。
      */
-    private static final int QUEUE_CAPACITY = 256;
+    private static final int QUEUE_CAPACITY = 1024;
 
     private static final int CORE_SIZE = 2;
     private static final int MAX_SIZE = 4;
@@ -104,19 +104,21 @@ public final class ServerThreadManager {
     /**
      * 队列满 / 池已关闭时的拒绝策略：<b>先 WARN，再抛出去</b>。
      *
-     * <p><b>为什么不再「退化为调用线程同步执行」</b>：本池最重的任务是村民交易索引的落盘
-     * （整份 JSON 序列化 + 原子写文件），而它的提交方正是服务端主线程的 tick。以前队列一满，
-     * 这个写盘任务就当场在 tick 线程里做完，直接掉 tick —— 恰好违背了它自己「主线程永远不做 I/O」
-     * 的设计目标。所以这里改回标准的拒绝语义，把「怎么办」交给调用方：
+     * <p><b>为什么不再「退化为调用线程同步执行」</b>：本池跑的是「区块卸载时抓到的村民交易快照」
+     * 这类解析活，提交方正是服务端主线程的 tick / 区块卸载回调。以前队列一满，任务就当场在
+     * tick 线程里做完，直接掉 tick —— 恰好违背了「主线程只抓快照、重活交给池子」的设计目标。
+     * 所以这里保持标准的拒绝语义，把「怎么办」交给调用方：
      * <ul>
-     *     <li>{@code ModThreadPool#submit} 把 future 以异常收尾 —— {@code VillagerTradeStorage}
-     *         据此<b>保留脏标记</b>，下个 tick 的定时任务再试；</li>
-     *     <li>{@code ModThreadPool#execute} 记一条 WARN 后丢弃 —— 交易快照丢了不要紧，
-     *         下次区块卸载会重新抓。</li>
+     *     <li>{@link #execute(Runnable)} 返回 {@code false} —— 调用方据此跳过本次任务
+     *         （{@code VillagerTradePipeline} 丢掉这份可重建的快照，并且只提示一次）；</li>
+     *     <li>{@link #execute(Runnable, Runnable)} 走拒绝回调，由调用方自己兜底。</li>
      * </ul>
      *
-     * <p>「卡一下主线程」听起来比「丢任务」安全，但在这里不成立：整份索引写盘是毫秒~十毫秒级，
-     * 而丢掉的快照是可重建的缓存数据。
+     * <p>「卡一下主线程」听起来比「丢任务」安全，但在这里不成立：解析一份快照是毫秒级，
+     * 而丢掉的快照是可重建的缓存数据（下次区块卸载 / 兜底扫描会重新抓）。
+     *
+     * <p>注意：<b>配置落盘不进这个池</b>（那是 {@code AsyncConfigWriter} 的专职单写者线程），
+     * 所以这里的拒绝不会影响任何配置的持久化。
      */
     private static RejectedExecutionHandler rejectWithWarn() {
         return (_, executor) -> {

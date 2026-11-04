@@ -29,8 +29,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p><b>数据现在会落盘</b>：内存容器由 {@link VillagerTradeStorage} 持有
  * （{@code <存档>/villagerdetails/villager_trade_cache.json}），这里只做一层代理 ——
  * 读直接穿透，写顺手 {@link VillagerTradeStorage#markDirty()}，真正的 I/O 由存储类
- * 在定时任务 / 停服时异步完成。之所以不做成「两份 map」，是为了不出现
- * 「查到的和存下的不是同一份」。
+ * 在落盘周期（{@code AbstractWorldConfig#tickAll} 统一驱动）/ 停服时异步完成。
+ * 之所以不做成「两份 map」，是为了不出现「查到的和存下的不是同一份」。
  *
  * <p><b>为什么还要一张墓碑表</b>：区块卸载在主线程提交异步任务，村民完全可能在任务真正执行前
  * 就死了 —— 死亡回调在主线程先 {@link #remove}，随后迟到的异步任务如果直接 {@code put}，
@@ -89,7 +89,7 @@ public final class VillagerTradeCache implements SessionState {
      * <p>为什么 {@link #clearedAt} 不够：它是「先检查、后写入」的典型 check-then-act ——
      * 一条在途的 {@code put} 完全可能在上面的检查通过之后、{@code store().put()} 之前被挂起，
      * 等 {@link #clearSession()} 清完内存才继续执行，于是清空之后又冒出一条并标脏，
-     * 下一次 {@code flushAsync} 就拿这份「接近空」的内存覆盖整份落盘文件（规则关一下再开 = 索引全丢）。
+     * 下一次 {@code flush} 就拿这份「接近空」的内存覆盖整份落盘文件（规则关一下再开 = 索引全丢）。
      *
      * <p>纪元只在 {@link #SESSION_LOCK} 里读写，「比较纪元 + 写内存」和「推进纪元 + 清内存」
      * 因此是互斥的，那条迟到任务要么看到纪元变化而放弃，要么真的发生在清空之后（那是新数据，该留）。
@@ -192,7 +192,7 @@ public final class VillagerTradeCache implements SessionState {
                 return;
             }
             store().put(uuid, info);
-            // 标脏：真正的写盘交给定时任务 / 停服兜底，这里绝不做 I/O
+            // 标脏：真正的写盘交给落盘周期 / 停服兜底，这里绝不做 I/O
             VillagerTradeStorage.INSTANCE.markDirty();
         }
         if (removedAt != null) {
@@ -444,11 +444,14 @@ public final class VillagerTradeCache implements SessionState {
     // ============================================================
 
     /**
-     * 会话结束：<b>先把没落盘的改动写下去，再清内存</b>（停服 / 规则关闭都会走这里）。
+     * 会话结束：<b>先把没落盘的改动提交出去，再清内存</b>（停服 / 规则关闭都会走这里）。
      *
-     * <p><b>写失败就什么都不清</b>：以前失败只打 WARN 就继续清空，磁盘满 / 文件被占
-     * （Windows 上很常见）时等于把唯一的一份索引直接扔掉。现在失败只记 ERROR 并保留内存，
-     * 下一次会话（或下次关规则）还有机会写出去。
+     * <p>提交本身是异步的（{@code flush()} 只做「主线程序列化 + 入队」，字节写在单写者线程上）；
+     * 停服那条路径上，{@code VillagerDetailsServer} 的 pre-shutdown 钩子已经先提交并<b>等它落地</b>过，
+     * 走到这里时队列已空，是一次空操作。
+     *
+     * <p>失败时不清内存：以前失败只打 WARN 就继续清空，磁盘满 / 文件被占（Windows 上很常见）时
+     * 等于把唯一的一份索引直接扔掉。现在只记 ERROR 并保留内存，下一次会话还有机会写出去。
      *
      * <p>清空与「在途 {@code put}」的互斥靠 {@link #EPOCH}：推进纪元与清内存在
      * {@link #SESSION_LOCK} 里一次做完，已经在 {@link #put} 里通过前置检查的迟到任务
@@ -459,12 +462,12 @@ public final class VillagerTradeCache implements SessionState {
         int cached = store().size();
         int tombstones = REMOVED_AT.size();
 
-        // 会话结束：内存里可能还有「没赶上定时任务」的改动，先同步写一次再清
+        // 会话结束：内存里可能还有「没赶上落盘周期」的改动，先提交一次再清
         try {
             VillagerTradeStorage.INSTANCE.flush();
         } catch (Throwable t) {
             // 保留内存数据：清掉就真的没了（磁盘上那份可能还是上一次的旧内容）
-            log.error("停服落盘村民交易索引失败：保留内存数据，本次不清理、不推进清理纪元", t);
+            log.error("提交村民交易索引落盘失败：保留内存数据，本次不清理、不推进清理纪元", t);
             return;
         }
 

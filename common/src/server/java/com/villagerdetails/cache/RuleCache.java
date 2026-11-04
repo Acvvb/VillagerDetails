@@ -243,11 +243,8 @@ public class RuleCache {
     private static void persist(RuleType type, String state) {
         MinecraftServer s = server;
         if (s == null) return;
-
         try {
-            RuleConfig cfg = RuleConfig.getOrCreate(s);
-            cfg.setBindingState(type.getRegisterName(), state);
-            cfg.flush();
+            RuleConfig.getOrCreate(s).setBindingState(type.getRegisterName(), state);
         } catch (Exception e) {
             log.error("[RuleCache] 持久化失败 {}: {}", type.getRegisterName(), e);
         }

@@ -3,6 +3,7 @@ package com.villagerdetails.config;
 import com.villagerdetails.config.impl.IdTranslationConfig;
 import com.villagerdetails.config.impl.RuleConfig;
 import com.villagerdetails.config.impl.UnifiedConfigFile;
+import com.villagerdetails.config.impl.VillagerTradeStorage;
 import com.villagerdetails.config.migration.MigrationManager;
 import com.villagerdetails.rule.type.RuleType;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -43,8 +44,9 @@ public final class ConfigRegistry {
         // （ServerLangConfig 等）才能读到「规则现在是什么」并据此对齐自己的状态。
         register(RuleConfig.INSTANCE);
         register(UnifiedConfigFile.INSTANCE);
-        // 注意：网络版本兼容策略【不在这里注册】—— 它已固化成编译期常量
-        // （com.villagerdetails.network.channel.NetworkConstants），不读也不写外部配置。
+        // 村民交易索引：独立文件、独立生命周期，放在最后 —— 它不喂给任何别的配置，
+        // 只在自己的 reload/reloadFromDisk 里读盘（数据由区块卸载的异步快照写进来）。
+        register(VillagerTradeStorage.INSTANCE);
     }
 
     // ==============================================================
@@ -121,11 +123,13 @@ public final class ConfigRegistry {
     /**
      * {@code /ec c reload} 用：把「物理文件」当单位整份重读。
      *
-     * <p>和 {@link #reloadAll(MinecraftServer)} 的区别只有一处：{@link UnifiedConfigFile}
-     * 走 {@link UnifiedConfigFile#reloadFromDisk(MinecraftServer)} 真的去读磁盘，
-     * 而不是被 {@code ensureLoaded} 短路成「内存里的旧 root 再灌一遍」。
-     * 不带参数、带参数都走这一条 —— 所有 section 都在同一个 {@code config.json} 里，
-     * 只重载一份既省不了 IO，还会多出一条驱动路径。
+     * <p>和 {@link #reloadAll(MinecraftServer)} 的区别只有一处：这里调的是
+     * {@link ReloadableConfig#reloadFromDisk(MinecraftServer)} —— 四个有独立文件的配置
+     * （{@code config.json} / {@code trade_index.json} / {@code villager_details_binding.json} /
+     * {@code villager_trade_cache.json}）都会真的去读磁盘，而不是被 {@code ensureLoaded}
+     * 短路成「内存里的旧内容再灌一遍」。
+     *
+     * <p>不带参数、带参数都走这一条 —— 一致的读盘语义比「只刷一份」重要得多。
      */
     public static Result reloadAllFromDisk(MinecraftServer server) {
         // ★ 第一件事必须是「把内存里已标脏的改动提交并等它真正落盘」。
@@ -142,11 +146,7 @@ public final class ConfigRegistry {
 
         for (ReloadableConfig config : REGISTRY.values()) {
             try {
-                if (config == UnifiedConfigFile.INSTANCE) {
-                    UnifiedConfigFile.reloadFromDisk(server);
-                } else {
-                    config.reload(server);
-                }
+                config.reloadFromDisk(server);
                 loaded.add(config.configName());
                 log.debug("已重载（磁盘）：{}", config.configName());
             } catch (Exception e) {
@@ -160,7 +160,7 @@ public final class ConfigRegistry {
 
     /**
      * {@code /ec c reload <name>} 的可点名清单：
-     * {@link #getAllNames()} 的 3 个父配置 + 规则侧 12 个 section 配置（按 {@code configName()} 去重保序）。
+     * {@link #getAllNames()} 的 4 个父配置 + 规则侧 12 个 section 配置（按 {@code configName()} 去重保序）。
      *
      * <p>列出来只是「让人知道有这些名字」；执行时一律整份重读（见 {@link #reloadAllFromDisk}）。
      */

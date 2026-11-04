@@ -54,6 +54,13 @@ public abstract class AbstractAsyncConfig {
     }
 
     /**
+     * 是否有未提交的改动。
+     */
+    public boolean isDirty() {
+        return dirty.get();
+    }
+
+    /**
      * 强行清掉脏标记。
      *
      * <p>只在「内存内容被整体丢弃」时用（例如停服时 {@code reset()} 先 flush 再清空 root）：

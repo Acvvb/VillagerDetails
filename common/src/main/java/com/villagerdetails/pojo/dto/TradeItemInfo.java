@@ -14,7 +14,7 @@ import java.util.List;
  * 永远不会跟随语言或别名表变化。现在展示交给 {@code Component.translatable("item.<ns>.<path>")}
  * 在<b>客户端</b>本地化，搜索靠 id + 别名表兜底 —— 一份数据对任何语言都成立。
  *
- * <p>同时也是落盘格式的载体（见 {@code VillagerTradeStorage}，{@code format: 2}）：
+ * <p>同时也是落盘格式的载体（见 {@code VillagerTradeIndexJson}，{@code format: 2}）：
  * 所有字段都是可序列化的标量 / 小数组，存盘 / 读盘不需要任何额外的转换层。
  *
  * @param resultItemId 卖出的物品 id，例如 {@code minecraft:enchanted_book}

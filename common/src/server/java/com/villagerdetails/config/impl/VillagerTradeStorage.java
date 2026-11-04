@@ -1,107 +1,124 @@
 package com.villagerdetails.config.impl;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.villagerdetails.config.impl.util.ConfigPaths;
-import com.villagerdetails.pojo.dto.TradeItemInfo;
+import com.villagerdetails.config.impl.base.AbstractWorldConfig;
+import com.villagerdetails.config.impl.data.VillagerTradeIndexJson;
+import com.villagerdetails.config.impl.dto.ParsedIndex;
 import com.villagerdetails.pojo.dto.VillagerTradeInfo;
-import com.villagerdetails.util.io.AbstractAsyncConfig;
 import com.villagerdetails.util.json.JsonIO;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.Identifier;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.level.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * 村民交易索引的落盘存储。
- *
- * <p>继承自 {@link AbstractAsyncConfig}，所有的脏标记、异步提交、合并落盘、
- * 甚至关服时的排干，全部由底层框架接管。本类只关心数据怎么读、怎么转 JSON。
- */
-public final class VillagerTradeStorage extends AbstractAsyncConfig {
+import static com.villagerdetails.config.impl.data.VillagerTradeIndexJson.parse;
 
+/**
+ * 村民交易索引的落盘存储（存档内 {@code villagerdetails/villager_trade_cache.json}）。
+ *
+ * <p>生命周期与 IO 全部来自 {@link AbstractWorldConfig}（和 {@code UnifiedConfigFile} 同一套），
+ * 本类只回答「写哪个文件、怎么把 JSON 读成缓存、清空成什么样」，外加一个它特有的差异：
+ * <b>落盘周期是 1200 tick 而不是每 tick</b>（见 {@link #flushIntervalTicks()}）。
+ *
+ * <p><b>JSON 长什么样不归本类管</b>：字段结构、容错、旧格式作废全部在
+ * {@link VillagerTradeIndexJson}（纯「内存 ⇄ JSON」转换）。本类只负责
+ * 「什么时候读、什么时候写、写哪个文件」。
+ */
+public final class VillagerTradeStorage extends AbstractWorldConfig {
+
+    // 全局唯一实例
     public static final VillagerTradeStorage INSTANCE = new VillagerTradeStorage();
 
     private static final Logger log = LogManager.getLogger(VillagerTradeStorage.class);
-    private static final String SAVE_RELATIVE_PATH = "villagerdetails/villager_trade_cache.json";
-    private static final int FORMAT_VERSION = 2;
 
+    /** 相对存档根目录的文件位置：{@code <world>/villagerdetails/villager_trade_cache.json}。 */
+    private static final String SAVE_PATH = "villagerdetails/villager_trade_cache.json";
+
+    /**
+     * 村民 UUID → 交易快照。
+     *
+     * <p>用 {@link ConcurrentHashMap} 而不是普通 {@code Map}：写方是服务端线程池里解析出来的
+     * 异步快照，读方是主线程上的搜索命令，两边不共享锁。
+     */
     private final ConcurrentHashMap<UUID, VillagerTradeInfo> cache = new ConcurrentHashMap<>();
-    private volatile Path file;
 
+    /**
+     * 私有构造：全局只允许 {@link #INSTANCE} 存在一个实例。
+     *
+     * <p>构造时父类会把它登记进静态表，因此 {@link AbstractWorldConfig#tickAll()} /
+     * {@link AbstractWorldConfig#flushAll()} / {@link AbstractWorldConfig#resetAll()} 自动覆盖到它。
+     */
     private VillagerTradeStorage() {
     }
 
-    // ============================================================
-    // 框架接口实现（只回答写哪里、写什么）
-    // ============================================================
+    // ==============================================================
+    // 父类要求的三件事 + 数据
+    // ==============================================================
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>本配置固定写在存档的 {@code villagerdetails/villager_trade_cache.json}。
+     */
     @Override
-    protected Path getFilePath() {
-        return file;
+    protected String savePath() {
+        return SAVE_PATH;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>把整份缓存交给 {@link VillagerTradeIndexJson#encode} 转成 JSON 树；
+     * 真正的序列化（Gson）由父类在主线程瞬间完成，所以这里不能返回会变的共享对象。
+     */
     @Override
     protected Object getDataToSave() {
-        // 将内存数据转为最终要落盘的 JsonObject，框架会在主线程瞬间序列化它
-        JsonObject root = new JsonObject();
-        root.addProperty("format", FORMAT_VERSION);
-        root.addProperty("savedAt", System.currentTimeMillis());
-
-        JsonArray villagers = new JsonArray();
-        cache.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .forEach(entry -> villagers.add(villagerToJson(entry.getValue())));
-        root.add("villagers", villagers);
-        return root;
-    }
-
-    // ============================================================
-    // 业务方法
-    // ============================================================
-
-    public ConcurrentHashMap<UUID, VillagerTradeInfo> cache() {
-        return cache;
+        return VillagerTradeIndexJson.encode(cache);
     }
 
     /**
-     * 更新数据并标脏。
+     * {@inheritDoc}
+     *
+     * <p>注册名 / {@code /ec c reload <name>} 里用的名字。
      */
-    public void put(UUID uuid, VillagerTradeInfo info) {
-        cache.put(uuid, info);
-        markDirty(); // 调父类的方法，底层会自动合并写入
+    @Override
+    public String configName() {
+        return "VillagerTradeStorage";
     }
 
     /**
-     * 清空内存。
+     * 落盘周期：1200 tick ≈ 1 分钟。
+     *
+     * <p>只有它需要节流：{@link #getDataToSave()} 要把整份村民索引转成 JSON，
+     * 而区块卸载时每个村民都会 {@link #put} 一次 —— 每 tick 都试一次等于每 tick 整份重写。
+     *
+     * <p>父类的计数器初值是 1，所以开服后<b>第一个 tick</b> 仍会提交一次，
+     * 保证文件一定被创建出来，不用先白等一分钟。
      */
-    public void clearMemory() {
-        cache.clear();
-        clearDirty();
+    @Override
+    protected int flushIntervalTicks() {
+        return 1200;
     }
 
-    // ============================================================
-    // 读盘逻辑（只读一次，不需要并发控制）
-    // ============================================================
-
-    public void load(MinecraftServer server) {
-        if (server == null) return;
-        Path target = ConfigPaths.world(server, SAVE_RELATIVE_PATH);
-        this.file = target;
+    /**
+     * 磁盘 → 内存：把上一次会话落盘的索引读回 {@link #cache}。
+     *
+     * <p>前期失败一律<b>直接返回、不动内存</b>（开服时缓存本来就是空的，等于按空缓存继续），
+     * 避免一次坏文件把已经抓到的数据抹掉：
+     * <ul>
+     *     <li>没有 server（停服后）/ 文件不存在 → 打日志后返回；</li>
+     *     <li>读盘抛异常（IO / 权限）→ 记 WARN 后返回；</li>
+     *     <li>文件能读通 → 整体替换成文件里的内容；其中坏记录已被
+     *         {@link VillagerTradeIndexJson#parse} 逐条跳过并计入 {@code skipped}，
+     *         这里据此 {@link #markDirty()}，让下一次落盘把文件重写干净。</li>
+     * </ul>
+     */
+    @Override
+    protected void load() {
+        Path target = currentFile();
+        if (target == null) return;
 
         if (!Files.exists(target)) {
             log.info("村民交易索引暂无落盘文件：{}", target);
@@ -120,158 +137,57 @@ public final class VillagerTradeStorage extends AbstractAsyncConfig {
         cache.putAll(parsed.villagers());
 
         if (parsed.skipped() > 0) {
-            markDirty(); // 如果有坏数据被剔除，标脏，下次 flush() 时重写文件
+            markDirty(); // 有坏数据被剔除：标脏，下次 flush 时重写文件
             log.info("村民交易索引里有 {} 条坏记录已被剔除，将在下一次落盘时重写文件", parsed.skipped());
         }
         log.info("已从 {} 加载村民交易索引：{} 只村民", target, cache.size());
     }
 
-    // ============================================================
-    // 解析 & 序列化（纯 IO 转换逻辑）
-    // ============================================================
-
-    private record ParsedIndex(Map<UUID, VillagerTradeInfo> villagers, int skipped) {
+    /**
+     * {@inheritDoc}
+     *
+     * <p>只清内存，不碰文件 —— 停服后磁盘上的索引要原样留着给下一次会话读回来。
+     */
+    @Override
+    protected void clearData() {
+        cache.clear();
     }
 
-    private static ParsedIndex parse(JsonObject root) {
-        Map<UUID, VillagerTradeInfo> result = new HashMap<>();
-        int format = root.has("format") && root.get("format").isJsonPrimitive()
-                ? root.get("format").getAsInt() : FORMAT_VERSION;
+    // ==============================================================
+    // 业务方法
+    // ==============================================================
 
-        if (format != FORMAT_VERSION) {
-            log.info("村民交易索引是旧格式（文件 {}，当前 {}）：旧格式已作废，将随区块卸载重建", format, FORMAT_VERSION);
-            return new ParsedIndex(result, 0);
-        }
-
-        JsonElement villagersElement = root.get("villagers");
-        if (villagersElement == null || !villagersElement.isJsonArray()) {
-            return new ParsedIndex(result, 0);
-        }
-
-        int skipped = 0;
-        for (JsonElement element : villagersElement.getAsJsonArray()) {
-            try {
-                VillagerTradeInfo info = parseVillager(element.getAsJsonObject());
-                if (info != null) result.put(info.uuid(), info);
-                else skipped++;
-            } catch (Exception e) {
-                skipped++;
-            }
-        }
-        if (skipped > 0) {
-            log.warn("村民交易索引里有 {} 条记录解析失败，已跳过（其余 {} 条正常）", skipped, result.size());
-        }
-        return new ParsedIndex(result, skipped);
+    /**
+     * 直接暴露底层容器（{@code VillagerTradeCache} 的读写都穿透到这里）。
+     *
+     * <p>返回的是<b>活引用</b>，调用方对它的修改不经过 {@link #put}，因此不会自动标脏。
+     * 新增数据请一律走 {@link #put}。
+     */
+    public ConcurrentHashMap<UUID, VillagerTradeInfo> cache() {
+        return cache;
     }
 
-    private static VillagerTradeInfo parseVillager(JsonObject object) {
-        UUID uuid = UUID.fromString(object.get("uuid").getAsString());
-        ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION,
-                Identifier.parse(object.get("dimension").getAsString()));
-
-        JsonArray posArray = object.getAsJsonArray("pos");
-        if (posArray == null || posArray.size() < 3) return null;
-
-        BlockPos pos = new BlockPos(posArray.get(0).getAsInt(),
-                posArray.get(1).getAsInt(), posArray.get(2).getAsInt());
-
-        List<TradeItemInfo> offers = new ArrayList<>();
-        JsonElement offersElement = object.get("offers");
-        if (offersElement != null && offersElement.isJsonArray()) {
-            for (JsonElement offerElement : offersElement.getAsJsonArray()) {
-                TradeItemInfo offer = parseOffer(offerElement.getAsJsonObject());
-                if (offer != null) offers.add(offer);
-            }
-        }
-        if (offers.isEmpty()) return null;
-
-        return new VillagerTradeInfo(uuid, pos, dimension, offers);
+    /**
+     * 更新一只村民的交易快照，并标脏等下一次落盘周期提交。
+     *
+     * <p><b>只改内存</b>：这里绝不碰磁盘，也不阻塞；真正的字节写入在异步单写者线程上完成。
+     *
+     * @param uuid 村民 UUID
+     * @param info 该村民的交易快照（不可变 DTO，可安全跨线程传递）
+     */
+    public void put(UUID uuid, VillagerTradeInfo info) {
+        cache.put(uuid, info);
+        markDirty();
     }
 
-    private static TradeItemInfo parseOffer(JsonObject object) {
-        String resultItemId = string(object, "result");
-        if (resultItemId.isBlank()) return null;
-
-        return new TradeItemInfo(
-                resultItemId,
-                intValue(object, "resultCount"),
-                string(object, "price1"),
-                intValue(object, "price1Count"),
-                string(object, "price2"),
-                intValue(object, "price2Count"),
-                intValue(object, "maxUses"),
-                parseEnchantments(object));
-    }
-
-    private static List<TradeItemInfo.EnchantmentEntry> parseEnchantments(JsonObject object) {
-        JsonElement element = object.get("enchantments");
-        if (element == null || !element.isJsonArray()) return List.of();
-
-        List<TradeItemInfo.EnchantmentEntry> entries = new ArrayList<>();
-        for (JsonElement enchantmentElement : element.getAsJsonArray()) {
-            try {
-                JsonObject enchantment = enchantmentElement.getAsJsonObject();
-                String id = string(enchantment, "id");
-                if (!id.isBlank()) {
-                    entries.add(new TradeItemInfo.EnchantmentEntry(id, intValue(enchantment, "level")));
-                }
-            } catch (Exception ignored) {}
-        }
-        return entries;
-    }
-
-    private static String string(JsonObject object, String key) {
-        JsonElement element = object.get(key);
-        return element == null || !element.isJsonPrimitive() ? "" : element.getAsString();
-    }
-
-    private static int intValue(JsonObject object, String key) {
-        JsonElement element = object.get(key);
-        return element == null || !element.isJsonPrimitive() ? 0 : element.getAsInt();
-    }
-
-    private static JsonObject villagerToJson(VillagerTradeInfo info) {
-        JsonObject object = new JsonObject();
-        object.addProperty("uuid", info.uuid().toString());
-        object.addProperty("dimension", info.dimension().identifier().toString());
-
-        JsonArray pos = new JsonArray(3);
-        pos.add(info.pos().getX());
-        pos.add(info.pos().getY());
-        pos.add(info.pos().getZ());
-        object.add("pos", pos);
-
-        JsonArray offers = new JsonArray();
-        for (TradeItemInfo offer : info.offers()) {
-            offers.add(offerToJson(offer));
-        }
-        object.add("offers", offers);
-        return object;
-    }
-
-    private static JsonObject offerToJson(TradeItemInfo offer) {
-        JsonObject item = new JsonObject();
-        item.addProperty("result", offer.resultItemId());
-        item.addProperty("resultCount", offer.resultCount());
-        item.addProperty("price1", offer.price1Id());
-        item.addProperty("price1Count", offer.price1Count());
-        if (offer.hasSecondPrice()) {
-            item.addProperty("price2", offer.price2Id());
-            item.addProperty("price2Count", offer.price2Count());
-        }
-        if (offer.maxUses() > 0) {
-            item.addProperty("maxUses", offer.maxUses());
-        }
-        if (!offer.enchantments().isEmpty()) {
-            JsonArray enchantments = new JsonArray();
-            for (TradeItemInfo.EnchantmentEntry enchantment : offer.enchantments()) {
-                JsonObject entry = new JsonObject();
-                entry.addProperty("id", enchantment.id());
-                entry.addProperty("level", enchantment.level());
-                enchantments.add(entry);
-            }
-            item.add("enchantments", enchantments);
-        }
-        return item;
+    /**
+     * 清空内存并清掉脏标记（规则关闭 / 会话结束时用）。
+     *
+     * <p>调用方负责先 {@link #flush()}：本方法只负责让「内存里已经没有东西」这件事
+     * 不要被当成一次待落盘的改动写出去。
+     */
+    public void clearMemory() {
+        cache.clear();
+        clearDirty();
     }
 }

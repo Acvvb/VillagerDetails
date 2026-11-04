@@ -4,14 +4,11 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.command.SwitchComponentType;
-import com.villagerdetails.config.ReloadableConfig;
-import com.villagerdetails.config.impl.util.ConfigPaths;
+import com.villagerdetails.config.impl.base.AbstractWorldConfig;
 import com.villagerdetails.lang.ServerTranslations;
 import com.villagerdetails.rule.RuleChangeService;
 import com.villagerdetails.rule.RuleStateValidator;
 import com.villagerdetails.rule.type.RuleType;
-import com.villagerdetails.util.io.AbstractAsyncConfig;
-import com.villagerdetails.util.io.AsyncConfigManager;
 import com.villagerdetails.util.json.JsonIO;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -23,187 +20,188 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 /**
- * 每个存档一份的规则绑定配置，以 JSON 文件形式保存在存档根目录下：
- * <world>/villager_details_binding.json
- * <p>
- * 与 SavedData 相比：
- * · 人类可读、可手动编辑
- * · 不依赖 NBT / Codec / DataFixTypes
- * · 需要自己管理加载、保存、服务器关闭时的刷盘
+ * 每个存档一份的规则绑定配置（存档根目录 {@code villager_details_binding.json}）。
+ *
+ * <p>生命周期与 IO 全部来自 {@link AbstractWorldConfig}（和 {@code UnifiedConfigFile} 同一套），
+ * 本类只回答「写哪个文件、怎么把 JSON 读成绑定表、清空成什么样」，外加一个它特有的动作：
+ * <b>每次回灌完都要把状态应用进 {@link RuleCache}</b>（见 {@link #onReload} / {@link #onDiskLoad}）。
+ *
+ * <p>落盘内容就是 {@link #bindingStates} 本身：{@code 规则注册名 → 状态字符串}，
+ * Gson 直接序列化成 {@code {"规则名": "状态"}}。
+ *
+ * <p>与 SavedData 相比：人类可读、可手动编辑、不依赖 NBT / Codec / DataFixTypes。
  */
-public class RuleConfig extends AbstractAsyncConfig implements ReloadableConfig {
+public final class RuleConfig extends AbstractWorldConfig {
 
-    /**
-     * <b>仅作为 {@code ConfigRegistry} 的注册门面，无法读取真实数据。</b>
-     *
-     * <p>它 {@code filePath == null}，{@code load() / flush() / getBindingState()} 全是空操作：
-     * 真正带数据的是 {@link #getOrCreate(MinecraftServer)} 按 server 缓存的那个实例。
-     * 这个常量存在的唯一原因是注册表需要一个「名字 + reload 入口」，
-     * 而 {@link #reload(MinecraftServer)} 会转手调 {@code RuleChangeService.reload}，
-     * 由后者去拿真实实例。
-     *
-     * <p><b>要读 / 写规则的绑定状态，请一律走 {@link #getOrCreate(MinecraftServer)}</b>；
-     * 直接 {@code RuleConfig.INSTANCE.getBindingState(...)} 拿到的永远是默认值。
-     */
+    // 全局唯一实例
     public static final RuleConfig INSTANCE = new RuleConfig();
-
-    private RuleConfig() {
-        this.filePath = null;
-    }
-
-    @Override
-    public String configName() {
-        return "RuleConfig";
-    }
-
-    /**
-     * 重载：把 {@code villager_details_binding.json} <b>重新从磁盘读一遍</b>，再回灌进规则缓存。
-     *
-     * <p>为什么先丢缓存实例：{@link #getOrCreate} 按 server 缓存实例，实例里的
-     * {@code bindingStates} 是「启动时读到的内存副本」；不丢掉它，手改配置后执行
-     * {@code /ec c reload} 只会把旧副本再应用一遍，等于没重载。丢掉前先 {@code flush()}，
-     * 避免把还没落盘的改动弄丢。
-     *
-     * <p><b>写是异步的</b>：{@code flush()} 只是把内容提交给写线程，所以这里必须再用
-     *  等这份文件真正落地 —— 否则下面重新读盘读到的还是
-     * 写之前的旧内容，等于把玩家刚改的规则回滚掉了。
-     */
-    @Override
-    public void reload(MinecraftServer server) {
-        onServerStopping(server);
-        if (server != null) {
-            AsyncConfigManager.awaitFile(ConfigPaths.world(server, FILE_NAME), RELOAD_AWAIT_MS);
-        }
-        RuleChangeService.reload(server);
-    }
 
     private static final Logger log = LogManager.getLogger(RuleConfig.class);
 
     /**
-     * 原版格式化码（{@code §c} 等）：翻译出来的聊天文案带它，写进日志前去掉
+     * 原版格式化码（{@code §c} 等）：翻译出来的聊天文案带它，写进日志前去掉。
      */
     private static final Pattern COLOR_CODE = Pattern.compile("§.");
 
     /**
-     * 文件名（放在存档根目录）
+     * 文件名（放在存档根目录，和 {@code villagerdetails/} 平级）。
      */
-    private static final String FILE_NAME = "villager_details_binding.json";
+    private static final String SAVE_PATH = "villager_details_binding.json";
 
     /**
-     * 重载前等待异步写落地的上限（毫秒）。
+     * 规则注册名 → 状态字符串，同时也是<b>落盘内容</b>。
      *
-     * <p>只作用于玩家主动执行的 {@code /ec c reload}：等的是本地一次小文件写，正常毫秒级。
+     * <p>只在主线程读写（和 {@code config.json} 一样，{@code flush()} 就是串行化点）。
+     * 约定：值等于规则默认状态的项<b>不保存</b>，所以「没改过的规则」不会在文件里占一行。
      */
-    private static final long RELOAD_AWAIT_MS = 5000L;
+    private Map<String, String> bindingStates = new LinkedHashMap<>();
 
     /**
-     * 按服务器实例缓存，避免每次调用都读盘
+     * 私有构造：全局只允许 {@link #INSTANCE} 存在一个实例。
+     *
+     * <p>构造时父类会把它登记进静态表，{@link AbstractWorldConfig#tickAll()} 因此自动覆盖到它。
      */
-    private static final Map<MinecraftServer, RuleConfig> INSTANCES = new ConcurrentHashMap<>();
-
-    private final Path filePath;
-    private final Map<String, String> bindingStates = new HashMap<>();
-
-    private RuleConfig(Path filePath) {
-        this.filePath = filePath;
+    private RuleConfig() {
     }
 
-    // ------------------------------------------------------------------
-    //  AbstractAsyncConfig：只回答「写哪个文件 / 写什么」
-    //
-    //  dirty / batching / markDirty / flush / batch 全部由基类提供，
-    //  本类不再自己维护任何保存状态。
-    // ------------------------------------------------------------------
+    // ==============================================================
+    // 父类要求的三件事 + 数据
+    // ==============================================================
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>本配置固定写在存档根目录的 {@code villager_details_binding.json}。
+     */
     @Override
-    protected Path getFilePath() {
-        return filePath;
+    protected String savePath() {
+        return SAVE_PATH;
     }
 
     /**
-     * 直接交 {@code bindingStates} 本身：Gson 会把它序列化成 {@code {"规则名": "状态"}}，
-     * 结构和以前手拼 {@code JsonObject} 完全一致。
+     * {@inheritDoc}
+     *
+     * <p>直接交 {@link #bindingStates} 本身：Gson 会把它序列化成 {@code {"规则名": "状态"}}。
      */
     @Override
     protected Object getDataToSave() {
         return bindingStates;
     }
 
-    // ------------------------------------------------------------------
-    //  生命周期
-    // ------------------------------------------------------------------
-
-    public static RuleConfig getOrCreate(MinecraftServer server) {
-        return INSTANCES.computeIfAbsent(server, s -> {
-            Path path = ConfigPaths.world(s, FILE_NAME);
-            RuleConfig config = new RuleConfig(path);
-            config.load();
-            return config;
-        });
+    /**
+     * {@inheritDoc}
+     *
+     * <p>注册名 / {@code /ec c reload <name>} 里用的名字。
+     */
+    @Override
+    public String configName() {
+        return "RuleConfig";
     }
 
     /**
-     * 停服收尾：把某个服务器实例的未落盘改动提交给写线程，并把实例摘掉。
+     * 磁盘 → 内存：读成 {@code 规则注册名 → 状态字符串}。
      *
-     * <p>摘实例是为了让静态 map 不再攥住已停服的 {@link MinecraftServer}（单人反复换存档即泄漏）。
+     * <p>合法性校验<b>不在这里</b>：这里只做「能读成字符串的都收下」，
+     * 真正拦截并纠正取值的是 {@link #syncToSwitch}。读盘异常只记 ERROR，
+     * 内存保持空表（等于所有规则都用默认值），不会拦住开服。
      */
-    public static void onServerStopping(MinecraftServer server) {
-        RuleConfig config = INSTANCES.remove(server);
-        if (config != null) {
-            config.flush();
-        }
-    }
+    @Override
+    protected void load() {
+        bindingStates = new LinkedHashMap<>();
+        Path file = currentFile();
+        if (file == null) return;
 
-    /**
-     * 停服收尾（<b>不依赖 server 引用</b>）：把所有缓存实例的改动都提交给写线程。
-     *
-     * <p>给 {@code ServerThreadManager} 的 pre-shutdown 钩子用 —— 那个钩子没有 server 参数，
-     * 而且必须跑在 {@link AsyncConfigManager#flushAndShutdown} <b>之前</b>：
-     * 原来这份刷盘挂在 {@code ServerStoppingListener}（比关池更晚），异步化之后就会变成
-     * 「写线程已经排干并关掉了，规则配置才入队」—— 最后一次改动直接丢。
-     */
-    public static void flushAllAndClear() {
-        for (MinecraftServer server : List.copyOf(INSTANCES.keySet())) {
-            onServerStopping(server);
-        }
-    }
-
-    // ------------------------------------------------------------------
-    //  读写文件
-    // ------------------------------------------------------------------
-
-    private void load() {
-        if (filePath == null) return;
         try {
-            JsonObject obj = JsonIO.readObject(filePath);
+            JsonObject obj = JsonIO.readObject(file);
             for (Map.Entry<String, JsonElement> e : obj.entrySet()) {
                 if (e.getValue().isJsonPrimitive()) {
                     bindingStates.put(e.getKey(), e.getValue().getAsString());
                 }
             }
             if (!bindingStates.isEmpty()) {
-                log.info("已从 {} 加载绑定配置（{} 项）", filePath, bindingStates.size());
+                log.info("已从 {} 加载绑定配置（{} 项）", file, bindingStates.size());
             }
         } catch (Exception e) {
-            log.error("读取绑定配置失败：{}", filePath, e);
+            log.error("读取绑定配置失败：{}", file, e);
         }
     }
 
-    // ------------------------------------------------------------------
-    //  业务方法（与原来签名完全一致）
-    // ------------------------------------------------------------------
+    /**
+     * {@inheritDoc}
+     *
+     * <p>换成空表：停服后这些状态没有意义，留着只会被下一次落盘写进别的存档的配置文件。
+     */
+    @Override
+    protected void clearData() {
+        bindingStates = new LinkedHashMap<>();
+    }
+
+    // ==============================================================
+    // 钩子：回灌完把状态应用进 RuleCache
+    // ==============================================================
 
     /**
-     * 写一条规则的绑定状态。
+     * {@inheritDoc}
+     *
+     * <p>开服回灌：把刚读到的绑定表灌进 {@link RuleCache}（{@link RuleChangeService#reload} 内部
+     * 会调 {@link #syncToSwitch}），非法值在这一步被拦下并改写成默认值。
+     */
+    @Override
+    protected void onReload(MinecraftServer server) {
+        RuleChangeService.reload(server);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>{@code /ec c reload} 的收尾：同样回灌进 {@link RuleCache}，并打一条「重读了多少项」的日志。
+     */
+    @Override
+    protected void onDiskLoad(MinecraftServer server) {
+        RuleChangeService.reload(server);
+        log.info("已从磁盘重读绑定配置：{} 项", bindingStates.size());
+    }
+
+    // ==============================================================
+    // 兼容入口
+    // ==============================================================
+
+    /**
+     * 兼容入口：等价于「挂上 server + 需要时读盘」，再返回唯一实例。
+     *
+     * <p>老代码按 server 缓存实例（{@code ConcurrentHashMap<MinecraftServer, RuleConfig>}），
+     * 现在只有一份实例，语义由父类的 {@code ensureLoaded} 承担；{@link RuleCache} 与
+     * {@code NoSqueezeConfig} 仍通过这个入口取用。
+     *
+     * @param server 目标服务器；{@code null} 时只会得到一张空表
+     */
+    public static RuleConfig getOrCreate(MinecraftServer server) {
+        INSTANCE.ensureLoaded(server);
+        return INSTANCE;
+    }
+
+    // ==============================================================
+    // 业务方法（与原来签名完全一致）
+    // ==============================================================
+
+    /**
+     * 写一条规则的绑定状态（<b>只改内存 + 标脏</b>，写盘交给 tick 末尾的统一提交）。
+     *
+     * <p>两条剪枝规则，决定了文件里能看到什么：
+     * <ul>
+     *     <li>新值<b>等于规则默认状态</b> → 把这条 key 从表里删掉（默认值不落盘）；</li>
+     *     <li>新值和旧值相同 → 什么都不做（不标脏）。</li>
+     * </ul>
      *
      * <p><b>只给「改规则」那条落盘路径调</b>（{@link RuleCache#setState} 内部）；
      * 业务代码要改规则状态请用 {@link RuleChangeService#change}，不要再直接写这里。
+     *
+     * @param key   规则注册名
+     * @param state 新的状态字符串
      */
     public void setBindingState(String key, String state) {
         RuleType type = RuleType.getRuleTypeByRegisterName(key);
@@ -223,10 +221,16 @@ public class RuleConfig extends AbstractAsyncConfig implements ReloadableConfig 
         }
         if (changed) {
             markDirty();
-            flush();
         }
     }
 
+    /**
+     * 读一条规则在配置文件里的状态；没有配置项时回落到该规则的默认状态。
+     *
+     * @param key 规则注册名
+     * @return 配置文件里的值；没有则返回 {@link RuleType#getState()}，
+     *         连规则都找不到时返回 {@link SwitchComponentType#FALSE_STR}
+     */
     public String getBindingState(String key) {
         RuleType type = RuleType.getRuleTypeByRegisterName(key);
         if (bindingStates.containsKey(key)) {
@@ -249,6 +253,7 @@ public class RuleConfig extends AbstractAsyncConfig implements ReloadableConfig 
      *     <li>形态就不合法（预定义列表里没有这一项）→ {@link #discardInvalidState}：同样用默认值替换。</li>
      * </ul>
      * 两种情况都会把<b>默认值强制写回配置文件</b>（覆盖那条非法记录），所以下次启动不会再报警。
+     * 另外会顺手删掉文件里已经不存在的规则名（{@link RuleType} 里查不到的那些 key）。
      *
      * <p>两条都不碰 {@code /ec} 命令与网络包那条路径 —— 它们有自己的前置校验
      * （{@code RuleChangeService.change}），不会走到这里，所以不会重复拦截或重复报错。
@@ -293,7 +298,7 @@ public class RuleConfig extends AbstractAsyncConfig implements ReloadableConfig 
     }
 
     // ------------------------------------------------------------------
-    //  回灌校验（配置被手改坏了时的兜底入口，只作用于「磁盘 → 内存」）
+    // 回灌校验（配置被手改坏了时的兜底入口，只作用于「磁盘 → 内存」）
     // ------------------------------------------------------------------
 
     /**
@@ -354,6 +359,8 @@ public class RuleConfig extends AbstractAsyncConfig implements ReloadableConfig 
      * 在文件里留下字面量默认值（{@code "HappyGhastSpeed": "0.05"} / {@code "GlobalSpeedBypass": "false"}），
      * 而不是把 key 删掉 —— 这样下次开服读到的是合法值，不会再刷一遍警告。
      *
+     * @param type           规则
+     * @param fallback       要写回的默认状态
      * @param forcedDefaults 记一份，回灌之后还要再写一次（{@code setBindingState} 会把这几个 key 删掉）
      */
     private void forceWriteDefault(RuleType type, String fallback, Map<String, String> forcedDefaults) {
@@ -369,7 +376,9 @@ public class RuleConfig extends AbstractAsyncConfig implements ReloadableConfig 
      * <p>原因：{@code RuleCache.setState} 成功时会 {@code persist → setBindingState}，而它带着
      * 「值等于默认值就把 key 删掉」的剪枝 —— 内存里原本是别的值（比如上次合法加载的 {@code 0.3}）
      * 时，刚被 {@link #forceWriteDefault} 写进去的默认值会被它抹掉。这里直接写底层 map，
-     * 由 {@link #batch} 末尾那次 {@link #flush()} 一次性提交。
+     * 由 {@link #batch} 末尾那次 flush 一次性提交。
+     *
+     * @param forcedDefaults 被强制换成默认值的项（可能为空，空则什么都不做）
      */
     private void reapplyForcedDefaults(Map<String, String> forcedDefaults) {
         if (forcedDefaults.isEmpty()) {
@@ -387,6 +396,9 @@ public class RuleConfig extends AbstractAsyncConfig implements ReloadableConfig 
      * 所以这里检测到没翻译出来就退回「key + 参数」，别让日志丢信息。
      *
      * <p>翻译出来的文案带 {@code §c} 这类颜色码（那是给聊天栏用的），日志里不需要，去掉。
+     *
+     * @param error 校验器给出的拒绝原因
+     * @return 可直接拼进日志的人类可读文本
      */
     private static String describeReason(RuleStateValidator.ValidationError error) {
         String text = ServerTranslations.resolve(Component.translatable(error.messageKey(), error.args()));
@@ -395,5 +407,4 @@ public class RuleConfig extends AbstractAsyncConfig implements ReloadableConfig 
         }
         return COLOR_CODE.matcher(text).replaceAll("");
     }
-
 }
