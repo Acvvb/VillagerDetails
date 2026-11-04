@@ -12,7 +12,7 @@ import com.villagerdetails.rule.RuleStateValidator;
 import com.villagerdetails.rule.type.RuleType;
 import com.villagerdetails.util.io.AbstractAsyncConfig;
 import com.villagerdetails.util.io.AsyncConfigManager;
-import com.villagerdetails.util.io.JsonIO;
+import com.villagerdetails.util.json.JsonIO;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
@@ -80,7 +80,6 @@ public class RuleConfig extends AbstractAsyncConfig implements ReloadableConfig 
         if (server != null) {
             AsyncConfigManager.awaitFile(ConfigPaths.world(server, FILE_NAME), RELOAD_AWAIT_MS);
         }
-        // 走统一入口：改规则只认 RuleChangeService（它会 getOrCreate 一份新的 = 重新读盘）
         RuleChangeService.reload(server);
     }
 

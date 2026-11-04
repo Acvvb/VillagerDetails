@@ -1,7 +1,7 @@
 package com.villagerdetails.network;
 
 import com.villagerdetails.network.channel.*;
-import org.apache.logging.log4j.LogManager;
+import com.villagerdetails.util.scan.ScanService;import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
@@ -14,7 +14,7 @@ import java.util.function.Consumer;
  *
  * <p>{@code com.villagerdetails.network.sync} 下<b>每个目录对应一个角色接口</b>，
  * 这里就按「目录 → 接口 → 初始化方法」一张表逐行取数、逐行调方法（见 {@link #ROLES}）：
- * 目录树只由 {@link com.villagerdetails.util.ScanService} 走一次，这几行只是按包名 + 角色过滤
+ * 目录树只由 {@link ScanService} 走一次，这几行只是按包名 + 角色过滤
  * （改造前是每行各自递归扫一遍，几行就是几遍）。
  *
  * <table border="1">

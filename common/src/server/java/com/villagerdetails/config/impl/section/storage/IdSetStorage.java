@@ -128,6 +128,6 @@ public final class IdSetStorage {
         JsonObject sec = new JsonObject();
         ids.forEach(id -> sec.addProperty(id.toString(), true));
         UnifiedConfigFile.setSection(section, sec);
-        UnifiedConfigFile.markDirty();
+        UnifiedConfigFile.INSTANCE.markDirty();
     }
 }

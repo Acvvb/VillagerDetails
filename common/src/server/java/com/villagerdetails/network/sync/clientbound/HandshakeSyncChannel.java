@@ -3,7 +3,7 @@ package com.villagerdetails.network.sync.clientbound;
 import com.villagerdetails.network.channel.ProtocolChannel;
 import com.villagerdetails.network.channel.SyncChannel;
 import com.villagerdetails.network.sync.payload.clientbound.S2CHandshakeResponsePayload;
-import com.villagerdetails.util.ModVersion;
+import com.villagerdetails.util.version.ModVersion;
 import net.minecraft.server.level.ServerPlayer;
 
 /**

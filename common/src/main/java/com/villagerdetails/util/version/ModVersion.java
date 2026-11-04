@@ -1,4 +1,4 @@
-package com.villagerdetails.util;
+package com.villagerdetails.util.version;
 
 import com.villagerdetails.VillagerDetails;
 import net.fabricmc.loader.api.FabricLoader;

@@ -54,7 +54,7 @@ public final class VillagerDetailsServer implements ModInitializer, DedicatedSer
         // ServerThreadManager 的 SERVER_STOPPING 比下面 ServerEventManager 注册的回调更早，
         // 不显式挂这里就会变成「先关池、再刷盘 / 排干已经结束、配置才入队」，最后一次改动直接丢。
         // 注：AsyncConfigWriter 自己也注册了 JVM 关机钩子兜底，客户端不写停机关闭代码也不会丢。
-        ServerThreadManager.addPreShutdownHook(UnifiedConfigFile::flush);
+        ServerThreadManager.addPreShutdownHook(UnifiedConfigFile.INSTANCE::flush);
         ServerThreadManager.addPreShutdownHook(RuleConfig::flushAllAndClear);
         ServerThreadManager.addPreShutdownHook(() -> AsyncConfigManager.flushAndShutdown(5000L));
 

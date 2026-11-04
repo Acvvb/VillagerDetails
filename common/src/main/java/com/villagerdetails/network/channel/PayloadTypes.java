@@ -1,6 +1,6 @@
 package com.villagerdetails.network.channel;
 
-import com.villagerdetails.util.ScanService;
+import com.villagerdetails.util.scan.ScanService;
 import net.minecraft.resources.Identifier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

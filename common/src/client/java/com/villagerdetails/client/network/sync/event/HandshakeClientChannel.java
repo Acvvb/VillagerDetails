@@ -4,7 +4,7 @@ import com.villagerdetails.client.network.channel.ClientReceiver;
 import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.sync.payload.clientbound.S2CHandshakeResponsePayload;
 import com.villagerdetails.network.sync.payload.serverbound.C2SHandshakePayload;
-import com.villagerdetails.util.ModVersion;
+import com.villagerdetails.util.version.ModVersion;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
 import org.apache.logging.log4j.LogManager;

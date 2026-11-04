@@ -1,6 +1,6 @@
 package com.villagerdetails.network.channel;
 
-import com.villagerdetails.util.ModVersion;
+import com.villagerdetails.util.version.ModVersion;
 
 import java.util.List;
 

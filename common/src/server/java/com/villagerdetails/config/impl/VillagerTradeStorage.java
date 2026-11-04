@@ -3,12 +3,11 @@ package com.villagerdetails.config.impl;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.villagerdetails.concurrent.ModContext;
-import com.villagerdetails.concurrent.ModThreadPool;
 import com.villagerdetails.config.impl.util.ConfigPaths;
-import com.villagerdetails.util.io.JsonIO;
 import com.villagerdetails.pojo.dto.TradeItemInfo;
 import com.villagerdetails.pojo.dto.VillagerTradeInfo;
+import com.villagerdetails.util.io.AbstractAsyncConfig;
+import com.villagerdetails.util.json.JsonIO;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -25,161 +24,87 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * 村民交易索引的<b>落盘存储</b>（存档内 {@code villagerdetails/villager_trade_cache.json}）。
+ * 村民交易索引的落盘存储。
  *
- * <p>和 {@link IdTranslationConfig} 是同一套模式：<b>内存是唯一数据源，磁盘只是它的副本</b>。
- * 区别在于写入者是<b>线程池里的异步解析</b>，所以这里多了三道保护：
- *
- * <ol>
- *     <li><b>标脏而不是立刻写</b>：{@link #markDirty()} 只置一个原子标志（O(1)、无锁）。
- *         区块卸载时每个村民都会 {@code put} 一次，如果每次都碰磁盘，卸载一次区块就是几百次 I/O；</li>
- *     <li><b>定时 / 停服才落盘</b>：{@link #flushAsync(MinecraftServer)} 每 1200 tick 由
- *         {@code VillagerTradeSearchEvents} 调一次，把 {@code new HashMap<>(cache)} 的快照丢进
- *         服务端线程池序列化写盘 —— <b>主线程永远不做 I/O</b>；停服 / 关规则时走
- *         {@link #flushSync()}（那时已经不需要考虑卡顿了，而且线程池可能先被关掉）；</li>
- *     <li><b>代际号防止丢写</b>：写盘期间完全可能又有新的村民进来。写完只在
- *         「代际号没变」时才清脏标志，否则下一次定时任务会把这些新数据再写一遍
- *         —— 用 {@link AtomicBoolean} 一个标志搞不定这件事，所以额外维护
- *         {@link #generation}（每次 {@link #markDirty()} +1）。<b>读代际必须在拷快照之前</b>，
- *         否则两步之间的 {@code put} 会被误清脏而永久漏存（见 {@link #flushAsync}）；</li>
- *     <li><b>过期写直接丢弃</b>：排队中的异步写可能晚于 {@link #flushSync()} 抢到锁，
- *         把磁盘回滚成旧内容。所以每次写盘前和 {@link #lastWrittenGeneration} 比一下，
- *         比已经落盘的代际还旧就不写。</li>
- * </ol>
- *
- * <p><b>写盘是原子的</b>（{@link JsonIO#writeObject} 临时文件 + 整体替换），且用
- * {@link #writeLock} 串行化：定时任务和停服兜底可能同时发生，两份 JSON 交叉写会互相截断。
- *
- * <p>读盘失败（文件损坏 / 版本不兼容）只打 WARN 并留空，<b>绝不崩服</b> —— 这是一份缓存，
- * 丢了顶多重新积累。
+ * <p>继承自 {@link AbstractAsyncConfig}，所有的脏标记、异步提交、合并落盘、
+ * 甚至关服时的排干，全部由底层框架接管。本类只关心数据怎么读、怎么转 JSON。
  */
-public final class VillagerTradeStorage {
-
-    private VillagerTradeStorage() {
-    }
+public final class VillagerTradeStorage extends AbstractAsyncConfig {
 
     public static final VillagerTradeStorage INSTANCE = new VillagerTradeStorage();
 
     private static final Logger log = LogManager.getLogger(VillagerTradeStorage.class);
-
-    /**
-     * 存档内相对路径（和 {@code trade_index.json} 放在同一个目录下）。
-     */
     private static final String SAVE_RELATIVE_PATH = "villagerdetails/villager_trade_cache.json";
-
-    /**
-     * 文件格式版本。以后字段不兼容时靠它决定「整个丢掉」还是「迁移」。
-     *
-     * <p><b>2</b>：交易条目只存 id / 数量 / 可交易次数 / 附魔（id + 等级），不再存
-     * {@code display} / {@code search} 这两段烘焙好的文本 —— 展示交给客户端按自己的语言本地化。
-     * 读到旧版本（1）时整份丢弃，随区块卸载重建。
-     */
     private static final int FORMAT_VERSION = 2;
 
-    /**
-     * 主缓存：村民 UUID → 交易快照。
-     *
-     * <p>异步写、主线程读，必须是并发容器；读取不要求强一致（搜索到一份马上要消失的快照也无害）。
-     */
     private final ConcurrentHashMap<UUID, VillagerTradeInfo> cache = new ConcurrentHashMap<>();
-
-    /**
-     * 有没有「还没写进磁盘」的改动。
-     */
-    private final AtomicBoolean dirty = new AtomicBoolean();
-
-    /**
-     * 写代际：每次 {@link #markDirty()} +1。写盘开始时记下值，写完如果没变才清脏标志。
-     *
-     * <p><b>读代际必须发生在拷快照之前</b>（见 {@link #flushAsync}）：反过来的话，落在
-     * 「拷完快照、还没读代际」之间的那次 {@code put} 不在快照里，却因为代际号没变而被
-     * {@link #markClean()} 吞掉 —— 那条村民只在内存里，下一次 {@code flushSync} 又因
-     * {@code dirty == false} 直接返回，等于永久丢失。
-     */
-    private final AtomicLong generation = new AtomicLong();
-
-    /**
-     * 已经<b>落过盘</b>的最大代际。
-     *
-     * <p>异步写是排队执行的，可能出现「{@code flushSync} 已经写下第 N+1 代，排队中的第 N 代
-     * 才开始写」—— 那会把磁盘回滚成更旧的内容。所以每次写盘前比一下：比已落盘的代际还旧，
-     * 直接丢弃这次写入（它要表达的内容已经被更新的一份覆盖了）。
-     *
-     * <p>只用 {@code accumulateAndGet(..., Math::max)} 往大走，永不回退。
-     */
-    private final AtomicLong lastWrittenGeneration = new AtomicLong(Long.MIN_VALUE);
-
-    /**
-     * 串行化写盘（定时任务 / 停服兜底可能撞车）。
-     */
-    private final ReentrantLock writeLock = new ReentrantLock();
-
-    /**
-     * 目标文件；{@link #load(MinecraftServer)} 之前是 {@code null}（此时不写盘）。
-     */
     private volatile Path file;
 
+    private VillagerTradeStorage() {
+    }
+
     // ============================================================
-    // 内存缓存
+    // 框架接口实现（只回答写哪里、写什么）
     // ============================================================
 
-    /**
-     * 内存缓存本体（<b>唯一数据源</b>）。读操作直接走它，不要拷贝。
-     */
+    @Override
+    protected Path getFilePath() {
+        return file;
+    }
+
+    @Override
+    protected Object getDataToSave() {
+        // 将内存数据转为最终要落盘的 JsonObject，框架会在主线程瞬间序列化它
+        JsonObject root = new JsonObject();
+        root.addProperty("format", FORMAT_VERSION);
+        root.addProperty("savedAt", System.currentTimeMillis());
+
+        JsonArray villagers = new JsonArray();
+        cache.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> villagers.add(villagerToJson(entry.getValue())));
+        root.add("villagers", villagers);
+        return root;
+    }
+
+    // ============================================================
+    // 业务方法
+    // ============================================================
+
     public ConcurrentHashMap<UUID, VillagerTradeInfo> cache() {
         return cache;
     }
 
     /**
-     * 落盘目标文件；还没 {@link #load} 过时返回 {@code null}。
+     * 更新数据并标脏。
      */
-    public Path file() {
-        return file;
+    public void put(UUID uuid, VillagerTradeInfo info) {
+        cache.put(uuid, info);
+        markDirty(); // 调父类的方法，底层会自动合并写入
     }
-
-    // ============================================================
-    // 脏标记
-    // ============================================================
-
-    public void markDirty() {
-        dirty.set(true);
-        generation.incrementAndGet();
-    }
-
-    public void markClean() {
-        dirty.set(false);
-    }
-
-    public boolean isDirty() {
-        return dirty.get();
-    }
-
-    // ============================================================
-    // 读盘
-    // ============================================================
 
     /**
-     * 服务端启动时调一次：记下文件路径，把上一次会话写下的索引读回内存。
-     *
-     * <p>读失败 / 结构不对 / 版本不认识 → WARN + 留空缓存（不崩服）。
+     * 清空内存。
      */
+    public void clearMemory() {
+        cache.clear();
+        clearDirty();
+    }
+
+    // ============================================================
+    // 读盘逻辑（只读一次，不需要并发控制）
+    // ============================================================
+
     public void load(MinecraftServer server) {
-        if (server == null) {
-            return;
-        }
+        if (server == null) return;
         Path target = ConfigPaths.world(server, SAVE_RELATIVE_PATH);
-        file = target;
+        this.file = target;
 
         if (!Files.exists(target)) {
-            log.info("村民交易索引暂无落盘文件（首次运行）：{}", target);
-            markClean();
+            log.info("村民交易索引暂无落盘文件：{}", target);
             return;
         }
 
@@ -188,48 +113,33 @@ public final class VillagerTradeStorage {
             parsed = parse(JsonIO.readObject(target));
         } catch (Exception e) {
             log.warn("读取村民交易索引失败，本次按空缓存继续（文件：{}）", target, e);
-            markClean();
             return;
         }
 
         cache.clear();
         cache.putAll(parsed.villagers());
-        markClean();
-        log.info("已从 {} 加载村民交易索引：{} 只村民", target, cache.size());
+
         if (parsed.skipped() > 0) {
-            // 标脏 = 把清理结果写回文件。不写的话坏条目会永远留在文件里，
-            // 每次启动都在日志里刷一遍同样的 WARN，玩家也没法靠手改修好。
-            markDirty();
+            markDirty(); // 如果有坏数据被剔除，标脏，下次 flush() 时重写文件
             log.info("村民交易索引里有 {} 条坏记录已被剔除，将在下一次落盘时重写文件", parsed.skipped());
         }
+        log.info("已从 {} 加载村民交易索引：{} 只村民", target, cache.size());
     }
 
-    /**
-     * 读盘结果：解析成功的村民 + 被跳过的坏条目数。
-     *
-     * <p>坏条目数要带出去，调用方才能决定「是否把清理结果重写回文件」。
-     */
+    // ============================================================
+    // 解析 & 序列化（纯 IO 转换逻辑）
+    // ============================================================
+
     private record ParsedIndex(Map<UUID, VillagerTradeInfo> villagers, int skipped) {
     }
 
-    /**
-     * 反序列化：{@code villagers} 数组里每一项是一只村民。
-     *
-     * <p>单条坏数据只跳过自己（并计数），不影响其它条目 —— 手改文件写坏一个 UUID
-     * 不该让整个索引作废。
-     *
-     * <p>格式版本不认识时<b>不</b>算坏条目（{@code skipped = 0}）：那种情况宁可原样留着文件，
-     * 也不能用旧格式的解析结果把它覆盖掉。
-     */
     private static ParsedIndex parse(JsonObject root) {
         Map<UUID, VillagerTradeInfo> result = new HashMap<>();
-
         int format = root.has("format") && root.get("format").isJsonPrimitive()
                 ? root.get("format").getAsInt() : FORMAT_VERSION;
+
         if (format != FORMAT_VERSION) {
-            // 预期行为：格式升版后旧文件整份作废（不读、不写坏），随下一个区块卸载重建
-            log.info("村民交易索引是旧格式（文件 {}，当前 {}）：旧格式已作废，将随区块卸载重建",
-                    format, FORMAT_VERSION);
+            log.info("村民交易索引是旧格式（文件 {}，当前 {}）：旧格式已作废，将随区块卸载重建", format, FORMAT_VERSION);
             return new ParsedIndex(result, 0);
         }
 
@@ -242,11 +152,8 @@ public final class VillagerTradeStorage {
         for (JsonElement element : villagersElement.getAsJsonArray()) {
             try {
                 VillagerTradeInfo info = parseVillager(element.getAsJsonObject());
-                if (info != null) {
-                    result.put(info.uuid(), info);
-                } else {
-                    skipped++;
-                }
+                if (info != null) result.put(info.uuid(), info);
+                else skipped++;
             } catch (Exception e) {
                 skipped++;
             }
@@ -263,9 +170,8 @@ public final class VillagerTradeStorage {
                 Identifier.parse(object.get("dimension").getAsString()));
 
         JsonArray posArray = object.getAsJsonArray("pos");
-        if (posArray == null || posArray.size() < 3) {
-            return null;
-        }
+        if (posArray == null || posArray.size() < 3) return null;
+
         BlockPos pos = new BlockPos(posArray.get(0).getAsInt(),
                 posArray.get(1).getAsInt(), posArray.get(2).getAsInt());
 
@@ -274,22 +180,18 @@ public final class VillagerTradeStorage {
         if (offersElement != null && offersElement.isJsonArray()) {
             for (JsonElement offerElement : offersElement.getAsJsonArray()) {
                 TradeItemInfo offer = parseOffer(offerElement.getAsJsonObject());
-                if (offer != null) {
-                    offers.add(offer);
-                }
+                if (offer != null) offers.add(offer);
             }
         }
-        if (offers.isEmpty()) {
-            return null;
-        }
+        if (offers.isEmpty()) return null;
+
         return new VillagerTradeInfo(uuid, pos, dimension, offers);
     }
 
     private static TradeItemInfo parseOffer(JsonObject object) {
         String resultItemId = string(object, "result");
-        if (resultItemId.isBlank()) {
-            return null;
-        }
+        if (resultItemId.isBlank()) return null;
+
         return new TradeItemInfo(
                 resultItemId,
                 intValue(object, "resultCount"),
@@ -301,29 +203,19 @@ public final class VillagerTradeStorage {
                 parseEnchantments(object));
     }
 
-    /**
-     * 读附魔数组：{@code [{"id": "minecraft:mending", "level": 1}, ...]}。
-     *
-     * <p>单项写坏（缺 id / 结构不对）只跳过自己 —— 附魔是「锦上添花」的信息，
-     * 为它把整笔交易丢掉不值得。
-     */
     private static List<TradeItemInfo.EnchantmentEntry> parseEnchantments(JsonObject object) {
         JsonElement element = object.get("enchantments");
-        if (element == null || !element.isJsonArray()) {
-            return List.of();
-        }
+        if (element == null || !element.isJsonArray()) return List.of();
+
         List<TradeItemInfo.EnchantmentEntry> entries = new ArrayList<>();
         for (JsonElement enchantmentElement : element.getAsJsonArray()) {
             try {
                 JsonObject enchantment = enchantmentElement.getAsJsonObject();
                 String id = string(enchantment, "id");
-                if (id.isBlank()) {
-                    continue;
+                if (!id.isBlank()) {
+                    entries.add(new TradeItemInfo.EnchantmentEntry(id, intValue(enchantment, "level")));
                 }
-                entries.add(new TradeItemInfo.EnchantmentEntry(id, intValue(enchantment, "level")));
-            } catch (Exception e) {
-                // 单条坏数据跳过
-            }
+            } catch (Exception ignored) {}
         }
         return entries;
     }
@@ -336,125 +228,6 @@ public final class VillagerTradeStorage {
     private static int intValue(JsonObject object, String key) {
         JsonElement element = object.get(key);
         return element == null || !element.isJsonPrimitive() ? 0 : element.getAsInt();
-    }
-
-    // ============================================================
-    // 写盘
-    // ============================================================
-
-    /**
-     * 异步落盘：脏了才写，序列化 + I/O 全在服务端线程池里做。
-     *
-     * <p>由 {@code VillagerTradeSearchEvents} 每 1200 tick 调一次；主线程只做
-     * {@code new HashMap<>(cache)} 这一次拷贝（几十上百条记录，微秒级）。
-     *
-     * <p><b>先读代际、再拷快照</b>，顺序不能反：反了就会漏掉落在两步之间的那次 {@code put}
-     * （见 {@link #generation} 的注释）。
-     *
-     * <p><b>队列满时保留脏标记重试，绝不退回主线程写盘</b>：本方法由 {@code END_SERVER_TICK}
-     * 驱动，而写盘是「序列化 + 原子写文件」，在主线程做会直接掉 tick。所以这里用
-     * {@link ModThreadPool#submit}（future 型提交）：被拒绝时 future 以异常收尾，
-     * 我们只记一条 WARN、什么都不清 —— {@code dirty} 还亮着，下个 tick 会带着更新的快照再试。
-     *
-     * <p>线程池不可用（停服过程中）时什么都不做 —— 那时会走 {@link #flushSync()}。
-     */
-    public void flushAsync(MinecraftServer server) {
-        if (!dirty.get() || file == null) {
-            return;
-        }
-        ModThreadPool pool = ModContext.getServerPool();
-        if (pool == null || pool.isShutdown()) {
-            return;
-        }
-
-        // 先读代际、再拷快照：这两步之间的 put 会让代际变化，写完之后就不会误清脏标志
-        long capturedGeneration = generation.get();
-        Map<UUID, VillagerTradeInfo> snapshot = new HashMap<>(cache);
-        Path target = file;
-
-        CompletableFuture<Void> future = pool.submit(() -> {
-            writeSnapshot(snapshot, target, capturedGeneration, false);
-            return null;
-        });
-        if (future.isCompletedExceptionally()) {
-            // 队列满 / 池已关：不落盘、不清脏，等下一个 1200 tick 的定时任务重试
-            log.warn("村民交易索引落盘任务被线程池拒绝（队列满），保留脏标记，下个周期重试");
-        }
-    }
-
-    /**
-     * 同步落盘（停服 / 关规则时兜底）。
-     *
-     * <p>只在服务端收尾路径调用：那时线程池可能已经关了，而「最后一分钟的交易」必须存下来。
-     *
-     * <p>同样先读代际再拷快照；并且会挡住「排队中被 {@code flushSync} 抢先写下的旧快照」。
-     */
-    public void flushSync() {
-        if (!dirty.get() || file == null) {
-            return;
-        }
-        long capturedGeneration = generation.get();
-        writeSnapshot(new HashMap<>(cache), file, capturedGeneration, true);
-    }
-
-    /**
-     * 真正写盘：序列化 + {@link JsonIO#writeObject}（原子写）。任何异常只记日志。
-     *
-     * <p><b>过期写入直接丢弃</b>：如果这一份快照的代际比已经落盘的还旧，说明磁盘上已经是更新的
-     * 内容（典型场景：{@code flushSync} 抢在排队的异步任务之前写完了），写下去只会回滚。
-     *
-     * @param snapshot          写盘用的快照（普通 HashMap，已脱离并发容器）
-     * @param target            目标文件
-     * @param capturedGeneration 快照对应的写代际；写完代际没变才清脏标志
-     * @param sync              {@code true} 表示调用方就在主线程（停服），日志按同步路径打
-     */
-    private void writeSnapshot(Map<UUID, VillagerTradeInfo> snapshot, Path target,
-                               long capturedGeneration, boolean sync) {
-        // 快速路径：明显过期的不去抢锁
-        if (capturedGeneration < lastWrittenGeneration.get()) {
-            log.debug("跳过过期的村民交易索引入队写入（代际 {} < 已落盘 {}）",
-                    capturedGeneration, lastWrittenGeneration.get());
-            return;
-        }
-        writeLock.lock();
-        try {
-            // 等锁期间可能已经有更新的一份写完，进锁后再判一次
-            long written = lastWrittenGeneration.get();
-            if (capturedGeneration < written) {
-                log.debug("跳过过期的村民交易索引写入（代际 {} < 已落盘 {}）",
-                        capturedGeneration, written);
-                return;
-            }
-            JsonObject root = toJson(snapshot);
-            JsonIO.writeObject(target, root);
-            // 先记代际再清脏：两者都基于同一个 capturedGeneration，顺序不影响正确性
-            lastWrittenGeneration.accumulateAndGet(capturedGeneration, Math::max);
-
-            if (generation.get() == capturedGeneration) {
-                markClean();
-            }
-            log.debug("村民交易索引已落盘（{}）：{} 只村民，{}",
-                    sync ? "同步" : "异步", snapshot.size(), target);
-        } catch (Exception e) {
-            // 写失败不清脏标志：下一轮定时任务会重试
-            log.error("写入村民交易索引失败：{}", target, e);
-        } finally {
-            writeLock.unlock();
-        }
-    }
-
-    private static JsonObject toJson(Map<UUID, VillagerTradeInfo> snapshot) {
-        JsonObject root = new JsonObject();
-        root.addProperty("format", FORMAT_VERSION);
-        root.addProperty("savedAt", System.currentTimeMillis());
-
-        JsonArray villagers = new JsonArray();
-        // 顺序固定（UUID 排序），同一个存档每次写出来的文件内容 / diff 都是稳定的
-        snapshot.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .forEach(entry -> villagers.add(villagerToJson(entry.getValue())));
-        root.add("villagers", villagers);
-        return root;
     }
 
     private static JsonObject villagerToJson(VillagerTradeInfo info) {
@@ -476,12 +249,6 @@ public final class VillagerTradeStorage {
         return object;
     }
 
-    /**
-     * 一笔交易 → JSON：<b>只写纯数据</b>（id / 数量 / 可交易次数 / 附魔）。
-     *
-     * <p>没有第二样价格时不写 {@code price2*}；没有附魔时不写 {@code enchantments} ——
-     * 文件比旧版小一大截，而展示文本一个字节都不落盘。
-     */
     private static JsonObject offerToJson(TradeItemInfo offer) {
         JsonObject item = new JsonObject();
         item.addProperty("result", offer.resultItemId());
@@ -506,14 +273,5 @@ public final class VillagerTradeStorage {
             item.add("enchantments", enchantments);
         }
         return item;
-    }
-
-    /**
-     * 只清内存（停服 / 关规则后在 {@code clearSession} 里调）。磁盘上的文件<b>保留</b>，
-     * 下次启动由 {@link #load(MinecraftServer)} 读回来。
-     */
-    public void clearMemory() {
-        cache.clear();
-        markClean();
     }
 }

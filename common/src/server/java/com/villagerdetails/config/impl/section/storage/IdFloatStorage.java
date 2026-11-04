@@ -117,6 +117,6 @@ public final class IdFloatStorage {
         JsonObject sec = new JsonObject();
         values.forEach((id, v) -> sec.addProperty(id.toString(), v));
         UnifiedConfigFile.setSection(section, sec);
-        UnifiedConfigFile.markDirty();
+        UnifiedConfigFile.INSTANCE.markDirty();
     }
 }

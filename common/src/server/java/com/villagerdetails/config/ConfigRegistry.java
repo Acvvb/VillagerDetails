@@ -132,7 +132,7 @@ public final class ConfigRegistry {
         //   迁移的第一步（loadForMigration）就会无条件重读磁盘并整份覆盖内存 root；
         //   此时如果还有「改完但没到 tick 末尾」的改动，它既不在盘上、又会被覆盖掉，
         //   随后 reloadFromDisk 的 flush 还会把这份旧内容写回文件 —— 内存和磁盘一起丢。
-        UnifiedConfigFile.flushAndAwait(server, RELOAD_FLUSH_AWAIT_MS);
+        UnifiedConfigFile.INSTANCE.flushAndAwait(server, RELOAD_FLUSH_AWAIT_MS);
 
         // 与 reloadAll 同一套保证：先迁移，再从磁盘读
         MigrationManager.migrateIfNeeded(server);

@@ -43,7 +43,7 @@ public class ServerStoppingListener implements ServerLifecycleEvents.ServerStopp
     public void onServerStopping(net.minecraft.server.@NonNull MinecraftServer server) {
         // 兜底 1：把统一配置里还没落盘的改动序列化入队（正常路径上 pre-shutdown 钩子已经做过一次）
         // 必须在 reset() 之前 —— reset() 会把静态 server 置空，之后就找不到存档路径了。
-        UnifiedConfigFile.flush();
+        UnifiedConfigFile.INSTANCE.flush();
         // 兜底 2：规则状态（RuleConfig 是「停机时才刷盘」的）
         RuleConfig.onServerStopping(server);
         // 兜底 3：把上面可能入队的内容真正写到磁盘。正常路径上此时队列已空，是空操作。

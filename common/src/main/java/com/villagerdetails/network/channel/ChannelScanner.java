@@ -1,6 +1,6 @@
 package com.villagerdetails.network.channel;
 
-import com.villagerdetails.util.ScanService;
+import com.villagerdetails.util.scan.ScanService;
 import org.apache.logging.log4j.Logger;
 
 import java.lang.reflect.Constructor;

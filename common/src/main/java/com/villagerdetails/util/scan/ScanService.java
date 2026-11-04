@@ -1,4 +1,4 @@
-package com.villagerdetails.util;
+package com.villagerdetails.util.scan;
 
 import com.villagerdetails.VillagerDetails;
 import net.fabricmc.api.EnvType;

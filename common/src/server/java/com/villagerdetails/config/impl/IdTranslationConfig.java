@@ -3,9 +3,10 @@ package com.villagerdetails.config.impl;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.villagerdetails.config.ReloadableConfig;
+import com.villagerdetails.config.impl.data.VillagerTradeItemRegistry;
 import com.villagerdetails.config.impl.util.ConfigPaths;
-import com.villagerdetails.util.io.AsyncConfigManager;
-import com.villagerdetails.util.io.JsonIO;
+import com.villagerdetails.util.io.AbstractAsyncConfig;
+import com.villagerdetails.util.json.JsonIO;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
@@ -16,34 +17,27 @@ import java.nio.file.Path;
 import java.util.*;
 
 /**
- * 名字 ↔ 原始 id 的映射表（命名牌上写什么名字，等价于哪个 id）。
+ * 名字 ↔ 原始 id 的映射表。
  *
- * <p>文件是一整个平铺对象：<b>key = 原始 id，value = 这个名字的全部叫法（列表）</b>，
- * 一个 id 可以有多个叫法（别名）：
- * <pre>
- * {
- *   "sharpness": ["锋利", "锐利"],
- *   "white_terracotta": ["白色陶瓦"]
- * }
- * </pre>
+ * <p>直接继承 {@link AbstractAsyncConfig}，写盘逻辑（脏标记、防抖、异步单写者）
+ * 全部由底层接管。本类只维护内存数据和解析逻辑。
  *
- * <p>和早期版本的两点区别：以前是「中文名当 key、英文 id 当 value」，而且分成 enchant / item 两组。
- * 现在 key 换成原始 id（不带命名空间时按 {@code minecraft:} 处理，也支持 {@code 其他命名空间:id}），
- * 分组也不需要了 —— 解析出来的就是 id，是附魔还是物品由游戏注册表判断
- * （见 {@code AutoVillagerTrader}）。
- *
- * <p><b>一个名字只能指向一个 id</b>：加载时如果发现同一个名字挂在多个 id 下面，
- * 这个名字<b>整体作废</b>（从所有列表里抹掉）并把文件重写一遍，同时打日志点名 ——
- * 免得手写时写重了，出现"同一个名字解析到哪个 id 看运气"。
+ * <p>所有默认物品、方块、附魔的映射，统一来源于 {@link VillagerTradeItemRegistry}。
  */
-public final class IdTranslationConfig implements ReloadableConfig {
+public final class IdTranslationConfig extends AbstractAsyncConfig implements ReloadableConfig {
 
-    private IdTranslationConfig() {
-    }
+    public static final IdTranslationConfig INSTANCE = new IdTranslationConfig();
 
     private static final Logger log = LogManager.getLogger(IdTranslationConfig.class);
 
-    public static final IdTranslationConfig INSTANCE = new IdTranslationConfig();
+    private static final String SAVE_RELATIVE_PATH = "villagerdetails/trade_index.json";
+
+    private volatile Path file;
+
+    private volatile Map<String, List<String>> rawIndex = DEFAULT_INDEX;
+
+    private IdTranslationConfig() {
+    }
 
     @Override
     public String configName() {
@@ -55,296 +49,48 @@ public final class IdTranslationConfig implements ReloadableConfig {
         loadFromWorld(server);
     }
 
+    @Override
+    protected Path getFilePath() {
+        return file;
+    }
+
+    @Override
+    protected Object getDataToSave() {
+        return rawIndex;
+    }
+
     /**
-     * 存档内相对路径
+     * 记录要写的数据并标脏。
      */
-    private static final String SAVE_RELATIVE_PATH = "villagerdetails/trade_index.json";
+    private void scheduleWrite(Path file, Map<String, List<String>> index) {
+        this.file = file;
+        this.rawIndex = index;
+        markDirty();
+    }
 
     // ==============================================================
-    // 默认表（id → 叫法）
+    // 数据源（由 VillagerTradeItemRegistry 提供）
     // ==============================================================
 
-    private static final Map<String, List<String>> DEFAULT_INDEX = defaultIndex();
+    private static final Map<String, List<String>> DEFAULT_INDEX = VillagerTradeItemRegistry.getDefaultIndex();
 
-    /**
-     * 常见交易物品的中文叫法兜底：<b>id（不带命名空间）→ 中文</b>。
-     *
-     * <p><b>注意它的角色已经变了</b>：交易索引现在只存 id，展示走客户端的
-     * {@code Component.translatable("item.<ns>.<path>")}，所以<b>展示不再需要这张表</b>。
-     * 它只剩三个用途：
-     * <ul>
-     *     <li>服务端搜索的<b>中文兜底</b>（{@code VillagerTradeCache.search}：服务端只有
-     *         {@code en_us}，没有中文名就搜不到「石头」「书架」）；</li>
-     *     <li>Tab 补全（{@link #searchableNames}）；</li>
-     *     <li>中文叫法 → id 的解析（{@link #resolveId}），给别的命令当 id 别名用。</li>
-     * </ul>
-     *
-     * <p>三个承诺：
-     * <ul>
-     *     <li><b>不写盘</b>：{@code trade_index.json} 的内容永远只由玩家 / 默认表决定，
-     *         这份兜底不会把文件撑大，也不会在重载后「凭空多出条目」；</li>
-     *     <li><b>文件优先</b>：玩家在文件里给同一个 id 配了自己的叫法，以文件为准；</li>
-     *     <li><b>只放村民交易里高频出现的物品</b>（付款物 / 矿石材料 / 食物 / 常见成品 /
-     *         带釉陶瓦）。不追求覆盖全游戏 —— 只补「交易查询里经常被搜到」的那一批，
-     *         既不值得、也没必要把上万条原版翻译搬进来。</li>
-     * </ul>
-     *
-     * <p><b>声明顺序有讲究</b>：下面 {@link #nameToId} / {@link #searchableNames} 的静态初始化
-     * 会读这两个表，所以它们必须声明在前面（Java 静态字段按声明顺序初始化）。
-     */
-    private static final Map<String, String> BUILTIN_ID_TO_NAME = builtinItemAliases();
-
-    /**
-     * {@link #BUILTIN_ID_TO_NAME} 的反查：中文叫法 → id（{@link #resolveId} 用）。
-     */
-    private static final Map<String, String> BUILTIN_NAME_TO_ID = reverseBuiltin(BUILTIN_ID_TO_NAME);
-
-    /**
-     * 反查表：叫法 → id。加载 / 重置后整体替换，读的时候拿到的永远是完整的一份。
-     */
     private static volatile Map<String, String> nameToId = reverse(DEFAULT_INDEX);
-
-    /**
-     * 正查表：id → 第一个叫法（用作展示名，例如 {@code mending → 经验修补}）。
-     *
-     * <p>{@link #nameToId} 是「多对一」（一个 id 可以有多个叫法），没法反向取；
-     * 村民交易查询需要按 id 找展示名，所以单独维护一份。和 {@code nameToId} 同源、同时整体替换。
-     */
     private static volatile Map<String, String> idToName = firstNames(DEFAULT_INDEX);
-
-    /**
-     * Tab 补全用的「可搜索名字」全集：英文 id + 全部中文 / 别名叫法，和上面两张表同源、同时整体替换。
-     *
-     * <p>为什么单独存一份而不是每次补全都现拼：按 Tab 是高频操作，而这份表只在
-     * 加载 / 重载 / 重置交易索引时变一次（{@link #applyIndex}）。
-     *
-     * <p>顺序固定（先全部 id、再全部叫法，各自按文件里的顺序），所以同一个前缀的补全顺序
-     * 每次按 Tab 都一样，不会跳来跳去。
-     */
     private static volatile Set<String> searchableNames = collectSearchableNames(idToName, nameToId);
 
-    private static Map<String, List<String>> defaultIndex() {
-        Map<String, List<String>> map = new LinkedHashMap<>();
-
-        // 保护类
-        put(map, "protection", "保护");
-        put(map, "fire_protection", "火焰保护");
-        put(map, "feather_falling", "摔落保护");
-        put(map, "blast_protection", "爆炸保护");
-        put(map, "projectile_protection", "弹射物保护");
-        put(map, "respiration", "水下呼吸");
-        put(map, "aqua_affinity", "水下速掘");
-        put(map, "thorns", "荆棘");
-        put(map, "depth_strider", "深海探索者");
-        put(map, "frost_walker", "冰霜行者");
-        put(map, "binding_curse", "绑定诅咒");
-        put(map, "soul_speed", "灵魂疾行");
-        put(map, "swift_sneak", "迅捷潜行");
-
-        // 武器类
-        put(map, "sharpness", "锋利");
-        put(map, "smite", "亡灵杀手");
-        put(map, "bane_of_arthropods", "节肢杀手");
-        put(map, "knockback", "击退");
-        put(map, "fire_aspect", "火焰附加");
-        put(map, "looting", "抢夺");
-        put(map, "sweeping_edge", "横扫之刃");
-
-        // 工具类
-        put(map, "efficiency", "效率");
-        put(map, "silk_touch", "精准采集");
-        put(map, "unbreaking", "耐久");
-        put(map, "fortune", "时运");
-
-        // 弓类
-        put(map, "power", "力量");
-        put(map, "punch", "冲击");
-        put(map, "flame", "火矢");
-        put(map, "infinity", "无限");
-
-        // 钓鱼竿
-        put(map, "luck_of_the_sea", "海之眷顾");
-        put(map, "lure", "饵钓");
-
-        // 三叉戟
-        put(map, "loyalty", "忠诚");
-        put(map, "impaling", "穿刺");
-        put(map, "riptide", "激流");
-        put(map, "channeling", "引雷");
-
-        // 弩
-        put(map, "multishot", "多重射击");
-        put(map, "quick_charge", "快速装填");
-        put(map, "piercing", "穿透");
-
-        // 重锤专属
-        put(map, "density", "致密");
-        put(map, "breach", "破甲");
-        put(map, "wind_burst", "风爆");
-
-        // 长矛专属
-        put(map, "lunge", "突进");
-
-        // 通用
-        put(map, "mending", "经验修补");
-        put(map, "vanishing_curse", "消失诅咒");
-
-        // 陶瓦
-        put(map, "white_terracotta", "白色陶瓦");
-        put(map, "orange_terracotta", "橙色陶瓦");
-        put(map, "magenta_terracotta", "品红色陶瓦");
-        put(map, "light_blue_terracotta", "淡蓝色陶瓦");
-        put(map, "yellow_terracotta", "黄色陶瓦");
-        put(map, "lime_terracotta", "黄绿色陶瓦");
-        put(map, "pink_terracotta", "粉红色陶瓦");
-        put(map, "gray_terracotta", "灰色陶瓦");
-        put(map, "light_gray_terracotta", "淡灰色陶瓦");
-        put(map, "cyan_terracotta", "青色陶瓦");
-        put(map, "purple_terracotta", "紫色陶瓦");
-        put(map, "blue_terracotta", "蓝色陶瓦");
-        put(map, "brown_terracotta", "棕色陶瓦");
-        put(map, "green_terracotta", "绿色陶瓦");
-        put(map, "red_terracotta", "红色陶瓦");
-        put(map, "black_terracotta", "黑色陶瓦");
-
-        return Collections.unmodifiableMap(map);
-    }
-
-    private static void put(Map<String, List<String>> map, String id, String... names) {
-        map.put(id, List.of(names));
-    }
-
     // ==============================================================
-    // 内置物品叫法兜底（不写进 trade_index.json）
+    // 加载
     // ==============================================================
 
-    private static Map<String, String> builtinItemAliases() {
-        Map<String, String> map = new LinkedHashMap<>();
-
-        // ---- 付款物 / 通用交易物（几乎所有村民都用这几样付钱）----
-        map.put("emerald", "绿宝石");
-        map.put("book", "书");
-        map.put("paper", "纸");
-        map.put("clay_ball", "黏土球");
-        map.put("brick", "红砖");
-        map.put("nether_brick", "下界砖");
-        map.put("quartz", "下界石英");
-        map.put("enchanted_book", "附魔书");
-
-        // ---- 矿石 / 材料（村民大量收购，也是交易界里的「价格物品」）----
-        map.put("stone", "石头");
-        map.put("andesite", "安山岩");
-        map.put("diorite", "闪长岩");
-        map.put("granite", "花岗岩");
-        map.put("coal", "煤炭");
-        map.put("charcoal", "木炭");
-        map.put("iron_ingot", "铁锭");
-        map.put("gold_ingot", "金锭");
-        map.put("diamond", "钻石");
-        map.put("lapis_lazuli", "青金石");
-        map.put("redstone", "红石");
-        map.put("string", "线");
-        map.put("leather", "皮革");
-        map.put("flint", "燧石");
-        map.put("glowstone", "荧石");
-        map.put("ender_pearl", "末影珍珠");
-        map.put("experience_bottle", "附魔之瓶");
-        map.put("rotten_flesh", "腐肉");
-        map.put("rabbit_foot", "兔子脚");
-        map.put("pumpkin", "南瓜");
-        map.put("wheat", "小麦");
-        map.put("wheat_seeds", "小麦种子");
-        map.put("potato", "马铃薯");
-        map.put("carrot", "胡萝卜");
-        map.put("beetroot", "甜菜根");
-
-        // ---- 食物（农民 / 屠夫出售）----
-        map.put("bread", "面包");
-        map.put("cake", "蛋糕");
-        map.put("cookie", "曲奇");
-        map.put("pumpkin_pie", "南瓜派");
-        map.put("apple", "苹果");
-        map.put("cooked_porkchop", "熟猪排");
-        map.put("cooked_chicken", "熟鸡肉");
-
-        // ---- 常见成品（图书管理员 / 制图师 / 牧羊人 / 盔甲匠出售）----
-        map.put("bookshelf", "书架");
-        map.put("painting", "画");
-        map.put("name_tag", "命名牌");
-        map.put("saddle", "鞍");
-        map.put("bell", "钟");
-        map.put("glass", "玻璃");
-        map.put("glass_pane", "玻璃板");
-        map.put("lantern", "灯笼");
-        map.put("candle", "蜡烛");
-        map.put("clock", "时钟");
-        map.put("compass", "指南针");
-        map.put("ink_sac", "墨囊");
-        map.put("arrow", "箭");
-        map.put("leather_helmet", "皮革帽子");
-        map.put("leather_chestplate", "皮革外套");
-        map.put("leather_leggings", "皮革裤子");
-        map.put("leather_boots", "皮革靴子");
-        map.put("iron_helmet", "铁头盔");
-        map.put("iron_chestplate", "铁胸甲");
-        map.put("iron_leggings", "铁护腿");
-        map.put("iron_boots", "铁靴子");
-
-        // ---- 带釉陶瓦（陶瓦刷新规则产出的那一族，和默认表里的素陶瓦配套）----
-        map.put("white_glazed_terracotta", "白色带釉陶瓦");
-        map.put("orange_glazed_terracotta", "橙色带釉陶瓦");
-        map.put("magenta_glazed_terracotta", "品红色带釉陶瓦");
-        map.put("light_blue_glazed_terracotta", "淡蓝色带釉陶瓦");
-        map.put("yellow_glazed_terracotta", "黄色带釉陶瓦");
-        map.put("lime_glazed_terracotta", "黄绿色带釉陶瓦");
-        map.put("pink_glazed_terracotta", "粉红色带釉陶瓦");
-        map.put("gray_glazed_terracotta", "灰色带釉陶瓦");
-        map.put("light_gray_glazed_terracotta", "淡灰色带釉陶瓦");
-        map.put("cyan_glazed_terracotta", "青色带釉陶瓦");
-        map.put("purple_glazed_terracotta", "紫色带釉陶瓦");
-        map.put("blue_glazed_terracotta", "蓝色带釉陶瓦");
-        map.put("brown_glazed_terracotta", "棕色带釉陶瓦");
-        map.put("green_glazed_terracotta", "绿色带釉陶瓦");
-        map.put("red_glazed_terracotta", "红色带釉陶瓦");
-        map.put("black_glazed_terracotta", "黑色带釉陶瓦");
-
-        return Collections.unmodifiableMap(map);
-    }
-
-    private static Map<String, String> reverseBuiltin(Map<String, String> idToName) {
-        Map<String, String> reversed = new LinkedHashMap<>();
-        idToName.forEach((id, name) -> reversed.putIfAbsent(name, id));
-        return Collections.unmodifiableMap(reversed);
-    }
-
-    /**
-     * 内置兜底叫法（{@code id → 中文}）；只读，给搜索兜底 / Tab 补全用。
-     */
-    public static Map<String, String> builtinItemAliasesView() {
-        return BUILTIN_ID_TO_NAME;
-    }
-
-    // ==============================================================
-    // 加载 / 写盘
-    // ==============================================================
-
-    /**
-     * 服务器启动 / 重载时调用：从存档加载；文件不存在就按默认表生成一份。
-     */
     public static void loadFromWorld(MinecraftServer server) {
-        loadFrom(getConfigPath(server));
+        loadFrom(ConfigPaths.world(server, SAVE_RELATIVE_PATH));
     }
 
-    /**
-     * 从指定文件加载。
-     *
-     * <p>文件存在时<b>整份替换</b>默认表（不做逐项合并）；读失败 / 结构不对则回落到默认表。
-     */
     public static void loadFrom(Path file) {
         if (!Files.exists(file)) {
-            write(file, DEFAULT_INDEX);
+            INSTANCE.scheduleWrite(file, DEFAULT_INDEX);
             applyIndex(DEFAULT_INDEX);
-            log.info("已生成默认交易索引：{}", file);
+            log.info("已生成默认交易索引（异步落盘中）：{}", file);
             return;
         }
 
@@ -359,26 +105,15 @@ public final class IdTranslationConfig implements ReloadableConfig {
 
         Cleaned cleaned = dropAmbiguousNames(parsed);
         if (!cleaned.index().equals(parsed)) {
-            // 重名项（或写得不规范的地方）已经抹掉了：立刻把清理后的结果写回去
             log.warn("交易索引里有 {} 个名字同时挂在多个 id 上，已整体作废并从文件里抹除：{}",
                     cleaned.dropped().size(), cleaned.dropped());
-            write(file, cleaned.index());
+            INSTANCE.scheduleWrite(file, cleaned.index());
         }
 
         applyIndex(cleaned.index());
         log.info("已加载交易索引：{} 个交易条目", nameToId.size());
     }
 
-    private static Path getConfigPath(MinecraftServer server) {
-        return ConfigPaths.world(server, SAVE_RELATIVE_PATH);
-    }
-
-    /**
-     * 把文件内容读成「id → 叫法」。
-     *
-     * <p>value 必须是字符串数组；写单个字符串也收（等价于只有一个叫法的列表）。
-     * 空叫法、非字符串元素会被跳过 —— 跳过了就说明和文件不一致，外层会重写一遍。
-     */
     private static Map<String, List<String>> parse(JsonObject root) {
         Map<String, List<String>> parsed = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
@@ -411,9 +146,6 @@ public final class IdTranslationConfig implements ReloadableConfig {
         }
     }
 
-    /**
-     * 抹掉「一个名字挂在多个 id 上」的名字（比较时忽略大小写），顺带丢掉被抹空的 id。
-     */
     private static Cleaned dropAmbiguousNames(Map<String, List<String>> parsed) {
         Map<String, Integer> counts = new HashMap<>();
         for (List<String> names : parsed.values()) {
@@ -433,7 +165,6 @@ public final class IdTranslationConfig implements ReloadableConfig {
                     kept.add(name);
                 }
             }
-            // 叫法被抹光的 id 没必要留在文件里
             if (!kept.isEmpty()) {
                 index.put(entry.getKey(), List.copyOf(kept));
             }
@@ -441,23 +172,16 @@ public final class IdTranslationConfig implements ReloadableConfig {
         return new Cleaned(index, dropped);
     }
 
-    /**
-     * 展开成反查表：叫法 → id
-     */
     private static Map<String, String> reverse(Map<String, List<String>> index) {
         Map<String, String> reversed = new LinkedHashMap<>();
         for (Map.Entry<String, List<String>> entry : index.entrySet()) {
             for (String name : entry.getValue()) {
-                // 加载时已经去过重，这里是默认表 / 兜底路径的保护
                 reversed.putIfAbsent(name, entry.getKey());
             }
         }
         return Collections.unmodifiableMap(reversed);
     }
 
-    /**
-     * 正查表：id → 第一个叫法。没有叫法的 id 不进来。
-     */
     private static Map<String, String> firstNames(Map<String, List<String>> index) {
         Map<String, String> names = new LinkedHashMap<>();
         for (Map.Entry<String, List<String>> entry : index.entrySet()) {
@@ -469,9 +193,6 @@ public final class IdTranslationConfig implements ReloadableConfig {
         return Collections.unmodifiableMap(names);
     }
 
-    /**
-     * 两张表一起替换，避免出现「反查表是新的、正查表还是旧的」的中间状态。
-     */
     private static void applyIndex(Map<String, List<String>> index) {
         Map<String, String> ids = reverse(index);
         Map<String, String> names = firstNames(index);
@@ -480,54 +201,17 @@ public final class IdTranslationConfig implements ReloadableConfig {
         searchableNames = collectSearchableNames(names, ids);
     }
 
-    /**
-     * 展开成「可搜索名字」全集：先全部英文 id，再全部中文 / 别名叫法，最后补上内置兜底。
-     *
-     * <p>给 {@code /ec c TradeSearch <关键词>} 的 Tab 补全用 —— 这个命令的关键词
-     * 既能写 id（{@code mending}）也能写叫法（{@code 经验修补}），两边都要能补全出来。
-     */
-    private static Set<String> collectSearchableNames(Map<String, String> idToName,
-                                                     Map<String, String> nameToId) {
-        Set<String> names = new LinkedHashSet<>(
-                idToName.size() + nameToId.size() + BUILTIN_ID_TO_NAME.size() * 2);
+    private static Set<String> collectSearchableNames(Map<String, String> idToName, Map<String, String> nameToId) {
+        Set<String> names = new LinkedHashSet<>(idToName.size() + nameToId.size());
         names.addAll(idToName.keySet());
         names.addAll(nameToId.keySet());
-        // 内置兜底也进补全（绿宝石 / 附魔书 这类价格物品，文件里通常没有）
-        names.addAll(BUILTIN_ID_TO_NAME.keySet());
-        names.addAll(BUILTIN_ID_TO_NAME.values());
         return Collections.unmodifiableSet(names);
     }
 
-    /**
-     * 交易索引里所有能用来搜索的名字：英文 id（{@code mending}、{@code white_terracotta}）
-     * 与中文 / 别名叫法（{@code 经验修补}、{@code 白色陶瓦}），外加内置的物品兜底叫法
-     * （{@code emerald} / {@code 绿宝石} 这类价格物品）。
-     *
-     * <p>返回的是<b>不可变快照</b>，可以放心在补全器里遍历；重载交易索引后会换成新的一份，
-     * 调用方每次都重新取，不要缓存。
-     */
     public static Set<String> getAllSearchableNames() {
         return searchableNames;
     }
 
-    /**
-     * 按「id → 叫法列表」写文件。
-     *
-     * <p><b>改成异步</b>：这些写入只发生在「首次生成默认索引」和「重名清理后重写」两类场景，
-     * 写完立刻由内存里的 {@code DEFAULT_INDEX} / 清理后的 {@code index} 接管，
-     * 没有任何一处需要「函数返回时文件已落地」的强一致语义。
-     * Gson 能直接序列化 {@code Map<String, List<String>>}，不用手拼 JsonObject。
-     */
-    private static void write(Path file, Map<String, List<String>> index) {
-        AsyncConfigManager.save(file, index);
-    }
-
-    /**
-     * 清理结果
-     *
-     * @param index   清理后的表
-     * @param dropped 被整体作废的重名叫法
-     */
     private record Cleaned(Map<String, List<String>> index, Set<String> dropped) {
     }
 
@@ -535,77 +219,47 @@ public final class IdTranslationConfig implements ReloadableConfig {
     // 解析入口
     // ==============================================================
 
-    /**
-     * 把玩家输入的名字转成 Identifier：先查名字表（中文 / 别名），再查内置兜底，最后当 id 直接解析。
-     *
-     * @return 解析不出来返回 {@code null}
-     */
     public static Identifier resolveId(String raw) {
         if (raw == null) return null;
 
         String trimmed = raw.replace('\u3000', ' ').trim();
         if (trimmed.isEmpty()) return null;
 
-        // 1) 名字表（trade_index.json）
+        // 直接从 nameToId 查（中文名或纯路径都能查到）
         String mapped = nameToId.get(trimmed);
         if (mapped != null) {
             Identifier id = parseId(mapped);
             if (id != null) return id;
         }
 
-        // 2) 内置兜底叫法（绿宝石 / 附魔书 这类文件里通常没有的物品名）
-        String builtin = BUILTIN_NAME_TO_ID.get(trimmed);
-        if (builtin != null) {
-            Identifier id = parseId(builtin);
-            if (id != null) return id;
-        }
-
-        // 3) 直接当 id 用（英文 / 带命名空间的 id）
+        // 直接当 id 用
         return parseId(trimmed);
     }
 
-    /**
-     * 取某个 id 的展示叫法（第一个别名），没有配置返回 {@code null}。
-     *
-     * <p>给「村民交易查询」这类<b>只读展示</b>用：玩家在 {@code trade_index.json} 里给
-     * {@code mending} 配了「经验修补」，这里就返回「经验修补」；文件里没有时再看内置兜底
-     * （{@code emerald → 绿宝石}），都没有就返回 {@code null}，调用方再退回原版语言表 / 注册 id。
-     *
-     * <p>文件中 key 通常不带命名空间（{@code mending}），而注册表里的 id 带命名空间
-     * （{@code minecraft:mending}），所以两者都查一遍。
-     */
     public static String displayNameOf(Identifier id) {
         if (id == null) {
             return null;
         }
+
+        // 1. 尝试直接查完整 ID（如 minecraft:book）
         String direct = idToName.get(id.toString());
         if (direct != null) {
             return direct;
         }
+
+        // 2. 如果不是原版命名空间，且上面没查到，直接返回 null
         if (!"minecraft".equals(id.getNamespace())) {
             return null;
         }
-        String path = id.getPath();
-        String fromFile = idToName.get(path);
-        if (fromFile != null) {
-            return fromFile;
-        }
-        // 文件优先，内置兜底只补文件里没有的（价格物品）
-        return BUILTIN_ID_TO_NAME.get(path);
+
+        // 3. 尝试查纯路径（如附魔、附魔书的 mending / enchanted_book）
+        return idToName.get(id.getPath());
     }
 
-    /**
-     * 文本形态的 id 重载（{@code minecraft:mending} 或 {@code mending}）。
-     *
-     * @return 解析不出来或没有叫法时返回 {@code null}
-     */
     public static String displayNameOf(String idText) {
         return displayNameOf(parseId(idText));
     }
 
-    /**
-     * 解析 id 文本：带命名空间按原样，不带就补 {@code minecraft:}
-     */
     private static Identifier parseId(String raw) {
         String text = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
         if (text.isEmpty()) return null;

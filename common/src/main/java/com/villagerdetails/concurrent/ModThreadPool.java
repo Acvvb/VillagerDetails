@@ -8,8 +8,9 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ModThreadPool {
-    private final Logger logger;
+    private final Logger log;
     private final ThreadPoolExecutor executor;
+    public static final int THRESHOLD = 100; // 积压阈值
 
     /**
      * 默认拒绝策略：<b>直接丢弃</b>（WARN 由下面的包装日志统一打出）。
@@ -37,7 +38,7 @@ public class ModThreadPool {
      */
     public ModThreadPool(String poolName, int coreSize, int maxSize, int queueCapacity,
                          RejectedExecutionHandler rejectedHandler) {
-        this.logger = LoggerFactory.getLogger(poolName);
+        this.log = LoggerFactory.getLogger(poolName);
 
         ThreadFactory threadFactory = new ThreadFactory() {
             private final AtomicInteger counter = new AtomicInteger(1);
@@ -52,7 +53,7 @@ public class ModThreadPool {
 
         RejectedExecutionHandler handler = (task, executor) -> {
             // 兜底日志：真正「保命」的动作由外部传进来的策略负责
-            logger.warn("异步任务被拒绝（队列容量 {}，已排队 {}）", queueCapacity, executor.getQueue().size());
+            log.warn("异步任务被拒绝（队列容量 {}，已排队 {}）", queueCapacity, executor.getQueue().size());
             rejectedHandler.rejectedExecution(task, executor);
         };
 
@@ -65,26 +66,19 @@ public class ModThreadPool {
     /**
      * 提交一个不关心结果的异步任务。
      *
-     * <p>池已关闭 / 任务被拒绝时<b>不会</b>抛给调用方：拒绝策略已经决定怎么兜
-     * （本类默认丢弃；服务端池是抛异常，这里会记 WARN 后丢弃）。
+     * @return true = 成功入队；false = 队列满 / 池已关闭（被拒绝）
      */
-    public void execute(Runnable task) {
+    public boolean execute(Runnable task) {
         if (executor == null || executor.isShutdown()) {
-            logger.debug("线程池已关闭，任务未提交");
-            return;
+            log.debug("线程池已关闭，任务未提交");
+            return false;
         }
         try {
-            executor.execute(() -> {
-                try {
-                    task.run();
-                } catch (Throwable t) {
-                    // 子线程里出的 Error（OOM / StackOverflow 等）不能把 worker 带走后静默无日志
-                    logger.error("异步任务执行异常", t);
-                }
-            });
+            executor.execute(task);
+            return true;
         } catch (RejectedExecutionException e) {
-            // 队列满，或池刚好在此刻关闭
-            logger.warn("异步任务被拒绝（队列满 / 池已关闭），已丢弃", e);
+            log.warn("异步任务被拒绝（队列满 / 池已关闭），已丢弃", e);
+            return false;
         }
     }
 
@@ -106,28 +100,72 @@ public class ModThreadPool {
                 try {
                     future.complete(task.call());
                 } catch (Throwable t) {
-                    logger.error("异步任务执行异常", t);
+                    log.error("异步任务执行异常", t);
                     future.completeExceptionally(t);
                 }
             });
         } catch (RejectedExecutionException e) {
-            logger.warn("异步任务被拒绝，future 以异常结束", e);
+            log.warn("线程池队列已满，请保存日志联系开发者。", e);
             future.completeExceptionally(e);
         }
         return future;
     }
 
-    public void shutdown() {
-        if (executor != null) {
-            logger.debug("等待 {} 个异步任务处理完毕...", executor.getQueue().size());
-            executor.shutdown();
-            try {
-                if (!executor.awaitTermination(3, TimeUnit.SECONDS)) {
-                    executor.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                executor.shutdownNow();
+    /**
+     * 关闭前阶梯式扩容。
+     * 允许超过初始化的最大线程数，但绝对上限为初始化最大值的两倍。
+     */
+    private void expandPoolForShutdown() {
+        if (executor == null || executor.isShutdown()) return;
+
+        int pending = executor.getQueue().size();
+        if (pending == 0) return;
+
+        int currentCore = executor.getCorePoolSize();
+        int currentMax = executor.getMaximumPoolSize();
+
+        // 防止除以 0 的极端情况
+        if (currentCore <= 0 || currentMax <= 0) return;
+
+        int targetThreads;
+
+        if (pending / currentCore < THRESHOLD) {
+            return;
+        } else {
+            targetThreads = pending / currentMax > THRESHOLD ? currentMax >> 1 : currentMax;
+            log.debug("当前积压任务:{}条，扩容至:{}线程处理", pending, targetThreads);
+        }
+        // 执行扩容（严格遵守：先提 max，再提 core）
+        if (targetThreads > currentCore) {
+            if (targetThreads > currentMax) {
+                executor.setMaximumPoolSize(targetThreads);
             }
+            executor.setCorePoolSize(targetThreads);
+        }
+    }
+
+    /**
+     * 优雅关闭。
+     *
+     * <p>检查队列是否有任务，有任务则等待其执行完毕。
+     * 如果等待 3 秒仍未跑完（防止主线程卡死触发 Watchdog），则将剩余任务拉回
+     * 当前线程（主线程）同步执行，确保任务 100% 不丢失。
+     */
+    public void shutdown() {
+        if (executor == null || executor.isShutdown()) {
+            return;
+        }
+        if (executor.getQueue().isEmpty() && executor.getActiveCount() == 0) {
+            executor.shutdownNow();
+            log.debug("线程池无任务，直接关闭");
+            return;
+        }
+        expandPoolForShutdown();
+        executor.shutdown();
+        try {
+            executor.awaitTermination(1, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

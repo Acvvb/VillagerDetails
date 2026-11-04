@@ -29,6 +29,6 @@ public final class ConfigFlushManager implements ServerEventRegisterServer {
 
     @Override
     public void register() {
-        ServerTickEvents.END_SERVER_TICK.register(_ -> UnifiedConfigFile.flush());
+        ServerTickEvents.END_SERVER_TICK.register(_ -> UnifiedConfigFile.INSTANCE.flush());
     }
 }

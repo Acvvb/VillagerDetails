@@ -1,7 +1,7 @@
 package com.villagerdetails.config.migration;
 
 import com.villagerdetails.config.impl.UnifiedConfigFile;
-import com.villagerdetails.util.ModVersion;
+import com.villagerdetails.util.version.ModVersion;
 import net.fabricmc.loader.api.Version;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
@@ -180,7 +180,7 @@ public final class MigrationManager {
                 stored, LEGACY_RESET_BELOW);
         UnifiedConfigFile.clearAllSections();
         UnifiedConfigFile.setConfigVersion(CURRENT_CONFIG_VERSION);
-        UnifiedConfigFile.markDirty();
+        UnifiedConfigFile.INSTANCE.markDirty();
     }
 
     /**
@@ -205,11 +205,11 @@ public final class MigrationManager {
             // 每步之后立刻推进内存里的版本号：中途抛异常时下次从这里继续，已完成的步骤不会重跑
             // （真正的写盘在 tick 末尾合并成一次，见类注释「落盘时机」）
             UnifiedConfigFile.setConfigVersion(migration.targetVersion());
-            UnifiedConfigFile.markDirty();
+            UnifiedConfigFile.INSTANCE.markDirty();
         }
 
         UnifiedConfigFile.setConfigVersion(CURRENT_CONFIG_VERSION);
-        UnifiedConfigFile.markDirty();
+        UnifiedConfigFile.INSTANCE.markDirty();
         log.info("配置迁移完成：{} → {}", fromVersion, CURRENT_CONFIG_VERSION);
     }
 
@@ -221,7 +221,7 @@ public final class MigrationManager {
             return;
         }
         UnifiedConfigFile.setConfigVersion(version);
-        UnifiedConfigFile.markDirty();
+        UnifiedConfigFile.INSTANCE.markDirty();
         log.info("{}：{} → {}", reason, stored == null ? "<无>" : stored, version);
     }
 

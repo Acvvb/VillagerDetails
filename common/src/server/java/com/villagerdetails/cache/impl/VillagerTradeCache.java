@@ -461,7 +461,7 @@ public final class VillagerTradeCache implements SessionState {
 
         // 会话结束：内存里可能还有「没赶上定时任务」的改动，先同步写一次再清
         try {
-            VillagerTradeStorage.INSTANCE.flushSync();
+            VillagerTradeStorage.INSTANCE.flush();
         } catch (Throwable t) {
             // 保留内存数据：清掉就真的没了（磁盘上那份可能还是上一次的旧内容）
             log.error("停服落盘村民交易索引失败：保留内存数据，本次不清理、不推进清理纪元", t);

@@ -19,7 +19,7 @@ import java.util.concurrent.RejectedExecutionHandler;
  *     <li>{@code SERVER_STARTED} → {@link #init()}：上一个世界停下时池子已经被关掉，
  *         新世界启动时重新建一个（重复调用是空操作）；</li>
  *     <li>{@code SERVER_STOPPING} → 安全关闭（<b>先跑 {@link #addPreShutdownHook} 登记过的收尾钩子，
- *         再</b>等待队列最多 3 秒，然后 {@code shutdownNow}），并把 {@link ModContext} 里的引用一起清掉，
+ *         再</b>等待队列最多 1 秒，然后超时强杀），并把 {@link ModContext} 里的引用一起清掉，
  *         避免静态字段攥着已停服的线程。</li>
  * </ul>
  *
@@ -42,13 +42,9 @@ public final class ServerThreadManager {
     /**
      * 队列容量。
      *
-     * <p>原来是 1000：配合 {@code LinkedBlockingQueue}，队列没满就永远不会超过核心线程数，
-     * 于是 {@code maxSize=4} 形同虚设、拒绝策略也几乎触发不到（真触发了就是静默丢任务）。
-     * 后来压到 64，池子才真的能在积压时从 2 扩到 4。
-     *
-     * <p>现在放到 <b>256</b>：64 在「密集型刷怪塔 / 村民牧场一次性卸载」的并发洪峰下太窄，
-     * 队列几毫秒就满，交易快照会被成批拒绝（只打 WARN 丢弃）。256 只是把水位抬高、
-     * 让洪峰被 worker 消化掉，<b>不是</b>放宽「不在调用线程执行」那条底线 ——
+     * <p>现在放到 <b>256</b>：在「密集型刷怪塔 / 村民牧场一次性卸载」的并发洪峰下，
+     * 256 足够让洪峰被 worker 消化掉，不会轻易打满。
+     * <b>不是</b>放宽「不在调用线程执行」那条底线 ——
      * 真被打满时依旧走 {@link #rejectWithWarn()}：抛给调用方兜底。
      */
     private static final int QUEUE_CAPACITY = 256;
@@ -100,8 +96,6 @@ public final class ServerThreadManager {
         if (serverPool != null && !serverPool.isShutdown()) {
             return;
         }
-
-        // 服务端池：核心 2，最大 4，队列 64，满了直接拒绝（绝不退回调用线程执行）
         serverPool = new ModThreadPool(POOL_NAME, CORE_SIZE, MAX_SIZE, QUEUE_CAPACITY, rejectWithWarn());
         ModContext.setServerPool(serverPool);
         hookLifecycle();
@@ -125,7 +119,7 @@ public final class ServerThreadManager {
      * 而丢掉的快照是可重建的缓存数据。
      */
     private static RejectedExecutionHandler rejectWithWarn() {
-        return (task, executor) -> {
+        return (_, executor) -> {
             log.warn("服务端异步队列已满（容量 {}，排队 {}），任务被拒绝（交由调用方兜底）",
                     QUEUE_CAPACITY, executor.getQueue().size());
             throw new RejectedExecutionException("服务端异步队列已满（容量 " + QUEUE_CAPACITY + "）");
@@ -146,8 +140,8 @@ public final class ServerThreadManager {
     /**
      * 停服：<b>先刷盘</b>（此时池子和存档都还在，任何异步写都还来得及跑完），再摘引用、再关池。
      *
-     * <p>{@code pool.shutdown()} 最多会等 3 秒，<b>不在类锁里等</b>：
-     * 否则这 3 秒内任何 {@link #init()} 调用都会被卡住，等锁释放后又把一个新池建起来。
+     * <p>{@code pool.shutdown()} 最多会等 1 秒，<b>不在类锁里等</b>：
+     * 否则这 1 秒内任何 {@link #init()} 调用都会被卡住，等锁释放后又把一个新池建起来。
      */
     private static void shutdown() {
         // 顺序关键：收尾钩子（配置刷盘）必须在池子还活着的时候跑
@@ -176,4 +170,34 @@ public final class ServerThreadManager {
             }
         }
     }
+    /**
+     * 提交一个异步任务。像调用普通 void 方法一样。
+     *
+     * @return true 表示成功交给线程池，false 表示被拒绝（业务方可根据此处理）
+     */
+    public static boolean execute(Runnable task) {
+        ModThreadPool pool = getPool();
+        if (pool == null) {
+            return false;
+        }
+        return pool.execute(task);
+    }
+
+    /**
+     * 提交一个异步任务，并提供拒绝后的回调。
+     */
+    public static void execute(Runnable task, Runnable onRejected) {
+        if (!execute(task)) {
+            onRejected.run();
+        }
+    }
+
+    private static ModThreadPool getPool() {
+        ModThreadPool pool = serverPool;
+        if (pool == null || pool.isShutdown()) {
+            return null;
+        }
+        return pool;
+    }
+
 }

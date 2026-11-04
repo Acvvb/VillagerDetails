@@ -498,7 +498,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         section.add(BINDINGS_KEY, toJsonArray());
         // 计数器一起写进 root：否则「删掉最大的号 → 重启」会让那个号被重新发出去
         section.addProperty(KEY_NEXT_ID, nextId);
-        UnifiedConfigFile.markDirty();
+        UnifiedConfigFile.INSTANCE.markDirty();
     }
 
     private JsonArray toJsonArray() {

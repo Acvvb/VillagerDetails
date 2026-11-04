@@ -113,7 +113,7 @@ public final class FurnaceDirtyHighlightConfig implements ReloadableConfig {
 
         // 补默认值只是改了内存 root：标脏即可，落盘由本 tick 末尾的 flush 合并完成
         if (changed) {
-            UnifiedConfigFile.markDirty();
+            UnifiedConfigFile.INSTANCE.markDirty();
         }
 
         // 配置 0 = 跟随服务端视距：日志直接打出「实际生效」的区块半径，

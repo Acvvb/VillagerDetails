@@ -7,7 +7,7 @@ import com.villagerdetails.network.channel.PayloadId;
 import com.villagerdetails.network.channel.ServerReceiver;
 import com.villagerdetails.network.sync.clientbound.HandshakeSyncChannel;
 import com.villagerdetails.network.sync.payload.serverbound.C2SHandshakePayload;
-import com.villagerdetails.util.ModVersion;
+import com.villagerdetails.util.version.ModVersion;
 import com.villagerdetails.util.SendMessengerUtils;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;

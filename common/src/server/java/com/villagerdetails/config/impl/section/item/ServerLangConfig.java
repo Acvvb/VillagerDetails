@@ -101,7 +101,7 @@ public final class ServerLangConfig implements ReloadableConfig {
         }
 
         // 补默认值只是改了内存 root：标脏即可，落盘由本 tick 末尾的 flush 合并完成
-        if (changed) UnifiedConfigFile.markDirty();
+        if (changed) UnifiedConfigFile.INSTANCE.markDirty();
         log.info("[ServerLang] preload={}, default={}", preloadLanguage, defaultLang);
     }
 }

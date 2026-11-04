@@ -94,7 +94,7 @@ public final class PlayerHeadSittingConfig implements ReloadableConfig {
 
         // 补默认值只是改了内存 root：标脏即可，落盘由本 tick 末尾的 flush 合并完成
         if (reader.dirty()) {
-            UnifiedConfigFile.markDirty();
+            UnifiedConfigFile.INSTANCE.markDirty();
         }
         log.info("[{}] maxStackDepth={}, allowCreative={}, dismountOnTargetRide={}",
                 configName(), maxStackDepth, allowCreative, dismountOnTargetRide);

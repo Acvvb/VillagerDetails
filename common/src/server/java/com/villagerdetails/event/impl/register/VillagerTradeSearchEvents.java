@@ -67,8 +67,7 @@ public final class VillagerTradeSearchEvents implements ServerEventRegisterServe
     public void register() {
         ServerEntityEvents.ENTITY_UNLOAD.register(VillagerTradePipeline::onEntityUnload);
         ServerChunkEvents.CHUNK_UNLOAD.register(VillagerTradePipeline::onChunkUnload);
-        ServerLivingEntityEvents.AFTER_DEATH.register(
-                (entity, _) -> VillagerTradePipeline.onLivingDeath(entity));
+        ServerLivingEntityEvents.AFTER_DEATH.register((entity, _) -> VillagerTradePipeline.onLivingDeath(entity));
         RuleCache.addListener(this::onRuleChanged);
 
         // 启动：把上一次会话写下的索引读回内存（读盘失败只 WARN，不影响启动），
@@ -88,23 +87,20 @@ public final class VillagerTradeSearchEvents implements ServerEventRegisterServe
             TradeItemCompletionCache.refresh(reloadedServer);
         });
         // 定时异步落盘：主线程只做「标脏检查 + 一次 HashMap 拷贝」
-        ServerTickEvents.END_SERVER_TICK.register(this::onEndServerTick);
-
-        log.info("村民交易查询已接入：ENTITY_UNLOAD / CHUNK_UNLOAD 抓快照，AFTER_DEATH 清缓存，"
-                + "每 {} tick 异步落盘", FLUSH_INTERVAL_TICKS);
+        ServerTickEvents.END_SERVER_TICK.register(_ -> onEndServerTick());
     }
 
     /**
      * 定时落盘检查。故意用 tick 计数而不是定时器线程：这里只读一个原子标志，
      * 真正的序列化 / 写盘都在服务端线程池里。
      */
-    private void onEndServerTick(MinecraftServer currentServer) {
+    private void onEndServerTick() {
         if (--ticksUntilFlush > 0) {
             return;
         }
         ticksUntilFlush = FLUSH_INTERVAL_TICKS;
         try {
-            VillagerTradeStorage.INSTANCE.flushAsync(currentServer);
+            VillagerTradeStorage.INSTANCE.flush();
         } catch (Throwable t) {
             log.warn("村民交易索引定时落盘失败（下一轮重试）", t);
         }
