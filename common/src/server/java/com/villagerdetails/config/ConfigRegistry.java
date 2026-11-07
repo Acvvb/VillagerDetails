@@ -1,9 +1,6 @@
 package com.villagerdetails.config;
 
-import com.villagerdetails.config.impl.IdTranslationConfig;
-import com.villagerdetails.config.impl.RuleConfig;
-import com.villagerdetails.config.impl.UnifiedConfigFile;
-import com.villagerdetails.config.impl.VillagerTradeStorage;
+import com.villagerdetails.config.impl.*;
 import com.villagerdetails.config.migration.MigrationManager;
 import com.villagerdetails.rule.type.RuleType;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -17,6 +14,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class ConfigRegistry {
 
@@ -25,55 +23,25 @@ public final class ConfigRegistry {
 
     private static final Logger log = LogManager.getLogger(ConfigRegistry.class);
     private static final Map<String, ReloadableConfig> REGISTRY = new LinkedHashMap<>();
-
-    /**
-     * {@code /ec c reload} 读盘前等待「内存改动落盘」的上限（毫秒）。
-     *
-     * <p>等的是本地一次小文件写的完成，正常情况下是毫秒级；超时只记日志并继续重载，
-     * 不把命令卡死（此时最坏结果仍是旧版那种「读到写之前的内容」）。
-     */
     private static final long RELOAD_FLUSH_AWAIT_MS = 3000L;
-
-    /** SERVER_STARTED 回灌钩子是否已登记（防历史坑：以前被单独注册过两次） */
-    private static boolean startedHookRegistered;
+    private static final AtomicBoolean startedHookRegistered = new AtomicBoolean();
 
     static {
-        register(IdTranslationConfig.INSTANCE);
-        // 顺序有讲究：RuleConfig 必须排在 UnifiedConfigFile 前面 ——
-        // 先把持久化的规则状态回灌进 RuleCache，随后 UnifiedConfigFile 里的子配置
-        // （ServerLangConfig 等）才能读到「规则现在是什么」并据此对齐自己的状态。
+        register(TradeIndexConfig.INSTANCE);
+        register(RuleSwitchConfig.INSTANCE);
         register(RuleConfig.INSTANCE);
-        register(UnifiedConfigFile.INSTANCE);
-        // 村民交易索引：独立文件、独立生命周期，放在最后 —— 它不喂给任何别的配置，
-        // 只在自己的 reload/reloadFromDisk 里读盘（数据由区块卸载的异步快照写进来）。
-        register(VillagerTradeStorage.INSTANCE);
+        register(VillagerTradeCacheConfig.INSTANCE);
     }
 
-    // ==============================================================
-    // 事件注册：把「开服回灌一次」收进类里
-    // ==============================================================
-
-    /**
-     * 登记 {@code SERVER_STARTED → reloadAll}。
-     *
-     * <p>由集中初始化入口调用一次；重复调用只打 warn、不重复注册。
-     * 以前这条是散在外面 register 的，配合 {@code ServerLifecycleListener}
-     * 曾导致每次开服回灌两遍。
-     */
-    public static synchronized void registerStartedHook() {
-        if (startedHookRegistered) {
+    public static void registerStartedHook() {
+        if (!startedHookRegistered.compareAndSet(false, true)) {
             log.warn("SERVER_STARTED 回灌回调重复注册被忽略");
             return;
         }
-        startedHookRegistered = true;
         ServerLifecycleEvents.SERVER_STARTED.register(ConfigRegistry::reloadAll);
     }
 
-    // ==============================================================
-    // 配置注册（原有）
-    // ==============================================================
-
-    public static synchronized void register(ReloadableConfig config) {
+    private static void register(ReloadableConfig config) {
         if (config == null) return;
         String name = config.configName();
         if (name == null || name.isBlank()) {
@@ -89,61 +57,35 @@ public final class ConfigRegistry {
         return List.copyOf(REGISTRY.keySet());
     }
 
-    public record Result(List<String> loaded, List<String> failed) {
-        public boolean success() {
-            return failed.isEmpty();
-        }
-    }
+    // ==============================================================
+    // 重载逻辑
+    // ==============================================================
 
-    public static Result reloadAll(MinecraftServer server) {
-        // 迁移必须跑在「读任何配置」之前：它可能会整份重置统一配置或改写字段，
-        // 子配置随后加载到的才是迁移后的内容。
+    /**
+     * 开服回灌（生命周期事件调用）：即使某个配置坏了也不能崩服，捕获后只打日志。
+     */
+    public static void reloadAll(MinecraftServer server) {
         MigrationManager.migrateIfNeeded(server);
-
-        List<String> loaded = new ArrayList<>();
-        List<String> failed = new ArrayList<>();
-
         for (ReloadableConfig config : REGISTRY.values()) {
             try {
                 config.reload(server);
-                loaded.add(config.configName());
-                // 刻意用 debug：每份配置自己都会打一条带名字和关键值的 INFO
-                // （「已加载交易索引」「[NoSqueeze] 已加载 …」「[PlayerHeadSitting] …」），
-                // 这里再来一条 INFO 的话，启动日志里同一份配置会连着出现两行，看着就像加载了两遍。
                 log.debug("已重载：{}", config.configName());
             } catch (Exception e) {
-                log.error("重载 {} 失败", config.configName(), e);
-                failed.add(config.configName() + ": " + e.getMessage());
+                log.error("开服回灌 {} 失败", config.configName(), e);
             }
         }
-
-        return new Result(loaded, failed);
     }
 
     /**
-     * {@code /ec c reload} 用：把「物理文件」当单位整份重读。
-     *
-     * <p>和 {@link #reloadAll(MinecraftServer)} 的区别只有一处：这里调的是
-     * {@link ReloadableConfig#reloadFromDisk(MinecraftServer)} —— 四个有独立文件的配置
-     * （{@code config.json} / {@code trade_index.json} / {@code villager_details_binding.json} /
-     * {@code villager_trade_cache.json}）都会真的去读磁盘，而不是被 {@code ensureLoaded}
-     * 短路成「内存里的旧内容再灌一遍」。
-     *
-     * <p>不带参数、带参数都走这一条 —— 一致的读盘语义比「只刷一份」重要得多。
+     * {@code /ec c reload}（无参数）：把所有物理文件从磁盘整份重读。
+     * @return 成功加载的配置名列表
+     * @throws RuntimeException 如果任何一个配置重载失败
      */
-    public static Result reloadAllFromDisk(MinecraftServer server) {
-        // ★ 第一件事必须是「把内存里已标脏的改动提交并等它真正落盘」。
-        //   迁移的第一步（loadForMigration）就会无条件重读磁盘并整份覆盖内存 root；
-        //   此时如果还有「改完但没到 tick 末尾」的改动，它既不在盘上、又会被覆盖掉，
-        //   随后 reloadFromDisk 的 flush 还会把这份旧内容写回文件 —— 内存和磁盘一起丢。
-        UnifiedConfigFile.INSTANCE.flushAndAwait(server, RELOAD_FLUSH_AWAIT_MS);
-
-        // 与 reloadAll 同一套保证：先迁移，再从磁盘读
+    public static List<String> reloadAllFromDisk(MinecraftServer server) {
+        RuleConfig.INSTANCE.flushAndAwait(server, RELOAD_FLUSH_AWAIT_MS);
         MigrationManager.migrateIfNeeded(server);
 
         List<String> loaded = new ArrayList<>();
-        List<String> failed = new ArrayList<>();
-
         for (ReloadableConfig config : REGISTRY.values()) {
             try {
                 config.reloadFromDisk(server);
@@ -151,70 +93,60 @@ public final class ConfigRegistry {
                 log.debug("已重载（磁盘）：{}", config.configName());
             } catch (Exception e) {
                 log.error("重载 {} 失败", config.configName(), e);
-                failed.add(config.configName() + ": " + e.getMessage());
+                throw new RuntimeException(config.configName() + " 重载失败: " + e.getMessage(), e);
             }
         }
-
-        return new Result(loaded, failed);
+        return loaded;
     }
 
     /**
-     * {@code /ec c reload <name>} 的可点名清单：
-     * {@link #getAllNames()} 的 4 个父配置 + 规则侧 12 个 section 配置（按 {@code configName()} 去重保序）。
-     *
-     * <p>列出来只是「让人知道有这些名字」；执行时一律整份重读（见 {@link #reloadAllFromDisk}）。
+     * {@code /ec c reload <name>}：只从磁盘重读指定的那一份配置。
+     * @return 成功加载的配置名列表
+     * @throws RuntimeException 如果配置名不存在或重载失败
      */
+    public static List<String> reloadSpecificFromDisk(MinecraftServer server, String name) {
+        RuleConfig.INSTANCE.flushAndAwait(server, RELOAD_FLUSH_AWAIT_MS);
+        MigrationManager.migrateIfNeeded(server);
+
+        ReloadableConfig config = REGISTRY.get(name);
+        if (config == null) {
+            throw new IllegalArgumentException("未知的配置名: " + name);
+        }
+
+        try {
+            config.reloadFromDisk(server);
+            log.debug("已重载单份配置（磁盘）：{}", config.configName());
+            return List.of(config.configName());
+        } catch (Exception e) {
+            log.error("重载 {} 失败", config.configName(), e);
+            throw new RuntimeException(config.configName() + " 重载失败: " + e.getMessage(), e);
+        }
+    }
+
     public static List<String> getReloadableNames() {
-        List<String> names = new ArrayList<>(REGISTRY.keySet());
-        for (ReloadableConfig config : RuleType.getReloadableConfigs()) {
-            String name = config.configName();
-            if (!names.contains(name)) {
-                names.add(name);
-            }
-        }
-        return names;
+        return new ArrayList<>(REGISTRY.keySet());
     }
 
-    /**
-     * 启动期自检：规则侧配置必须「一实例一规则、一名一配置、且不在 {@link #REGISTRY} 里」。
-     *
-     * <p>为什么要查：
-     * <ul>
-     *   <li>两条规则共用同一个配置实例 → 同一次重载会应用两遍，两份规则的状态互相覆盖；</li>
-     *   <li>两个配置 {@code configName()} 相同 → 同一个 section 被两份配置抢着写；</li>
-     *   <li>规则配置又被注册进 {@link #REGISTRY} → {@link #reloadAll} 会把它重载两次
-     *       （直接一次 + {@link UnifiedConfigFile} 的子配置循环一次）。</li>
-     * </ul>
-     * 三种都是「静默生效」的错误，跑起来看不出来，所以放到启动期直接炸掉。
-     */
     public static void verifyReloadableConfigs() {
         Map<ReloadableConfig, RuleType> byInstance = new IdentityHashMap<>();
         Map<String, RuleType> byName = new HashMap<>();
 
         for (RuleType rule : RuleType.values()) {
             ReloadableConfig config = rule.getReloadableConfig();
-            if (config == null) {
-                continue;
-            }
+            if (config == null) continue;
 
             RuleType previous = byInstance.putIfAbsent(config, rule);
             if (previous != null) {
-                throw new IllegalStateException("配置实例冲突：" + config.configName()
-                        + " 同时被 " + previous.getRegisterName() + " 与 " + rule.getRegisterName()
-                        + " 使用（会被重载两遍、两份规则互相覆盖）");
+                throw new IllegalStateException("配置实例冲突：" + config.configName() + " 同时被两处使用");
             }
 
             previous = byName.putIfAbsent(config.configName(), rule);
             if (previous != null) {
-                throw new IllegalStateException("配置名冲突：" + config.configName()
-                        + " 被 " + previous.getRegisterName() + " 与 " + rule.getRegisterName()
-                        + " 同时使用（会争抢同一个 section）");
+                throw new IllegalStateException("配置名冲突：" + config.configName() + " 被两处使用");
             }
 
             if (REGISTRY.containsKey(config.configName())) {
-                throw new IllegalStateException("规则配置 " + config.configName()
-                        + "（" + rule.getRegisterName() + "）不应再注册进 ConfigRegistry："
-                        + "UnifiedConfigFile 已经会驱动它，再注册会被重载两次");
+                throw new IllegalStateException("规则配置 " + config.configName() + " 不应再注册进 ConfigRegistry");
             }
         }
     }

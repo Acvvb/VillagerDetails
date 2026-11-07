@@ -1,7 +1,7 @@
 package com.villagerdetails.handler.entity.villager.trader.refresh;
 
 import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.config.impl.IdTranslationConfig;
+import com.villagerdetails.config.impl.TradeIndexConfig;
 import com.villagerdetails.handler.entity.villager.trade.VillagerTradePipeline;
 import com.villagerdetails.mixin.entity.villager.trader.autoTrader.AbstractVillagerInterfaceMixin;
 import net.minecraft.core.Holder;
@@ -47,10 +47,9 @@ import static com.villagerdetails.rule.type.RuleType.*;
  *     复杂组合，仍旧同步跑拒绝采样 + 事后补齐三件工具。</li>
  * </ul>
  *
- * <p>两条路线的随机数都由 {@link TradeTableBuilder#seedFor} 按
- * 「村民 UUID + 第几次尝试」自播种，<b>不碰世界随机序列</b>（{@code level.dat} 里的
- * {@code RandomSequences}），同一村民同一尝试结果可复现，也不再需要
- * {@code setVillagerData} + {@code updateTrades} 那套「临时改等级」的写法。
+ * <p>两条路线的随机数：每次玩家触发刷新时，先抓取当前世界的全局随机数作为 <b>randomSalt</b>，
+ * 然后在分帧循环中由 {@link TradeTableBuilder} 结合「randomSalt + 尝试次数」重新播种，
+ * <b>不占用主线程的全局随机序列</b>，同时保证每次触发起点的绝对随机性。
  */
 public class AutoVillagerTrader {
 
@@ -96,10 +95,10 @@ public class AutoVillagerTrader {
      * <p>解析不出来的名字直接放行（不弹消息、不动交易），避免把玩家起的中文名
      * 当成刷新指令。
      */
-    public static boolean isSupportedName(Villager villager, String raw) {
+    public static boolean isSupportedName(String raw) {
         if (raw == null) return false;
         if (isSpecialName(raw)) return true;
-        return IdTranslationConfig.resolveId(raw) != null;
+        return TradeIndexConfig.resolveId(raw) != null;
     }
 
     // ==============================================================
@@ -148,8 +147,7 @@ public class AutoVillagerTrader {
 
         // ===== 331a（精准）/ 331b（时运）：三件套 + 三附魔，同样走调度器 =====
         if (key.equals("331a") || key.equals("331b")) {
-            if (!RuleCache.isEnabled(VILLAGER_GOD_TOOLS)) return -3;
-            if (isProfessionAllowed(villager, GOD_TOOLS_PROFESSIONS)) return -4;
+            if (isProfessionAllowed(villager)) return -4;
             if (isRerollable(villager)) return -1;
             return enqueueCombo(level, villager, player, raw.trim(), key.equals("331a"));
         }
@@ -161,13 +159,13 @@ public class AutoVillagerTrader {
         if (target == null) return -2;
         if (target.requiredLevel() == TradePoolChecker.NO_LEVEL) return -7;
         if (isRerollable(villager)) return -1;
-        if (target.route() == Route.TERRACOTTA && !RuleCache.isEnabled(VILLAGER_TERRACOTTA_TRADER)) {
-            return -3;
-        }
+        if (target.route() == Route.TERRACOTTA) return -3;
 
-        int attempts = target.route() == Route.TERRACOTTA
-                ? TradeRerollScheduler.TERRACOTTA_MAX_ATTEMPTS
-                : TradeRerollScheduler.MAX_ATTEMPTS;
+        int attempts = TradeRerollScheduler.MAX_ATTEMPTS;
+
+        // 💡 触发瞬间：从全局随机源抓取一个盐值，打破固定序列
+        long randomSalt = level.getRandom().nextLong();
+
         TradeRerollScheduler.Submit submit = TradeRerollScheduler.submit(
                 new TradeRerollScheduler.Task(
                         villager.getUUID(),
@@ -180,7 +178,9 @@ public class AutoVillagerTrader {
                         target.upgrade(),
                         null,
                         false,
-                        "msg.auto_trader.target_success"));
+                        "msg.auto_trader.target_success",
+                        randomSalt // 💡 传入盐值
+                ));
         return submit == TradeRerollScheduler.Submit.QUEUED ? attempts : -8;
     }
 
@@ -190,6 +190,9 @@ public class AutoVillagerTrader {
      */
     private static int enqueueCombo(ServerLevel level, Villager villager, ServerPlayer player,
                                     String label, boolean silkTouch) {
+        // 💡 触发瞬间：抓取随机盐值
+        long randomSalt = level.getRandom().nextLong();
+
         TradeRerollScheduler.Submit submit = TradeRerollScheduler.submit(
                 new TradeRerollScheduler.Task(
                         villager.getUUID(),
@@ -204,7 +207,9 @@ public class AutoVillagerTrader {
                         null,
                         godToolsFinisher(silkTouch),
                         true,
-                        "msg.auto_trader.combo_success"));
+                        "msg.auto_trader.combo_success",
+                        randomSalt // 💡 传入盐值
+                ));
         return submit == TradeRerollScheduler.Submit.QUEUED
                 ? TradeRerollScheduler.COMBO_MAX_ATTEMPTS : -8;
     }
@@ -221,7 +226,7 @@ public class AutoVillagerTrader {
      */
     public static Target resolveTarget(Villager villager, String raw) {
         if (!(villager.level() instanceof ServerLevel level)) return null;
-        Identifier id = IdTranslationConfig.resolveId(raw);
+        Identifier id = TradeIndexConfig.resolveId(raw);
         if (id == null) return null;
 
         RegistryAccess registryAccess = level.registryAccess();
@@ -372,13 +377,12 @@ public class AutoVillagerTrader {
      *
      * @param lockLevel 命中后把村民等级固定到这一级（{@code <= 0} 表示不动等级）
      */
-    static void commit(ServerLevel level, Villager villager, MerchantOffers offers,
-                       int lockLevel, boolean doLock) {
+    static void commit(Villager villager, MerchantOffers offers, int lockLevel) {
         ((AbstractVillagerInterfaceMixin) villager).setOffersField(offers);
         if (lockLevel > 0) {
             villager.setVillagerData(villager.getVillagerData().withLevel(lockLevel));
         }
-        doLockIfNeeded(villager, offers, doLock);
+        doLockIfNeeded(villager, offers);
         syncOpenMenu(villager);
         // 交易表刚被换过，索引里的旧快照立刻作废：成功刷新的村民应马上能被查到
         VillagerTradePipeline.captureNow(villager);
@@ -416,8 +420,8 @@ public class AutoVillagerTrader {
      * 现版本的锁：第一笔交易用一次（防止被别的玩家先买走）+ 给 1 点经验
      * （{@code getVillagerXp() > 0} 之后不再允许重掷）。
      */
-    private static void doLockIfNeeded(Villager villager, MerchantOffers offers, boolean doLock) {
-        if (doLock && RuleCache.isEnabled(VILLAGER_AUTO_LOCK_HIT_TRADER)) {
+    private static void doLockIfNeeded(Villager villager, MerchantOffers offers) {
+        if (RuleCache.isEnabled(VILLAGER_AUTO_LOCK_HIT_TRADER)) {
             lock(villager, offers);
         }
     }
@@ -429,12 +433,11 @@ public class AutoVillagerTrader {
         villager.setVillagerXp(1);
     }
 
-    private static boolean isProfessionAllowed(Villager villager,
-                                               Set<ResourceKey<VillagerProfession>> whitelist) {
+    private static boolean isProfessionAllowed(Villager villager) {
         if (villager == null) return false;
         return villager.getVillagerData().profession()
                 .unwrapKey()
-                .map(key -> !whitelist.contains(key))   // 不在白名单 → true
+                .map(key -> !AutoVillagerTrader.GOD_TOOLS_PROFESSIONS.contains(key))   // 不在白名单 → true
                 .orElse(true);                           // 无职业 → 禁止
     }
 

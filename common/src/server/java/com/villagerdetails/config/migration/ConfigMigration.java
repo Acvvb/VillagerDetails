@@ -1,5 +1,6 @@
 package com.villagerdetails.config.migration;
 
+import com.villagerdetails.config.impl.RuleConfig;
 import net.minecraft.server.MinecraftServer;
 
 /**
@@ -24,7 +25,7 @@ import net.minecraft.server.MinecraftServer;
  * <ul>
  *     <li><b>幂等</b>。每步只跑一次是执行器的保证，但手改版本号 / 重复触发时要能承受
  *         （例如「字段已存在就跳过」而不是「先删再加」）；</li>
- *     <li>只碰配置（{@link com.villagerdetails.config.impl.UnifiedConfigFile} 的 section），
+ *     <li>只碰配置（{@link RuleConfig} 的 section），
  *         不要在这里做业务初始化；</li>
  *     <li>抛异常时本次迁移会被中止、版本不推进（日志有 ERROR），下次启动重试 ——
  *         所以宁可抛，也不要把半成品写进配置。</li>

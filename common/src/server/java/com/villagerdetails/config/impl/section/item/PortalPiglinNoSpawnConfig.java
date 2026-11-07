@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.villagerdetails.config.ReloadableConfig;
-import com.villagerdetails.config.impl.UnifiedConfigFile;
+import com.villagerdetails.config.impl.RuleConfig;
 import com.villagerdetails.config.impl.util.BindingJson;
 import com.villagerdetails.pojo.dto.PortalPiglinNoSpawnRegion;
 import net.minecraft.core.BlockPos;
@@ -100,7 +100,7 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
     }
 
     /**
-     * 从统一配置的内存 root 重新读一遍；服务器启动 / 重载时由 {@link UnifiedConfigFile} 驱动。
+     * 从统一配置的内存 root 重新读一遍；服务器启动 / 重载时由 {@link RuleConfig} 驱动。
      */
     @Override
     public void reload(MinecraftServer server) {
@@ -240,7 +240,7 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
     /**
      * 从内存 root 读。
      *
-     * <p>解析完顺手把规范化后的内容写回 root，{@code UnifiedConfigFile.flush()} 会一起落盘 ——
+     * <p>解析完顺手把规范化后的内容写回 root，{@code RuleConfig.flush()} 会一起落盘 ——
      * 于是手改潦草 / 写坏的条目会被清理成标准格式，没绑过时也会留下一个空骨架给用户照着填。
      *
      * <p><b>旧存档的 ID 迁移</b>与 {@code PortalBindingConfig} 完全同一套：
@@ -257,7 +257,7 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
         regions.clear();
         nextId = 1;
 
-        JsonObject section = UnifiedConfigFile.getSection(SECTION);
+        JsonObject section = RuleConfig.getSection(SECTION);
         JsonElement element = section.get(REGIONS_KEY);
         int skipped = 0;
         int duplicated = 0;
@@ -347,11 +347,11 @@ public final class PortalPiglinNoSpawnConfig implements ReloadableConfig {
     }
 
     private void markDirty() {
-        JsonObject section = UnifiedConfigFile.getSection(SECTION);
+        JsonObject section = RuleConfig.getSection(SECTION);
         section.add(REGIONS_KEY, toJsonArray());
         // 计数器一起写进 root：否则「删掉最大的号 → 重启」会让那个号被重新发出去
         section.addProperty(KEY_NEXT_ID, nextId);
-        UnifiedConfigFile.INSTANCE.markDirty();
+        RuleConfig.INSTANCE.markDirty();
     }
 
     private JsonArray toJsonArray() {

@@ -6,6 +6,11 @@ import com.villagerdetails.util.io.AsyncConfigManager;
 public class ServerThreadShutdownTask {
 
     public static void register() {
+        ServerThreadManager.init();
+        task();
+    }
+
+    private static void task() {
         ServerThreadManager.addPreShutdownHook(() -> {
             //写配置
             AbstractWorldConfig.flushAll();
@@ -13,5 +18,6 @@ public class ServerThreadShutdownTask {
             AsyncConfigManager.flushAndShutdown(3000L);
         });
     }
+
 
 }

@@ -11,7 +11,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -27,7 +26,9 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -51,9 +52,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 会全部被误杀，而「收购绿宝石」方向反倒全都能过，索引最后只剩一堆「X -> 1 绿宝石」。
  * 条目多到撑爆文件属于容量问题，应该用文件体积 / 条数上限去管，不是靠误杀数据解决。
  *
- * <p><b>两个主线程入口</b>：{@link #onEntityUnload(Entity, ServerLevel)} 是实际生效的那个
+ * <p><b>主线程入口</b>：{@link #onEntityUnload(Entity, ServerLevel)} 是实际生效的那个
  * （原版在区块变成 HIDDEN 时就把实体移出追踪，比 {@code CHUNK_UNLOAD} 更早）；
- * {@link #onChunkUnload(ServerLevel, LevelChunk)} 保留为整区块兜底。
+ * {@link #onChunkUnload(ServerLevel, LevelChunk)} 保留为整区块兜底；
+ * {@link #onTradeOpen(Villager)} 是「玩家打开交易界面」的实时补抓（100 tick 防抖），
+ * 用来补上「交易刚锁定但区块一直不卸载」的实时性缺口。
  *
  * <p>村民死亡时由 {@code ServerLivingEntityEvents.AFTER_DEATH} 调 {@link #onLivingDeath}，
  * 在主线程立刻摘掉缓存（并留下墓碑挡住迟到的异步写入，见 {@link VillagerTradeCache}）。
@@ -69,6 +72,24 @@ public final class VillagerTradePipeline {
      * 「线程池不可用」只提示一次，避免每次卸载刷屏。
      */
     private static final AtomicBoolean POOL_WARNING = new AtomicBoolean();
+
+    /**
+     * 「打开交易界面」抓取的防抖表：村民 UUID → 上次抓取时的 {@code gameTime}。
+     *
+     * <p>玩家站在村民面前反复右键，每次都会走到 {@code setTradingPlayer}；
+     * 这里给每只村民 5 秒（100 tick）冷却，避免同一次交互窗口里反复深拷贝交易表。
+     */
+    private static final Map<UUID, Long> LAST_CAPTURE_TICKS = new ConcurrentHashMap<>();
+
+    /**
+     * 同一村民两次「打开交易界面」抓取之间至少间隔多少 tick（100 tick = 5 秒）。
+     */
+    private static final long TRADE_OPEN_COOLDOWN_TICKS = 100L;
+
+    /**
+     * 防抖表条目的过期时间：6000 tick = 5 分钟没再被触发就清掉。
+     */
+    private static final long CAPTURE_COOLDOWN_EXPIRE_TICKS = 6000L;
 
     // ============================================================
     // 主线程入口
@@ -96,8 +117,7 @@ public final class VillagerTradePipeline {
 
         List<Villager> villagers;
         try {
-            villagers = level.getEntitiesOfClass(Villager.class, chunkBounds(level, chunk),
-                    villager -> villager != null && !villager.isRemoved());
+            villagers = level.getEntitiesOfClass(Villager.class, chunkBounds(level, chunk), villager -> !villager.isRemoved());
         } catch (Throwable t) {
             log.warn("区块卸载时枚举村民失败，跳过该区块：dimension={}, chunk=({}, {})",
                     level.dimension().identifier(), chunk.getPos().x(), chunk.getPos().z(), t);
@@ -172,18 +192,67 @@ public final class VillagerTradePipeline {
     }
 
     /**
-     * 村民死亡：主线程清掉它在索引里的那份交易（并标脏，下次落盘时从文件里消失）。
+     * 玩家<b>打开</b>村民交易界面时顺手抓一次快照（主线程，{@code AbstractVillager#setTradingPlayer}
+     * 的注入点调用）。
+     *
+     * <p><b>为什么需要这个入口</b>：索引原本只在区块卸载（{@code ENTITY_UNLOAD} /
+     * {@code CHUNK_UNLOAD}）和命名牌刷新成功（{@link #captureNow}）时更新。村民刚锁定交易、
+     * 但区块一直不卸载（玩家就在旁边交易）时，索引要等下一次卸载才更新 —— 打开界面正好是
+     * 「交易表此刻一定可读」的时刻，补上这个入口即可解决这种实时性缺口。
+     *
+     * <p><b>三级守卫</b>：
+     * <ol>
+     *     <li>规则关闭 → 直接返回（最便宜的一步放最前面）；</li>
+     *     <li>不在服务端（客户端预测 / 无世界）→ 直接返回，绝不跨端写缓存；</li>
+     *     <li>同一村民 100 tick 内重复打开 → 跳过（玩家狂点右键不会把交易表拷贝刷爆）。</li>
+     * </ol>
+     * 真正抓取复用 {@link #captureNow}（它自己也会再判一次规则与端，重复判断成本可忽略）。
+     *
+     * @param villager 刚被打开交易界面的村民；{@code null} 直接返回
+     */
+    public static void onTradeOpen(Villager villager) {
+        if (villager == null || villager.isRemoved()) {
+            return;
+        }
+        // 最便宜的一步放最前面：规则关着就完全不做任何事
+        if (!RuleCache.isEnabled(RuleType.VILLAGER_TRADE_SEARCH)) {
+            return;
+        }
+        if (!(villager.level() instanceof ServerLevel level)) {
+            // 注入点两端都会触发，这里只允许服务端那份继续
+            return;
+        }
+        long now = level.getGameTime();
+        UUID uuid = villager.getUUID();
+        Long last = LAST_CAPTURE_TICKS.get(uuid);
+        if (last != null && now - last < TRADE_OPEN_COOLDOWN_TICKS) {
+            return;
+        }
+        LAST_CAPTURE_TICKS.put(uuid, now);
+        captureNow(villager);
+    }
+
+    /**
+     * 村民死亡：主线程把这只村民从索引里<b>物理删除</b>（含墓碑与快照占位，见
+     * {@link VillagerTradeCache#remove(java.util.UUID)}）。
+     *
+     * <p>这里只做「转手」一件事：删除的全部并发语义（墓碑先行、三步原子、标脏在锁外）
+     * 都由缓存自己保证，调用方再补一遍只会把顺序写错。
      *
      * <p>只认 {@link Villager}；僵尸村民转化之类不是死亡，不走这里
      * （转化后 UUID 不变，但交易已经没了，下次区块卸载自然不会再收录）。
+     *
+     * <p>参数用 {@link Entity}（而不是 {@code LivingEntity}）：{@code AFTER_DEATH} 给的就是
+     * {@code LivingEntity}，但语义上「死亡」只需要一个实体引用，收窄类型对调用方没有好处。
      */
-    public static void onLivingDeath(LivingEntity entity) {
+    public static void onLivingDeath(Entity entity) {
         if (!(entity instanceof Villager villager)) {
             return;
         }
         try {
             VillagerTradeCache.INSTANCE.remove(villager.getUUID());
         } catch (Throwable t) {
+            // 死亡回调里抛异常会打断后续收尾（掉落 / 进度统计），这里必须吞掉
             log.warn("清理村民交易缓存失败：uuid={}", villager.getUUID(), t);
         }
     }
@@ -208,10 +277,15 @@ public final class VillagerTradePipeline {
             return;
         }
 
+        // 纪元必须在主线程、提交任务这一刻抓：worker 执行时如果已经历过一次
+        // clearSession（规则关 → 开 / 停服换档），put 里的纪元校验会直接丢掉这条老快照，
+        // 避免它覆盖掉「清空之后重新读盘」拿到的新数据。
+        long capturedEpoch = VillagerTradeCache.getCurrentEpoch();
+
         pool.execute(() -> {
             try {
                 // 快照本身已经只含不可变标量，这里只是包成缓存 DTO 并写入（顺带标脏）
-                VillagerTradeCache.INSTANCE.put(snapshot.toInfo(), snapshot.capturedAt());
+                VillagerTradeCache.INSTANCE.put(snapshot.toInfo(), snapshot.capturedAt(), capturedEpoch);
             } catch (Throwable t) {
                 // 子线程里出的错不能影响池子，也不能把半成品写进缓存
                 log.warn("异步解析村民交易失败，已跳过：uuid={}", snapshot.uuid(), t);
@@ -250,7 +324,7 @@ public final class VillagerTradePipeline {
          */
         static VillagerTradeSnapshot capture(ServerLevel level, Villager villager) {
             MerchantOffers offers = villager.getOffers();
-            if (offers == null || offers.isEmpty()) {
+            if (offers.isEmpty()) {
                 return null;
             }
             if (!hasLockedTrades(villager, offers)) {
@@ -298,7 +372,7 @@ public final class VillagerTradePipeline {
                 return null;
             }
             ItemStack result = offer.getResult();
-            if (result == null || result.isEmpty()) {
+            if (result.isEmpty()) {
                 return null;
             }
 
@@ -307,9 +381,9 @@ public final class VillagerTradePipeline {
             ItemStack priceStackA = offer.getCostA();
             ItemCost baseCostA = offer.getItemCostA();
             String price1Id = isPresent(priceStackA) ? TradeItemNameResolver.itemId(priceStackA)
-                    : TradeItemNameResolver.itemId(baseCostA == null ? null : baseCostA.item());
+                    : TradeItemNameResolver.itemId(baseCostA.item());
             int price1Count = isPresent(priceStackA) ? priceStackA.getCount()
-                    : (baseCostA == null ? 0 : baseCostA.count());
+                    : baseCostA.count();
 
             // costB 是「第二样东西」：原版大多数交易没有（取不到就是空栈 / 空 Optional）
             ItemStack priceStackB = offer.getCostB();

@@ -55,7 +55,7 @@ public class NameTagItemMixin {
         if (!(target instanceof Villager villager)) return;
 
         // ★ 只处理能解析成「点名目标」或固定关键字的名称，其余直接放行（不弹消息）
-        if (!AutoVillagerTrader.isSupportedName(villager, name)) return;
+        if (!AutoVillagerTrader.isSupportedName(name)) return;
         ServerPlayer sp = (ServerPlayer) player;
         int outcome = AutoVillagerTrader.tickByName(villager, name, sp);
         villager.setCustomName(null);
@@ -68,9 +68,8 @@ public class NameTagItemMixin {
             case -4 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.wrong_profession"));
             case -7 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.not_producible", name));
             case -8 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.too_many_tasks"));
-            // 正数 = 任务已排队，值是这次任务的模拟次数上限；结果由分帧调度器稍后提示
-            default -> sendOverlayOrBroadcast(sp, Component.translatable(
-                    "msg.auto_trader.task_started", name, outcome));
+//            default -> sendOverlayOrBroadcast(sp, Component.translatable(
+//                    "msg.auto_trader.task_started", name, outcome));
         }
     }
 }

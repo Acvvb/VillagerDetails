@@ -18,7 +18,7 @@ import java.util.*;
  * </ul>
  *
  * <p>本类只做「JSON ⇄ 索引」与索引上的查询视图（{@code 名字→id} / {@code id→名字}），
- * 不碰文件、不碰生命周期：那些在 {@code IdTranslationConfig}（继承 {@code AbstractWorldConfig}）。
+ * 不碰文件、不碰生命周期：那些在 {@code TradeIndexConfig}（继承 {@code AbstractWorldConfig}）。
  */
 public final class IdTranslationData {
 
@@ -26,7 +26,7 @@ public final class IdTranslationData {
      * 私有构造：本类只有静态工具方法，不允许实例化。
      *
      * <p>实例化没有意义，反而会让人以为「可以持有一份索引副本」，和
-     * {@code IdTranslationConfig} 里的唯一数据源冲突。
+     * {@code TradeIndexConfig} 里的唯一数据源冲突。
      */
     private IdTranslationData() {
     }

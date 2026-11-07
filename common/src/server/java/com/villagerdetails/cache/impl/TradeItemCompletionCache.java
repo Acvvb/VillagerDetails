@@ -1,7 +1,7 @@
 package com.villagerdetails.cache.impl;
 
 import com.villagerdetails.concurrent.ServerThreadManager;
-import com.villagerdetails.config.impl.IdTranslationConfig;
+import com.villagerdetails.config.impl.TradeIndexConfig;
 import com.villagerdetails.handler.entity.villager.trade.TradeItemNameResolver;
 import com.villagerdetails.handler.entity.villager.trader.refresh.TradeEnchantmentScanner;
 import com.villagerdetails.handler.entity.villager.trader.refresh.TradeSetAdapter;
@@ -216,7 +216,7 @@ public final class TradeItemCompletionCache {
             itemSuggestions.add(id.toString());
         }
         for (String idText : new LinkedHashSet<>(itemSuggestions)) {
-            String alias = IdTranslationConfig.displayNameOf(idText);
+            String alias = TradeIndexConfig.displayNameOf(idText);
             if (alias != null && !alias.isBlank()) {
                 itemSuggestions.add(alias);
             }
@@ -226,7 +226,7 @@ public final class TradeItemCompletionCache {
         for (Identifier id : enchantmentIds) {
             enchantmentSuggestions.add(id.getPath());
             enchantmentSuggestions.add(id.toString());
-            String alias = IdTranslationConfig.displayNameOf(id);
+            String alias = TradeIndexConfig.displayNameOf(id);
             if (alias != null && !alias.isBlank()) {
                 enchantmentSuggestions.add(alias);
             }

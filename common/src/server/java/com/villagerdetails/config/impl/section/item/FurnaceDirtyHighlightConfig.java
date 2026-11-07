@@ -2,7 +2,7 @@ package com.villagerdetails.config.impl.section.item;
 
 import com.google.gson.JsonObject;
 import com.villagerdetails.config.ReloadableConfig;
-import com.villagerdetails.config.impl.UnifiedConfigFile;
+import com.villagerdetails.config.impl.RuleConfig;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -89,7 +89,7 @@ public final class FurnaceDirtyHighlightConfig implements ReloadableConfig {
 
     @Override
     public void reload(MinecraftServer server) {
-        JsonObject section = UnifiedConfigFile.getSection(configName());
+        JsonObject section = RuleConfig.getSection(configName());
         boolean changed = false;
 
         int radius = DEFAULT_VIEW_CHUNK_RADIUS;
@@ -113,7 +113,7 @@ public final class FurnaceDirtyHighlightConfig implements ReloadableConfig {
 
         // 补默认值只是改了内存 root：标脏即可，落盘由本 tick 末尾的 flush 合并完成
         if (changed) {
-            UnifiedConfigFile.INSTANCE.markDirty();
+            RuleConfig.INSTANCE.markDirty();
         }
 
         // 配置 0 = 跟随服务端视距：日志直接打出「实际生效」的区块半径，

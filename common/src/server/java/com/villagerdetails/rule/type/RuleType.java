@@ -214,16 +214,6 @@ public enum RuleType implements RegisterTypeServer {
     VILLAGER_AUTO_TRADER("VillagerAutoTrader", "setting.villager_auto_trader", "setting.villager_auto_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, TRUE_STR),
 
     /**
-     * 神装工具刷新。使用 331a/331b 命名牌刷出三附魔钻石工具。
-     */
-    VILLAGER_GOD_TOOLS("VillagerGodTools", "setting.villager_god_tools", "setting.villager_god_tools.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
-
-    /**
-     * 陶瓦刷新。使用陶瓦名称命名牌刷出对应陶瓦和带釉陶瓦。
-     */
-    VILLAGER_TERRACOTTA_TRADER("VillagerTerracottaTrader", "setting.villager_terracotta_trader", "setting.villager_terracotta_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
-
-    /**
      * 自动锁定村民交易。使用自动刷新规则刷出的附魔书自动锁定该村民交易。
      */
     VILLAGER_AUTO_LOCK_HIT_TRADER("VillagerAutoLockHitTrader", "setting.villager_auto_lock_hit_trader", "setting.villager_auto_lock_hit_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),

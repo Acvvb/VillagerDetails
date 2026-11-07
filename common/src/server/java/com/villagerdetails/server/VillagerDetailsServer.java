@@ -2,12 +2,10 @@ package com.villagerdetails.server;
 
 import com.villagerdetails.cache.ServerSessionStates;
 import com.villagerdetails.command.RuleCommand;
-import com.villagerdetails.concurrent.ServerThreadManager;
 import com.villagerdetails.concurrent.ServerThreadShutdownTask;
-import com.villagerdetails.config.ConfigRegistry;
+import com.villagerdetails.config.ConfigManager;
 import com.villagerdetails.event.ServerEventManager;
 import com.villagerdetails.network.ServerChannels;
-import com.villagerdetails.rule.registry.RuleDataRegistry;
 import com.villagerdetails.rule.registry.RuleModuleRegistry;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.api.ModInitializer;
@@ -41,15 +39,14 @@ public final class VillagerDetailsServer implements ModInitializer, DedicatedSer
 
     private static void init() {
 
-        // 服务端线程池：必须在一切事件 / 规则之前就绪（区块卸载的村民交易快照要用它）
-        // 内部会挂 SERVER_STARTED / SERVER_STOPPING，单人反复换存档时能自动重建 / 关闭
-        ServerThreadManager.init();
-
-        // 线程关闭逻辑
+        // 服务端线程池
         ServerThreadShutdownTask.register();
 
         //配置注册
-        ConfigRegistry.registerStartedHook();
+        ConfigManager.registry();
+
+        //接管服务器会话
+        ServerSessionStates.register();
 
         //事件注册
         ServerEventManager.registerAll();
@@ -57,18 +54,8 @@ public final class VillagerDetailsServer implements ModInitializer, DedicatedSer
         //优先注册模块
         RuleModuleRegistry.initAll();
 
-        //规则配置同步客户端注册，必须在规则注册完成之后注册
-        RuleDataRegistry.verifyConsistency();
-
-        // 配置侧自检：一实例一规则 / 一名一配置 / 规则配置不许再注册进 ConfigRegistry
-        // （放在规则注册之后，和上面的 RuleDataRegistry 自检同一批跑）
-        ConfigRegistry.verifyReloadableConfigs();
-
         // 注册指令，必须在规则注册完成之后注册
         RuleCommand.registerHook();
-
-        //接管服务器会话
-        ServerSessionStates.register();
 
         //网络包注册
         ServerChannels.registerAll();

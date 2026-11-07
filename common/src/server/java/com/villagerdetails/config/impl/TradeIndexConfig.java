@@ -22,7 +22,7 @@ import static com.villagerdetails.config.impl.data.IdTranslationData.reverse;
 /**
  * 名字 ↔ 原始 id 的映射表（存档内 {@code villagerdetails/trade_index.json}）。
  *
- * <p>生命周期与 IO 全部来自 {@link AbstractWorldConfig}（和 {@code UnifiedConfigFile} 同一套），
+ * <p>生命周期与 IO 全部来自 {@link AbstractWorldConfig}（和 {@code RuleConfig} 同一套），
  * 本类只回答「写哪个文件、怎么把 JSON 读成索引、清空成什么样」。
  *
  * <p>落盘内容就是 {@link #index} 本身：{@code 原始 id → 名字列表}，Gson 直接序列化成
@@ -32,12 +32,12 @@ import static com.villagerdetails.config.impl.data.IdTranslationData.reverse;
  *
  * <p>所有默认物品、方块、附魔的映射，统一来源于 {@link VillagerTradeItemRegistry}。
  */
-public final class IdTranslationConfig extends AbstractWorldConfig {
+public final class TradeIndexConfig extends AbstractWorldConfig {
 
     // 全局唯一实例
-    public static final IdTranslationConfig INSTANCE = new IdTranslationConfig();
+    public static final TradeIndexConfig INSTANCE = new TradeIndexConfig();
 
-    private static final Logger log = LogManager.getLogger(IdTranslationConfig.class);
+    private static final Logger log = LogManager.getLogger(TradeIndexConfig.class);
 
     /** 相对存档根目录的文件位置：{@code <world>/villagerdetails/trade_index.json}。 */
     private static final String SAVE_PATH = "villagerdetails/trade_index.json";
@@ -68,7 +68,7 @@ public final class IdTranslationConfig extends AbstractWorldConfig {
      *
      * <p>构造时父类会把它登记进静态表，{@link AbstractWorldConfig#tickAll()} 因此自动覆盖到它。
      */
-    private IdTranslationConfig() {
+    private TradeIndexConfig() {
     }
 
     // ==============================================================

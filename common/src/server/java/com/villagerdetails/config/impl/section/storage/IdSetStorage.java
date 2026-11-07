@@ -2,7 +2,7 @@ package com.villagerdetails.config.impl.section.storage;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.villagerdetails.config.impl.UnifiedConfigFile;
+import com.villagerdetails.config.impl.RuleConfig;
 import net.minecraft.resources.Identifier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -110,7 +110,7 @@ public final class IdSetStorage {
 
     public void load() {
         ids.clear();
-        JsonObject sec = UnifiedConfigFile.getSection(section);
+        JsonObject sec = RuleConfig.getSection(section);
         for (Map.Entry<String, JsonElement> e : sec.entrySet()) {
             Identifier id = Identifier.tryParse(e.getKey());
             if (id != null) ids.add(id);
@@ -121,13 +121,13 @@ public final class IdSetStorage {
     /**
      * 把内存里的集合写进内存 root（{@code setSection}）并<b>标脏</b>。
      *
-     * <p><b>只标脏、不落盘</b>：真正的文件写入由 {@code UnifiedConfigFile.flush()} 在
+     * <p><b>只标脏、不落盘</b>：真正的文件写入由 {@code RuleConfig.flush()} 在
      * tick 末尾 / 停服时合并完成，所以一次命令里改几项都只写一次文件。
      */
     public void markDirty() {
         JsonObject sec = new JsonObject();
         ids.forEach(id -> sec.addProperty(id.toString(), true));
-        UnifiedConfigFile.setSection(section, sec);
-        UnifiedConfigFile.INSTANCE.markDirty();
+        RuleConfig.setSection(section, sec);
+        RuleConfig.INSTANCE.markDirty();
     }
 }

@@ -3,7 +3,7 @@ package com.villagerdetails.event.impl.register;
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.cache.impl.TradeItemCompletionCache;
 import com.villagerdetails.cache.impl.VillagerTradeCache;
-import com.villagerdetails.config.impl.VillagerTradeStorage;
+import com.villagerdetails.config.impl.VillagerTradeCacheConfig;
 import com.villagerdetails.event.server.ServerEventRegisterServer;
 import com.villagerdetails.handler.entity.villager.trade.VillagerTradePipeline;
 import com.villagerdetails.rule.type.RuleType;
@@ -11,7 +11,9 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -27,7 +29,10 @@ import org.apache.logging.log4j.Logger;
  *         （整区块兜底扫描，见方法注释）；</li>
  *     <li>{@code AFTER_DEATH} → {@link VillagerTradePipeline#onLivingDeath}
  *         （主线程清缓存）；</li>
- *     <li>规则被关掉 → 先落盘再清内存，规则重新打开时把磁盘上的索引读回来。</li>
+ *     <li>规则被关掉 → 先落盘再清内存，规则重新打开时把磁盘上的索引读回来；</li>
+ *     <li>{@code END_SERVER_TICK} → 清「打开交易界面」抓取的防抖表、
+ *         按 10 分钟节奏把墓碑 / 快照时刻表的大清理丢给线程池
+ *         （{@link VillagerTradeCache#tickPrune(long)}）。</li>
  * </ol>
  *
  * <p><b>不在这里管落盘节奏</b>：索引的 {@code markDirty → flush} 由
@@ -66,7 +71,7 @@ public final class VillagerTradeSearchEvents implements ServerEventRegisterServe
 
         ServerLifecycleEvents.SERVER_STARTED.register(startedServer -> {
             server = startedServer;
-            VillagerTradeStorage.INSTANCE.ensureLoaded(startedServer);
+            VillagerTradeCacheConfig.INSTANCE.ensureLoaded(startedServer);
             TradeItemCompletionCache.refresh(startedServer);
         });
         // 数据包重载后交易注册表整体换了一份：必须重新扫，否则补全里还是旧数据包的物品。
@@ -77,6 +82,11 @@ public final class VillagerTradeSearchEvents implements ServerEventRegisterServe
                 return;
             }
             TradeItemCompletionCache.refresh(reloadedServer);
+        });
+        ServerTickEvents.END_SERVER_TICK.register(server -> {
+            ServerLevel overworld = server.overworld();
+            long tick = overworld.getGameTime();
+            VillagerTradeCache.tickPrune(tick);
         });
     }
 
@@ -104,7 +114,7 @@ public final class VillagerTradeSearchEvents implements ServerEventRegisterServe
             return;
         }
         try {
-            VillagerTradeStorage.INSTANCE.reloadFromDisk(currentServer);
+            VillagerTradeCacheConfig.INSTANCE.reloadFromDisk(currentServer);
         } catch (Throwable t) {
             log.warn("重新加载村民交易索引失败（内存保持为空）", t);
         }

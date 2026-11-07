@@ -112,6 +112,8 @@
   "command.villager_trade_search.hover.copy_coords": "点击复制坐标",
   "command.villager_trade_search.hover.copy_uuid": "点击复制完整 UUID",
   "command.villager_trade_search.no_match": "§e没有匹配「%s」的已锁定村民交易记录。",
+  "command.villager_trade_search.query_failed": "§c村民交易查询失败，请查看服务端日志。",
+  "command.villager_trade_search.too_busy": "§e查询队列正忙，请稍后再试。",
   "command.villager_trade_search.truncated": "§8……还有 %s 条匹配记录，请输入更精确的关键词",
   "command.villager_trade_search.usage": "§e用法：§f/ec c TradeSearch item <物品>§7 查普通物品交易；§f/ec c TradeSearch book <附魔>§7 查附魔书（关键词是附魔 id 或中文名）。§7按 Tab 可补全；区块卸载时收录并异步落盘；当前缓存 %s 条；也可用坐标 / 维度 / UUID 搜。",
   "dimension.minecraft.overworld": "主世界",

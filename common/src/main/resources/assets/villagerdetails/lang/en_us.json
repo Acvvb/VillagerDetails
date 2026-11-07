@@ -112,6 +112,8 @@
   "command.villager_trade_search.hover.copy_coords": "Click to copy the coordinates",
   "command.villager_trade_search.hover.copy_uuid": "Click to copy the full UUID",
   "command.villager_trade_search.no_match": "§eNo locked villager trade matches: %s",
+  "command.villager_trade_search.query_failed": "§cThe trade query failed. Check the server log for details.",
+  "command.villager_trade_search.too_busy": "§eThe trade query queue is busy. Please try again in a moment.",
   "command.villager_trade_search.truncated": "§8…and %s more matching villagers (use a narrower keyword to see them)",
   "command.villager_trade_search.usage": "§eUsage: §f/ec c TradeSearch item <item>§7 for item trades, §f/ec c TradeSearch book <enchantment>§7 for enchanted books (enchantment id or name). §7Press Tab to complete; records are captured when chunks unload and saved asynchronously; cached: %s; coordinates / dimension / UUID also work as keywords.",
   "dimension.minecraft.overworld": "Overworld",

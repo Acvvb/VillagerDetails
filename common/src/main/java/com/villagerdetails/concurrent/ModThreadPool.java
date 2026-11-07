@@ -69,7 +69,7 @@ public class ModThreadPool {
      * @return true = 成功入队；false = 队列满 / 池已关闭（被拒绝）
      */
     public boolean execute(Runnable task) {
-        if (executor == null || executor.isShutdown()) {
+        if (executor.isShutdown()) {
             log.debug("线程池已关闭，任务未提交");
             return false;
         }
@@ -91,7 +91,7 @@ public class ModThreadPool {
      */
     public <T> CompletableFuture<T> submit(Callable<T> task) {
         CompletableFuture<T> future = new CompletableFuture<>();
-        if (executor == null || executor.isShutdown()) {
+        if (executor.isShutdown()) {
             future.completeExceptionally(new RejectedExecutionException("线程池已关闭，任务未执行"));
             return future;
         }
@@ -116,7 +116,7 @@ public class ModThreadPool {
      * 允许超过初始化的最大线程数，但绝对上限为初始化最大值的两倍。
      */
     private void expandPoolForShutdown() {
-        if (executor == null || executor.isShutdown()) return;
+        if (executor.isShutdown()) return;
 
         int pending = executor.getQueue().size();
         if (pending == 0) return;
@@ -152,7 +152,7 @@ public class ModThreadPool {
      * 当前线程（主线程）同步执行，确保任务 100% 不丢失。
      */
     public void shutdown() {
-        if (executor == null || executor.isShutdown()) {
+        if (executor.isShutdown()) {
             return;
         }
         if (executor.getQueue().isEmpty() && executor.getActiveCount() == 0) {
@@ -170,13 +170,13 @@ public class ModThreadPool {
     }
 
     public boolean isShutdown() {
-        return executor == null || executor.isShutdown();
+        return executor.isShutdown();
     }
 
     /**
      * 已经排队、还没开始执行的任务数（给「停服前刷盘」这类收尾逻辑做观测用）。
      */
     public int queued() {
-        return executor == null ? 0 : executor.getQueue().size();
+        return executor.getQueue().size();
     }
 }

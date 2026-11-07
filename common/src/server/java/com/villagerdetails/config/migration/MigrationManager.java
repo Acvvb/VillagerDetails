@@ -1,6 +1,6 @@
 package com.villagerdetails.config.migration;
 
-import com.villagerdetails.config.impl.UnifiedConfigFile;
+import com.villagerdetails.config.impl.RuleConfig;
 import com.villagerdetails.util.version.ModVersion;
 import net.fabricmc.loader.api.Version;
 import net.minecraft.server.MinecraftServer;
@@ -37,7 +37,7 @@ import java.util.Optional;
  * </ol>
  *
  * <h2>落盘时机</h2>
- * 这里所有写着「落盘」的地方都只调 {@code UnifiedConfigFile.markDirty()}：<b>只改内存、不写文件</b>。
+ * 这里所有写着「落盘」的地方都只调 {@code RuleConfig.markDirty()}：<b>只改内存、不写文件</b>。
  * 一次迁移 + 各子配置补默认值的全部改动会在本 tick 末尾由 {@code flush()} 合并成<b>一次</b>写盘
  * （以前每步各写一次，一次迁移能连写四五次整份文件）。
  * 代价是「崩溃续跑」的检查点从「每一步」变成「这个 tick 结束」——
@@ -115,9 +115,13 @@ public final class MigrationManager {
     /**
      * 配置加载前调用：按需执行迁移 / 重置。永远不抛异常（失败只记 ERROR，下次启动重试）。
      *
+     * <p><b>不加锁</b>：调用方只有 {@code ConfigRegistry.reloadAll}（{@code SERVER_STARTED} 回灌）
+     * 与 {@code ConfigRegistry.reloadAllFromDisk}（{@code /ec c reload} 命令），都在服务器主线程上
+     * 串行执行，不存在并发进入。若将来出现非主线程的调用方，必须重新加锁。
+     *
      * @param server 当前服务器；{@code null} 时直接返回（离线单测 / 未启动场景）
      */
-    public static synchronized void migrateIfNeeded(MinecraftServer server) {
+    public static void migrateIfNeeded(MinecraftServer server) {
         if (server == null) {
             return;
         }
@@ -130,11 +134,11 @@ public final class MigrationManager {
     }
 
     private static void migrate(MinecraftServer server) {
-        boolean fileExists = UnifiedConfigFile.fileExists(server);
+        boolean fileExists = RuleConfig.fileExists(server);
         // 先把磁盘内容读进内存 root（不驱动子配置），迁移直接改 root
-        UnifiedConfigFile.loadForMigration(server);
-        boolean hasContent = UnifiedConfigFile.hasContent();
-        String stored = UnifiedConfigFile.storedConfigVersion();
+        RuleConfig.loadForMigration(server);
+        boolean hasContent = RuleConfig.hasContent();
+        String stored = RuleConfig.storedConfigVersion();
 
         // 1) 全新存档：没有文件、或文件里什么都没有 → 直接盖章
         if (!fileExists || !hasContent) {
@@ -145,7 +149,7 @@ public final class MigrationManager {
         // 2) 有内容但没有版本标记 → 极其古老（1.0.x 及更早）
         if (stored == null) {
             log.warn("统一配置缺少 {} 字段，按 {} 处理（1.1.0 之前的存档不再兼容）",
-                    UnifiedConfigFile.CONFIG_VERSION_KEY, UNKNOWN_VERSION);
+                    RuleConfig.CONFIG_VERSION_KEY, UNKNOWN_VERSION);
             stored = UNKNOWN_VERSION;
         } else if (compareVersions(stored, UNKNOWN_VERSION) < 0 || ModVersion.parse(stored).isEmpty()) {
             // 版本串无法解析（手改坏了 / 未来格式）→ 当成最老版本，走重置
@@ -178,9 +182,9 @@ public final class MigrationManager {
     private static void legacyReset(String stored) {
         log.warn("配置版本 {} 低于 {}：1.1.0 起不再兼容旧格式，整份重置统一配置（各 section 恢复默认）",
                 stored, LEGACY_RESET_BELOW);
-        UnifiedConfigFile.clearAllSections();
-        UnifiedConfigFile.setConfigVersion(CURRENT_CONFIG_VERSION);
-        UnifiedConfigFile.INSTANCE.markDirty();
+        RuleConfig.clearAllSections();
+        RuleConfig.setConfigVersion(CURRENT_CONFIG_VERSION);
+        RuleConfig.INSTANCE.markDirty();
     }
 
     /**
@@ -204,12 +208,12 @@ public final class MigrationManager {
             migration.migrate(server);
             // 每步之后立刻推进内存里的版本号：中途抛异常时下次从这里继续，已完成的步骤不会重跑
             // （真正的写盘在 tick 末尾合并成一次，见类注释「落盘时机」）
-            UnifiedConfigFile.setConfigVersion(migration.targetVersion());
-            UnifiedConfigFile.INSTANCE.markDirty();
+            RuleConfig.setConfigVersion(migration.targetVersion());
+            RuleConfig.INSTANCE.markDirty();
         }
 
-        UnifiedConfigFile.setConfigVersion(CURRENT_CONFIG_VERSION);
-        UnifiedConfigFile.INSTANCE.markDirty();
+        RuleConfig.setConfigVersion(CURRENT_CONFIG_VERSION);
+        RuleConfig.INSTANCE.markDirty();
         log.info("配置迁移完成：{} → {}", fromVersion, CURRENT_CONFIG_VERSION);
     }
 
@@ -220,8 +224,8 @@ public final class MigrationManager {
         if (version.equals(stored)) {
             return;
         }
-        UnifiedConfigFile.setConfigVersion(version);
-        UnifiedConfigFile.INSTANCE.markDirty();
+        RuleConfig.setConfigVersion(version);
+        RuleConfig.INSTANCE.markDirty();
         log.info("{}：{} → {}", reason, stored == null ? "<无>" : stored, version);
     }
 

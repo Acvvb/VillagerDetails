@@ -2,7 +2,7 @@ package com.villagerdetails.config.impl.section.item;
 
 import com.google.gson.JsonObject;
 import com.villagerdetails.config.ReloadableConfig;
-import com.villagerdetails.config.impl.UnifiedConfigFile;
+import com.villagerdetails.config.impl.RuleConfig;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -86,7 +86,7 @@ public final class PlayerHeadSittingConfig implements ReloadableConfig {
 
     @Override
     public void reload(MinecraftServer server) {
-        SectionReader reader = new SectionReader(UnifiedConfigFile.getSection(configName()));
+        SectionReader reader = new SectionReader(RuleConfig.getSection(configName()));
 
         maxStackDepth = reader.integer(KEY_MAX_STACK_DEPTH, DEFAULT_MAX_STACK_DEPTH, MIN_STACK_DEPTH, MAX_STACK_DEPTH);
         allowCreative = reader.bool(KEY_ALLOW_CREATIVE, DEFAULT_ALLOW_CREATIVE);
@@ -94,7 +94,7 @@ public final class PlayerHeadSittingConfig implements ReloadableConfig {
 
         // 补默认值只是改了内存 root：标脏即可，落盘由本 tick 末尾的 flush 合并完成
         if (reader.dirty()) {
-            UnifiedConfigFile.INSTANCE.markDirty();
+            RuleConfig.INSTANCE.markDirty();
         }
         log.info("[{}] maxStackDepth={}, allowCreative={}, dismountOnTargetRide={}",
                 configName(), maxStackDepth, allowCreative, dismountOnTargetRide);

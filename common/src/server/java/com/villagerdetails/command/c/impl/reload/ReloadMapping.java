@@ -20,27 +20,6 @@ import java.util.List;
 import static com.villagerdetails.command.CommandConstants.PERM_BASE;
 import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
 
-/**
- * {@code /ec c reload [config]} —— 从磁盘重载配置。
- *
- * <p><b>语义：以「物理文件」为单位整份重读。</b>
- * 四个有独立文件的配置（{@code config.json} / {@code trade_index.json} /
- * {@code villager_details_binding.json} / {@code villager_trade_cache.json}）各自走
- * {@code reloadFromDisk}；规则侧的 12 个 section 都挤在同一份 {@code config.json} 里，
- * 只重载其中一个既省不了 IO，又会多出一条「谁先谁后」的驱动路径，所以：
- * <ul>
- *     <li>不带参数：整份重读，所有配置重新应用；</li>
- *     <li>带参数：<b>先校验名字是否合法</b>（名单 = {@link ConfigRegistry#getReloadableNames()}
- *         的 4 个父配置 + 规则侧 12 个 section 名），合法后<b>同样整份重读</b>。
- *         参数只是「查阅 / 防手滑」，不是「只刷这一份」—— 成功提示里会写明是整份重读。</li>
- * </ul>
- *
- * <p>重读走 {@link ConfigRegistry#reloadAllFromDisk(MinecraftServer)}：
- * 每个配置都会真的去读自己的文件（不经过 {@code ensureLoaded} 的短路），
- * 读盘之前先 {@code flushAndAwait} 把内存改动落盘，读完<b>不在末尾标脏</b>
- * （旧实现里那一步叫 {@code save()}，随异步落盘重构改成了 {@code markDirty()} + tick 末尾合并写）——
- * 所以玩家手改的内容不会被刚读到的内存快照盖回去。
- */
 public class ReloadMapping implements RegisterServer {
 
     public static final ReloadMapping INSTANCE = new ReloadMapping();
@@ -52,12 +31,6 @@ public class ReloadMapping implements RegisterServer {
     private static final String K_RELOAD_FAIL = "command.entity_binder.reload.fail";
     private static final String K_UNKNOWN_CONFIG = "command.entity_binder.reload.unknown_config";
 
-    /**
-     * 可点名的配置名：4 个父配置 + 12 个规则侧 section（去重保序）。
-     *
-     * <p>补全的名单是「全部可点的名字」，不是「能单独重载的名字」——
-     * 因为执行时一律整份重读，列出来只是方便玩家确认自己没拼错。
-     */
     private static final SuggestionProvider<CommandSourceStack> CONFIG_SUGGESTER = (_, builder) ->
             SharedSuggestionProvider.suggest(ConfigRegistry.getReloadableNames(), builder);
 
@@ -71,12 +44,7 @@ public class ReloadMapping implements RegisterServer {
                         .executes(ctx -> reloadMappings(ctx, StringArgumentType.getString(ctx, "config"))));
     }
 
-    /**
-     * @param requestedName 玩家点名的配置；{@code null} 表示 {@code /ec c reload} 无参数。
-     *                      合法与否只影响「是否继续」，真正执行的都是整份重读。
-     */
-    private static int reloadMappings(CommandContext<CommandSourceStack> ctx,
-                                      @Nullable String requestedName) {
+    private static int reloadMappings(CommandContext<CommandSourceStack> ctx, @Nullable String requestedName) {
         CommandSourceStack src = ctx.getSource();
         MinecraftServer server = src.getServer();
         ServerPlayer player = src.getPlayer();
@@ -88,15 +56,22 @@ public class ReloadMapping implements RegisterServer {
             return 0;
         }
 
-        ConfigRegistry.Result result = ConfigRegistry.reloadAllFromDisk(server);
-        if (!result.success()) {
-            sendOrBroadcast(player, Component.translatable(K_RELOAD_FAIL,
-                    String.join("; ", result.failed())));
+        try {
+            // 核心逻辑：直接拿成功加载的名单，失败直接抛异常进 catch
+            List<String> loaded;
+            if (requestedName == null) {
+                loaded = ConfigRegistry.reloadAllFromDisk(server);
+            } else {
+                loaded = ConfigRegistry.reloadSpecificFromDisk(server, requestedName);
+            }
+
+            sendOrBroadcast(player, Component.translatable(K_RELOAD_SUCCESS,
+                    String.join(", ", loaded)));
+            return 1;
+        } catch (Exception e) {
+            // 捕获所有异常，把错误信息打给玩家
+            sendOrBroadcast(player, Component.translatable(K_RELOAD_FAIL, e.getMessage()));
             return 0;
         }
-
-        sendOrBroadcast(player, Component.translatable(K_RELOAD_SUCCESS,
-                String.join(", ", result.loaded())));
-        return 1;
     }
 }

@@ -39,7 +39,7 @@ import java.util.function.Predicate;
  *     <li>每个 tick、每个任务固定最多跑 {@link #ATTEMPTS_PER_TICK} 次模拟，跑完就
  *     {@code break} 去处理下一个任务，剩下的次数留到下一 tick；</li>
  *     <li><b>没有时间阀门</b>：100 次模拟即使花掉 15ms 也仍在 50ms 的 tick 预算内；</li>
- *     <li>任务<b>只存 UUID + 维度 + 谓词</b>，每 tick 用 {@code level.getEntity(uuid)} 现查实体；
+ *     <li>任务<b>只存 UUID + 维度 + 谓词 + 随机盐值</b>，每 tick 用 {@code level.getEntity(uuid)} 现查实体；
  *     实体卸载 / 死亡 / 换维度立刻取消（绝不强引用 {@link Villager}）；</li>
  *     <li>同一村民再次发起：旧任务<b>立刻取消</b>，只留新的一个。</li>
  * </ul>
@@ -62,11 +62,6 @@ public final class TradeRerollScheduler {
     public static final int MAX_ATTEMPTS = 1000;
 
     /**
-     * 陶瓦成对（普通 + 釉陶）：概率更低，给 2000 次防脸黑。
-     */
-    public static final int TERRACOTTA_MAX_ATTEMPTS = 2000;
-
-    /**
      * 331a/331b 三件套：等级 5 的候选池小、命中率高一些，500 次足够。
      */
     public static final int COMBO_MAX_ATTEMPTS = 500;
@@ -87,9 +82,6 @@ public final class TradeRerollScheduler {
 
     /**
      * 命中后要把结果升级成「满级附魔」时用（附魔书路线）。
-     *
-     * <p>存的是 id + 等级，<b>不存 {@code Holder}</b>：任务可能跨 tick 存在，
-     * 期间要是发生数据包重载，旧的 Holder 实例就作废了；命中时再按 id 现查。
      */
     public record Upgrade(Identifier enchantmentId, int maxLevel) {
     }
@@ -104,17 +96,7 @@ public final class TradeRerollScheduler {
     /**
      * 一个待执行的刷新任务。所有字段都是不可变值 / 谓词，<b>不含实体引用</b>。
      *
-     * @param villager        村民 UUID（每 tick 现查实体）
-     * @param dimension       村民所在维度
-     * @param player          发起刷新的玩家 UUID（离线就静默）
-     * @param label           玩家输入的原样名字，只用于提示
-     * @param requiredLevel   目标等级：命中后村民等级会被固定到这一级
-     * @param maxAttempts     该任务的模拟总次数上限
-     * @param tests           命中条件：全部满足才算中（陶瓦两个、331 三件套）
-     * @param upgrade         命中后的附魔满级覆写，可为 {@code null}
-     * @param finisher        命中 / 用尽次数后对整表的加工，可为 {@code null}
-     * @param commitOnExhaust 次数用尽仍未命中时，是否仍用最后一次结果写回（331 用）
-     * @param successKey      成功提示的翻译键
+     * @param randomSalt      触发瞬间抓取的随机盐值，打破固定种子序列
      */
     public record Task(UUID villager,
                        ResourceKey<Level> dimension,
@@ -126,7 +108,8 @@ public final class TradeRerollScheduler {
                        Upgrade upgrade,
                        Finisher finisher,
                        boolean commitOnExhaust,
-                       String successKey) {
+                       String successKey,
+                       long randomSalt) {
 
         public Task {
             tests = tests == null ? List.of() : List.copyOf(tests);
@@ -161,8 +144,6 @@ public final class TradeRerollScheduler {
 
     /**
      * 提交一个刷新任务。必须在主线程调用。
-     *
-     * <p>同一村民已有任务时<b>立刻取消旧任务</b>再加入新任务，避免同一个村民堆叠多个任务。
      */
     public static Submit submit(Task task) {
         if (task == null || task.villager() == null || task.tests().isEmpty()) {
@@ -177,10 +158,6 @@ public final class TradeRerollScheduler {
         }
         TASKS.put(task.villager(), new State(task));
         return Submit.QUEUED;
-    }
-
-    public static int activeTaskCount() {
-        return TASKS.size();
     }
 
     /**
@@ -200,8 +177,6 @@ public final class TradeRerollScheduler {
 
     /**
      * {@code END_SERVER_TICK} 调用：每个任务固定跑最多 {@link #ATTEMPTS_PER_TICK} 次模拟。
-     *
-     * <p>不做时间阀门：跑满 100 次就 {@code break} 去下一个任务，剩余次数留到下一 tick。
      */
     public static void tick(MinecraftServer server) {
         if (TASKS.isEmpty() || server == null) return;
@@ -240,8 +215,10 @@ public final class TradeRerollScheduler {
         Task task = state.task;
         for (int i = 0; i < ATTEMPTS_PER_TICK && state.attempts < task.maxAttempts(); i++) {
             state.attempts++;
-            MerchantOffers offers = TradeTableBuilder.build(level, villager, task.requiredLevel(),
-                    RandomSource.create(TradeTableBuilder.seedFor(task.villager(), state.attempts)));
+
+            RandomSource random = RandomSource.create(task.randomSalt() + state.attempts);
+
+            MerchantOffers offers = TradeTableBuilder.build(level, villager, task.requiredLevel(), random);
             if (offers.isEmpty()) continue;
 
             state.lastOffers = offers;
@@ -275,7 +252,7 @@ public final class TradeRerollScheduler {
             upgradeOffers(offers, task.tests().getFirst(), task.upgrade(), level);
         }
 
-        AutoVillagerTrader.commit(level, villager, offers, task.requiredLevel(), true);
+        AutoVillagerTrader.commit(villager, offers, task.requiredLevel());
         notifyPlayer(server, task.player(), Component.translatable(
                 task.successKey(), state.attempts, task.label()));
     }
@@ -298,7 +275,7 @@ public final class TradeRerollScheduler {
 
         MerchantOffer offer = offers.get(index);
         ItemStack result = offer.getResult();
-        if (result == null || !result.is(Items.ENCHANTED_BOOK)) return;
+        if (!result.is(Items.ENCHANTED_BOOK)) return;
 
         ItemEnchantments stored = result.get(DataComponents.STORED_ENCHANTMENTS);
         if (stored == null || stored.isEmpty()) return;

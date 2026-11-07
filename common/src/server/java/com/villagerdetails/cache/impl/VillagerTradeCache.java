@@ -1,8 +1,9 @@
 package com.villagerdetails.cache.impl;
 
 import com.villagerdetails.cache.base.SessionState;
-import com.villagerdetails.config.impl.IdTranslationConfig;
-import com.villagerdetails.config.impl.VillagerTradeStorage;
+import com.villagerdetails.concurrent.ServerThreadManager;
+import com.villagerdetails.config.impl.VillagerTradeCacheConfig;
+import com.villagerdetails.config.impl.TradeIndexConfig;
 import com.villagerdetails.pojo.dto.TradeItemInfo;
 import com.villagerdetails.pojo.dto.VillagerTradeInfo;
 import org.apache.logging.log4j.LogManager;
@@ -26,15 +27,15 @@ import java.util.concurrent.atomic.AtomicLong;
  * 读取方也只有一条：{@code /ec c TradeSearch <关键词>} 直接遍历这里，<b>不再碰世界</b>，
  * 所以查询是 O(缓存条目数)，不会因为全图村民卡主线程。
  *
- * <p><b>数据现在会落盘</b>：内存容器由 {@link VillagerTradeStorage} 持有
+ * <p><b>数据现在会落盘</b>：内存容器由 {@link VillagerTradeCacheConfig} 持有
  * （{@code <存档>/villagerdetails/villager_trade_cache.json}），这里只做一层代理 ——
- * 读直接穿透，写顺手 {@link VillagerTradeStorage#markDirty()}，真正的 I/O 由存储类
+ * 读直接穿透，写顺手 {@link VillagerTradeCacheConfig#markDirty()}，真正的 I/O 由存储类
  * 在落盘周期（{@code AbstractWorldConfig#tickAll} 统一驱动）/ 停服时异步完成。
  * 之所以不做成「两份 map」，是为了不出现「查到的和存下的不是同一份」。
  *
  * <p><b>为什么还要一张墓碑表</b>：区块卸载在主线程提交异步任务，村民完全可能在任务真正执行前
  * 就死了 —— 死亡回调在主线程先 {@link #remove}，随后迟到的异步任务如果直接 {@code put}，
- * 就会把死掉的村民重新塞回缓存。{@link #put(VillagerTradeInfo, long)} 用「快照时间戳 &gt; 移除时间戳」
+ * 就会把死掉的村民重新塞回缓存。{@link #put(VillagerTradeInfo, long, long)} 用「快照时间戳 &gt; 移除时间戳」
  * 拦住这种迟到写入；时间戳取 {@link System#nanoTime()}（单调递增，跨线程可比）。
  * 墓碑表<b>不落盘</b>：重启后重新记录即可，存下去只会变成垃圾数据。
  *
@@ -97,6 +98,20 @@ public final class VillagerTradeCache implements SessionState {
     private static final AtomicLong EPOCH = new AtomicLong();
 
     /**
+     * 当前清理纪元。
+     *
+     * <p>抓快照的主线程在<b>提交异步任务之前</b>取一份，worker 执行 {@link #put} 时再比对：
+     * 中间要是发生过一次 {@link #clearSession()}（规则关 → 开 / 停服换档），这条快照就是
+     * 上一个会话的数据，必须丢掉 —— 否则它可能晚于「清空后重新读盘」落地，把新读回来的
+     * 整份索引覆盖成一条陈旧的村民记录（时间戳拦截只能挡住一半，纪元是精确判定）。
+     *
+     * @return 当前纪元值
+     */
+    public static long getCurrentEpoch() {
+        return EPOCH.get();
+    }
+
+    /**
      * 串行化「清空内存」与「写入内存」这两件互斥的事（见 {@link #EPOCH}）。
      *
      * <p>只保护很短的一段临界区（几次 map 操作 + 两个原子写），不和 {@code writeLock}（磁盘写）
@@ -124,10 +139,30 @@ public final class VillagerTradeCache implements SessionState {
     }
 
     /**
-     * 内存缓存本体（存储类持有）。这里冗余一份引用，只是为了让读路径少一层跳转。
+     * 内存缓存本体（存储类持有），直接返回 {@code ConcurrentHashMap} 活引用。
+     *
+     * <p><b>为什么给查询侧活引用而不是 List 拷贝</b>：异步查询要遍历整份索引，拷贝一份等于把
+     * 「几万条村民 × 每条的交易表」再复制一遍 —— 查询本身是毫秒级，拷贝反而更贵。
+     * CHM 的弱一致遍历本来就允许「边遍历边被改」，配合 {@link #removedAtView()} 过滤死者即可。
+     *
+     * <p>代价是<b>写入必须走</b> {@link #put} / {@link #remove} / {@link #clearSession()}：
+     * 直接改这张表既不标脏、也绕过了墓碑与纪元的仲裁。读（搜索）随便用。
      */
-    private static ConcurrentHashMap<UUID, VillagerTradeInfo> store() {
-        return VillagerTradeStorage.INSTANCE.cache();
+    public static Map<UUID, VillagerTradeInfo> store() {
+        return VillagerTradeCacheConfig.INSTANCE.cache();
+    }
+
+    /**
+     * 墓碑表的只读视图：{@code 村民 UUID → 死亡时刻（nanoTime）}。
+     *
+     * <p>异步查询<b>必须</b>用它做二次过滤：CHM 的弱一致遍历可能返回「几毫秒前刚被
+     * {@link #remove} 物理删掉」的那一条（游标已经走过了 bucket，值还是旧的）。
+     * 这是正确性保证，不是可选优化 —— 少了它，玩家会查到一只刚被打死的村民。
+     *
+     * <p>返回活引用只为了省一次拷贝；调用方只允许读（{@code containsKey} / {@code get}）。
+     */
+    public static Map<UUID, Long> removedAtView() {
+        return REMOVED_AT;
     }
 
     // ============================================================
@@ -138,68 +173,106 @@ public final class VillagerTradeCache implements SessionState {
      * 存入 / 覆盖一只村民的快照（没有快照时间戳，等价于「当前时刻抓的」）。
      *
      * <p>给测试或将来其它同步抓取路径用；正常异步管线走
-     * {@link #put(VillagerTradeInfo, long)}。
+     * {@link #put(VillagerTradeInfo, long, long)}。
      */
     public void put(VillagerTradeInfo info) {
-        put(info, System.nanoTime());
+        put(info, System.nanoTime(), getCurrentEpoch());
     }
 
     /**
-     * 存入一只村民的快照，并拒绝所有已经作废的迟到写入。
+     * 存入一只村民的快照（纪元取当前值）。
      *
-     * <p>四条拒绝规则（前三条都要在 {@code store().put} 之前判掉）：
-     * <ol>
-     *     <li>快照早于最近一次整份清空（{@link #clearedAt}）→ 清理之后才跑完的作废数据；</li>
-     *     <li>快照早于村民死亡时刻（{@link #REMOVED_AT}）→ 墓碑挡住迟到写，避免把死掉的村民塞回来；</li>
-     *     <li>快照不严格新于已存的快照（{@link #LAST_SNAPSHOT}）→ 双入口 + 多 worker 乱序时，
-     *         不让旧坐标 / 旧交易表覆盖新的；</li>
-     *     <li>进锁后发现清理纪元（{@link #EPOCH}）变了 → 清空就发生在本次检查与写入之间，
-     *         写下去会在清空之后凭空多出一条，下一次落盘还会用它覆盖整份文件。</li>
-     * </ol>
-     *
-     * <p>第 4 条必须和「写内存」放在同一个 {@link #SESSION_LOCK} 临界区里，否则挡住它的
-     * 仍然只是一个 check-then-act 窗口。
+     * <p>等价于 {@code put(info, snapshotNanos, getCurrentEpoch())}：给「本来就是当前会话抓的」
+     * 同步路径用。异步管线必须用三参数版，把主线程提交任务那一刻的纪元一起带进来。
      *
      * @param info          已解析完的快照
      * @param snapshotNanos 主线程抓快照那一刻的 {@link System#nanoTime()}
      */
     public void put(VillagerTradeInfo info, long snapshotNanos) {
+        put(info, snapshotNanos, getCurrentEpoch());
+    }
+
+    /**
+     * 存入一只村民的快照，并拒绝所有已经作废的迟到写入。
+     *
+     * <p>闸门顺序（数字就是执行顺序）：
+     * <ol>
+     *     <li><b>闸 1</b>（锁外）{@code snapshotNanos <= clearedAt} → 清理之后才跑完的作废数据；</li>
+     *     <li><b>闸 2</b>（锁外）{@code REMOVED_AT[uuid] >= snapshotNanos} → 墓碑挡住「比死亡还早」
+     *         的快照，快路径上就把绝大多数迟到写入挡掉；</li>
+     *     <li><b>闸 3</b>（锁内）{@link #EPOCH} 与 {@code capturedEpoch} 不一致 → 抓快照之后
+     *         世界整份清空过，这份属于上一个会话；</li>
+     *     <li><b>闸 4</b>（锁内，<b>新增</b>）二次墓碑检查 —— 兜住的时序是：
+     *         <pre>
+     *         worker 通过了锁外闸 2（读到「没有墓碑」）
+     *           → 主线程 remove 拿到 SESSION_LOCK，立墓碑 + 删索引 + 清快照时刻
+     *           → worker 这时才拿到锁（闸 3 的纪元没变，挡不住它）
+     *         </pre>
+     *         没有闸 4，这台 worker 就会把死掉的村民重新写回索引，而且墓碑还留着 ——
+     *         查询侧看到「索引里有、墓碑里也有」，怎么判都是错的。加上闸 4 之后，
+     *         {@link #remove} 的三步和这里的写入形成「全有或全无」的互斥：
+     *         要么 remove 整体先完成（worker 放弃），要么 worker 整体先完成（remove 再删一遍）；</li>
+     *     <li><b>闸 5</b>（锁内）抢占「这只村民的最新快照时刻」，失败说明有更新的快照已经写过。</li>
+     * </ol>
+     *
+     * <p>闸 3～5 必须和 {@code store().put(...)} 在同一个 {@link #SESSION_LOCK} 临界区里，
+     * 否则每一条都只是一个 check-then-act 窗口。锁内只做 CHM 操作（微秒级），不碰 IO。
+     *
+     * @param info          已解析完的快照
+     * @param snapshotNanos 主线程抓快照那一刻的 {@link System#nanoTime()}
+     * @param capturedEpoch 主线程提交异步任务时抓的纪元（见 {@link #getCurrentEpoch()}）
+     */
+    public void put(VillagerTradeInfo info, long snapshotNanos, long capturedEpoch) {
         if (info == null) {
             return;
         }
-        // 纪元在入口处读一次：之后任何一次 clearSession 都会让它对不上
-        long epoch = EPOCH.get();
-        // 快照比最近一次整份清空还早：说明清理之后才执行完，属于已经作废的数据
+        // 闸 3 的锁外快路径：先便宜地挡掉「抓完快照 → 规则关/开过一轮」的整批任务
+        if (capturedEpoch != EPOCH.get()) {
+            return;
+        }
+        // 闸 1：快照比最近一次整份清空还早，属于已经作废的数据
         if (snapshotNanos <= clearedAt) {
             return;
         }
         UUID uuid = info.uuid();
+        // 闸 2：锁外快路径 —— 墓碑比快照新，说明这是村民死后才跑完的旧快照
         Long removedAt = REMOVED_AT.get(uuid);
         if (removedAt != null && removedAt >= snapshotNanos) {
-            // 快照比村民死亡还早：这是一份已经没有意义的旧数据，直接丢掉
             return;
         }
         synchronized (SESSION_LOCK) {
-            if (EPOCH.get() != epoch) {
-                // 检查之后、写入之前发生了整份清空：这份快照属于上一个会话，不能再写进去
+            // 闸 3：锁内比对的是<b>同一个 capturedEpoch</b>（不再另读一次 EPOCH）：
+            // 否则「入口读一次、锁内再读一次」会把两次读之间的清空吃掉 —— 第二次读到的是新纪元，
+            // 比对自然通过，一条属于上一个会话的快照就这样写进了清空之后的内存。
+            if (EPOCH.get() != capturedEpoch) {
                 log.debug("丢弃清空前的迟到快照：uuid={}, snapshot={}", uuid, snapshotNanos);
                 return;
             }
-            // 同一只村民的两份快照可能乱序到：只有严格更新的那一份才允许写（原子抢占）
-            if (!claimSnapshot(uuid, snapshotNanos)) {
+            // 闸 4：二次墓碑检查 —— 兜住「worker 过了锁外闸 2 → 主线程 remove 拿锁完成 →
+            // worker 才拿到锁」这条时序（详见方法注释）。这是 remove 与 put 严格互斥的关键。
+            Long lockedRemovedAt = REMOVED_AT.get(uuid);
+            if (lockedRemovedAt != null && lockedRemovedAt >= snapshotNanos) {
+                log.debug("丢弃死亡之后才落地的快照：uuid={}, snapshot={}", uuid, snapshotNanos);
+                return;
+            }
+            // 闸 5：同一只村民的两份快照可能乱序到，只有严格更新的那一份才允许写
+            if (!claimSnapshotLocked(uuid, snapshotNanos)) {
                 log.debug("丢弃乱序到达的旧快照：uuid={}, snapshot={}，已存={}",
                         uuid, snapshotNanos, LAST_SNAPSHOT.get(uuid));
                 return;
             }
             store().put(uuid, info);
             // 标脏：真正的写盘交给落盘周期 / 停服兜底，这里绝不做 I/O
-            VillagerTradeStorage.INSTANCE.markDirty();
+            VillagerTradeCacheConfig.INSTANCE.markDirty();
         }
         if (removedAt != null) {
-            // 已经写进了更新的数据，墓碑没用了
+            // 已经写进了更新的数据，墓碑没用了。
+            // 用 remove(key, oldValue) 做值匹配：万一这段窗口里又发生了一次 remove，
+            // 墓碑已经是新值，这里的删除自然失败，不会把新墓碑误删。
             REMOVED_AT.remove(uuid, removedAt);
         }
-        pruneStaleEntries();
+        // 过期清理不在这里做：那是「遍历整张表」的活，放在 worker 线程上也会拖慢快照写入，
+        // 统一交给 tickPrune 按 10 分钟节奏丢进线程池异步完成（见 #tickPrune）。
         log.debug("村民交易快照已缓存：uuid={}, dimension={}, pos={}, offers={}",
                 uuid, info.dimension().identifier(), info.pos(), info.offers().size());
     }
@@ -207,11 +280,15 @@ public final class VillagerTradeCache implements SessionState {
     /**
      * 抢占「这只村民的最新快照时刻」：成功返回 {@code true}（本次快照确实更新）。
      *
+     * <p><b>调用方必须已持有 {@link #SESSION_LOCK}</b>：它和 {@link #remove} 的
+     * 「清 {@code LAST_SNAPSHOT}」互为对方的可见性依赖，锁外调用会让
+     * {@link #pruneNowAsync} 的孤儿清理误删「已抢占、还没写索引」的条目。
+     *
      * <p>用 {@link ConcurrentHashMap#compute} 而不是「先 get 再 put」：后者在两条 worker
      * 同时提交时都能通过判断，最后写进去的还是可能更旧的那一份。{@code compute} 对同一
      * key 是原子的，比较和替换在同一个原子操作里完成。
      */
-    private static boolean claimSnapshot(UUID uuid, long snapshotNanos) {
+    private static boolean claimSnapshotLocked(UUID uuid, long snapshotNanos) {
         boolean[] claimed = {false};
         LAST_SNAPSHOT.compute(uuid, (_, previous) -> {
             if (previous == null || snapshotNanos > previous) {
@@ -224,38 +301,120 @@ public final class VillagerTradeCache implements SessionState {
     }
 
     /**
-     * 清理两张过期表（墓碑 / 快照时刻）：条目太多时才真正遍历，平时只是一次 {@code size()} 比较。
+     * 上一次异步清理的 tick（{@code level.getGameTime()}）；{@code < 0} 表示还没清过。
      *
-     * <p>两者都按 {@link #STALE_ENTRY_TTL_NANOS} 判定过期。清掉的都是「很久以前」的记录，
-     * 而任何还可能在途的快照都比它们新得多，所以清理不会放行一条本该被拒的迟到写入。
+     * <p>只用主线程写（{@link #tickPrune}），{@code volatile} 只是为了让调试 / 其它线程读到最新值。
      */
-    private static void pruneStaleEntries() {
-        pruneStaleEntries(REMOVED_AT);
-        pruneStaleEntries(LAST_SNAPSHOT);
-    }
+    private static volatile long lastPruneTick = -1L;
 
-    private static void pruneStaleEntries(Map<UUID, Long> table) {
-        if (table.size() < STALE_ENTRY_PRUNE_THRESHOLD) {
+    /**
+     * 异步清理的最小间隔：12000 tick（10 分钟，正好等于墓碑 TTL）。
+     */
+    private static final long PRUNE_INTERVAL_TICKS = 12000L;
+
+    /**
+     * 由 {@code END_SERVER_TICK} 调用：把「清墓碑 / 清快照时刻表」按 12000 tick 的节奏
+     * 丢给服务端线程池异步执行。
+     *
+     * <p><b>为什么不在 put / remove 里顺手清</b>：这两条路径分别在 worker 线程和主线程上，
+     * 表一大，`removeIf` 的整表遍历就是一次真实卡顿（主线程上尤其明显）。
+     * 这里只做「到点没有 + 攒够阈值没有」的廉价判定，真正的遍历在池子里跑。
+     *
+     * <p>台账都是纯内存的辅助数据，晚清 10 分钟没有任何正确性影响，所以：
+     * <ul>
+     *     <li>两张表都没到 {@link #STALE_ENTRY_PRUNE_THRESHOLD} 条 → 直接返回；</li>
+     *     <li>线程池不可用（停服 / 未初始化）→ 跳过本次，等下一个周期。</li>
+     * </ul>
+     *
+     * @param currentTick 当前世界的 {@code level.getGameTime()}
+     */
+    public static void tickPrune(long currentTick) {
+        long previous = lastPruneTick;
+        if (previous < 0 || currentTick < previous) {
+            // 首次调用 / 换存档重开服（gameTime 归零）：以当前 tick 为基准，避免「永远不到点」
+            lastPruneTick = currentTick;
             return;
         }
-        long cutoff = System.nanoTime() - STALE_ENTRY_TTL_NANOS;
-        table.entrySet().removeIf(entry -> entry.getValue() < cutoff);
+        if (currentTick - previous < PRUNE_INTERVAL_TICKS) {
+            return;
+        }
+        // 先记下本轮 tick：即使下面因为池子不可用没提交，也等下一个周期再试，
+        // 避免「队列满 → 每 tick 重试 → 每 tick 刷一条 WARN」
+        lastPruneTick = currentTick;
+
+        if (REMOVED_AT.size() < STALE_ENTRY_PRUNE_THRESHOLD
+                && LAST_SNAPSHOT.size() < STALE_ENTRY_PRUNE_THRESHOLD) {
+            return;
+        }
+        ServerThreadManager.execute(VillagerTradeCache::pruneNowAsync);
     }
 
     /**
-     * 村民死亡：主线程立刻摘掉它的缓存，并留下墓碑挡住迟到的异步写入。
+     * 真正干活的清理（在服务端线程池上跑，主线程不再参与遍历）。
+     *
+     * <p>两张表各自只清「自己的脏数据」：
+     * <ul>
+     *     <li>{@link #REMOVED_AT}：只按 {@link #STALE_ENTRY_TTL_NANOS} 清。墓碑只在
+     *         「还有在途快照可能到达」的窗口内有用，10 分钟前的记录不可能再参与比较。
+     *         <b>不要</b>再拿它和索引比对去删死者 —— 死者早已在 {@link #remove} 里被物理删除，
+     *         这里再扫一遍索引既慢又是重复劳动；</li>
+     *     <li>{@link #LAST_SNAPSHOT}：清「索引里已经没有这只村民」的孤儿条目。它按
+     *         「索引里有没有」而不是 TTL 判定，因为村民被 {@link #remove} 物理删除之后，
+     *         它的快照时刻就再没有比较对象了 —— 只按 TTL 清会让这张表长期停在索引级规模。</li>
+     * </ul>
+     *
+     * <p><b>{@code LAST_SNAPSHOT} 那一段必须进 {@link #SESSION_LOCK}</b>：{@link #put} 是
+     * 「先 {@code claimSnapshotLocked}（写这张表）→ 再 {@code store().put()}（写索引）」两步，
+     * 中间有一个「表里有、索引里还没有」的瞬间。若清理恰好插在这个窗口里读到「索引里没有」
+     * 把它删掉，一条更旧的快照随后就能 claim 成功、覆盖刚写好的新数据 —— 这正是这张表要挡的事。
+     * 清理 10 分钟才跑一次，锁内只做一次 {@code removeIf}，代价可忽略。
+     */
+    private static void pruneNowAsync() {
+        try {
+            long now = System.nanoTime();
+            // 墓碑：锁外清（CHM 的 removeIf 是并发安全的），不必占着会话锁
+            REMOVED_AT.entrySet().removeIf(entry -> now - entry.getValue() > STALE_ENTRY_TTL_NANOS);
+
+            // 孤儿快照时刻：读 store 做比对，必须和 put 的 claim+store 互斥
+            synchronized (SESSION_LOCK) {
+                Map<UUID, VillagerTradeInfo> cached = store();
+                LAST_SNAPSHOT.entrySet().removeIf(entry -> !cached.containsKey(entry.getKey()));
+            }
+        } catch (Throwable t) {
+            // 池子里的异常绝不能冒出去；清理失败只是「下个周期再清」，不影响正确性
+            log.warn("异步清理村民交易缓存的两张辅助表失败（下个周期重试）", t);
+        }
+    }
+
+    /**
+     * 村民死亡：把这只村民从索引里<b>物理删除</b>，并留下墓碑挡住迟到的异步写入。
+     *
+     * <p>三步全部在 {@link #SESSION_LOCK} 内一次做完，<b>顺序不能反</b>：
+     * <ol>
+     *     <li><b>先立墓碑</b>：只有墓碑先落下来，才能拦住「已经通过锁外闸 2、正排队等锁」的
+     *         worker —— 它拿到锁后会在闸 4 看到墓碑而放弃。反过来先删索引，那条 worker 就可能在
+     *         删完之后把死掉的村民重新写回索引；</li>
+     *     <li><b>再删索引</b>：这才是查询侧看得见的「物理删除」，之后 CHM 遍历再也读不到它；</li>
+     *     <li><b>最后清快照占位</b>：这只村民的快照时刻再没有比较对象，留着只会拖大辅助表。</li>
+     * </ol>
+     *
+     * <p><b>为什么三步必须原子</b>：任何中间态都会泄漏给 worker ——
+     * 「墓碑已写、索引没删」会让一条本来更新的快照在闸 4 被误杀（数据丢了）；
+     * 「索引已删、墓碑没写」则会让迟到 worker 把死村民写回来。锁内只有几次 CHM 操作
+     * （微秒级），主线程 tick 感觉不到。
+     *
+     * <p>标脏放在锁外：落盘由 tick 驱动，锁内不碰 IO（{@code markDirty} 只是置标志 + 入队）。
      */
     public void remove(UUID uuid) {
         if (uuid == null) {
             return;
         }
-        boolean existed = store().remove(uuid) != null;
-        REMOVED_AT.put(uuid, System.nanoTime());
-        if (existed) {
-            VillagerTradeStorage.INSTANCE.markDirty();
+        synchronized (SESSION_LOCK) {
+            REMOVED_AT.put(uuid, System.nanoTime());
+            store().remove(uuid);
+            LAST_SNAPSHOT.remove(uuid);
         }
-        // 墓碑只在「还有在途快照可能到达」的窗口内有意义，过期就清掉，别让刷怪塔把表撑爆
-        pruneStaleEntries();
+        VillagerTradeCacheConfig.INSTANCE.markDirty();
     }
 
     // ============================================================
@@ -302,7 +461,7 @@ public final class VillagerTradeCache implements SessionState {
      *         普通物品交易全算命中（玩家找的就是这只村民）；</li>
      *     <li>{@code price1Id} / {@code price2Id} / {@code resultItemId} 的<b>原始 id</b>
      *         （{@code stone}、{@code minecraft:bookshelf}）；</li>
-     *     <li><b>别名表兜底</b>：把 id 过一遍 {@link IdTranslationConfig#displayNameOf}，
+     *     <li><b>别名表兜底</b>：把 id 过一遍 {@link TradeIndexConfig#displayNameOf}，
      *         用中文 / 自定叫法做包含匹配 —— 中文玩家搜「绿宝石」「书架」也能命中。</li>
      * </ol>
      *
@@ -413,14 +572,14 @@ public final class VillagerTradeCache implements SessionState {
     }
 
     /**
-     * {@link IdTranslationConfig#displayNameOf} 的优先级是「{@code trade_index.json} →
+     * {@link TradeIndexConfig#displayNameOf} 的优先级是「{@code trade_index.json} →
      * 内置兜底」，正是玩家手工配中文名的那张表。
      */
     private static boolean aliasContains(String idText, String needle) {
         if (idText == null || idText.isBlank()) {
             return false;
         }
-        String name = IdTranslationConfig.displayNameOf(idText);
+        String name = TradeIndexConfig.displayNameOf(idText);
         return name != null && name.toLowerCase(Locale.ROOT).contains(needle);
     }
 
@@ -462,22 +621,26 @@ public final class VillagerTradeCache implements SessionState {
         int cached = store().size();
         int tombstones = REMOVED_AT.size();
 
-        // 会话结束：内存里可能还有「没赶上落盘周期」的改动，先提交一次再清
+        // 锁外先提交落盘：flush() 只做「主线程序列化 + 入队」，字节写在单写者线程上，
+        // 所以这一步不阻塞 tick，也不会和 SESSION_LOCK 嵌套。
+        // 失败就整轮放弃：内存是唯一数据源，清掉就真的没了（磁盘上那份可能还是上上一次的旧内容）。
         try {
-            VillagerTradeStorage.INSTANCE.flush();
+            VillagerTradeCacheConfig.INSTANCE.flush();
         } catch (Throwable t) {
-            // 保留内存数据：清掉就真的没了（磁盘上那份可能还是上一次的旧内容）
             log.error("提交村民交易索引落盘失败：保留内存数据，本次不清理、不推进清理纪元", t);
             return;
         }
 
         synchronized (SESSION_LOCK) {
-            // 先推进纪元再清内存：在途 put 的比较与写入都在同一把锁里，顺序天然成立
-            EPOCH.incrementAndGet();
-            clearedAt = System.nanoTime();
-            REMOVED_AT.clear();
+            // 一次做完五件事，任何一件单独做都会留下「清了一半」的中间态：
+            EPOCH.incrementAndGet();   // 先把纪元推上去：在途 put 的闸 3 会立刻失效
+            store().clear();           // 物理清空索引
+            REMOVED_AT.clear();        // 墓碑只对「还有在途快照」有意义，清空后一并作废
             LAST_SNAPSHOT.clear();
-            VillagerTradeStorage.INSTANCE.clearMemory();
+            clearedAt = System.nanoTime();   // 兜住「快照比清空还早」的那批任务
+            // 清完内存必须顺手清脏标记：否则下一次 tick 会把这张空表序列化出去，
+            // 覆盖掉刚才 flush 提交的那份完整索引（等于把磁盘文件清空）。
+            VillagerTradeCacheConfig.INSTANCE.clearDirty();
         }
         if (cached > 0 || tombstones > 0) {
             log.info("村民交易缓存已清空（快照 {} 条，墓碑 {} 条；磁盘文件保留）", cached, tombstones);

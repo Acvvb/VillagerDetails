@@ -1,7 +1,7 @@
 package com.villagerdetails.rule;
 
 import com.villagerdetails.cache.RuleCache;
-import com.villagerdetails.config.impl.RuleConfig;
+import com.villagerdetails.config.impl.RuleSwitchConfig;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.MinecraftServer;
@@ -98,7 +98,7 @@ public final class RuleChangeService {
         isReloading = true;
         try {
             RuleCache.setServer(server);
-            RuleConfig.getOrCreate(server).syncToSwitch();
+            RuleSwitchConfig.getOrCreate(server).syncToSwitch();
         } finally {
             isReloading = false;
         }

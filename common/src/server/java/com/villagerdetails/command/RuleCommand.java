@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static com.villagerdetails.cache.RuleCache.isEnabled;
@@ -63,8 +64,11 @@ public class RuleCommand {
      *
      * <p>挂两次的后果是回调触发时 {@link #register(CommandDispatcher)} 被调两次，
      * Brigadier 会抛 {@code command already exists}，所以这里必须防重。
+     *
+     * <p>用 {@link AtomicBoolean#compareAndSet} 抢占而不是 {@code synchronized}：
+     * 幂等只需要「只有一个线程能挂上」，不需要互斥整段注册逻辑。
      */
-    private static boolean commandHookRegistered;
+    private static final AtomicBoolean commandHookRegistered = new AtomicBoolean();
 
     private RuleCommand() {
     }
@@ -130,13 +134,13 @@ public class RuleCommand {
      * 把「命令注册」挂到 {@link CommandRegistrationCallback} 上。
      *
      * <p>由集中初始化入口调用一次；重复调用只打 warn、不重复挂载。
+     * 抢占用 {@code compareAndSet}，所以<b>不需要</b> {@code synchronized}。
      */
-    public static synchronized void registerHook() {
-        if (commandHookRegistered) {
+    public static void registerHook() {
+        if (!commandHookRegistered.compareAndSet(false, true)) {
             log.warn("CommandRegistrationCallback 重复注册被忽略");
             return;
         }
-        commandHookRegistered = true;
         CommandRegistrationCallback.EVENT.register((dispatcher, _, _) -> INSTANCE.register(dispatcher));
     }
 

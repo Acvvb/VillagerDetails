@@ -2,7 +2,7 @@ package com.villagerdetails.cache;
 
 import com.villagerdetails.VillagerDetails;
 import com.villagerdetails.command.SwitchComponentType;
-import com.villagerdetails.config.impl.RuleConfig;
+import com.villagerdetails.config.impl.RuleSwitchConfig;
 import com.villagerdetails.event.type.ListenerType;
 import com.villagerdetails.rule.callback.RuleCallbacks;
 import com.villagerdetails.rule.type.RuleConfigKind;
@@ -244,7 +244,7 @@ public class RuleCache {
         MinecraftServer s = server;
         if (s == null) return;
         try {
-            RuleConfig.getOrCreate(s).setBindingState(type.getRegisterName(), state);
+            RuleSwitchConfig.getOrCreate(s).setBindingState(type.getRegisterName(), state);
         } catch (Exception e) {
             log.error("[RuleCache] 持久化失败 {}: {}", type.getRegisterName(), e);
         }

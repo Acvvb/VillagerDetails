@@ -18,7 +18,7 @@ import static com.villagerdetails.config.impl.data.VillagerTradeIndexJson.parse;
 /**
  * 村民交易索引的落盘存储（存档内 {@code villagerdetails/villager_trade_cache.json}）。
  *
- * <p>生命周期与 IO 全部来自 {@link AbstractWorldConfig}（和 {@code UnifiedConfigFile} 同一套），
+ * <p>生命周期与 IO 全部来自 {@link AbstractWorldConfig}（和 {@code RuleConfig} 同一套），
  * 本类只回答「写哪个文件、怎么把 JSON 读成缓存、清空成什么样」，外加一个它特有的差异：
  * <b>落盘周期是 1200 tick 而不是每 tick</b>（见 {@link #flushIntervalTicks()}）。
  *
@@ -26,12 +26,12 @@ import static com.villagerdetails.config.impl.data.VillagerTradeIndexJson.parse;
  * {@link VillagerTradeIndexJson}（纯「内存 ⇄ JSON」转换）。本类只负责
  * 「什么时候读、什么时候写、写哪个文件」。
  */
-public final class VillagerTradeStorage extends AbstractWorldConfig {
+public final class VillagerTradeCacheConfig extends AbstractWorldConfig {
 
     // 全局唯一实例
-    public static final VillagerTradeStorage INSTANCE = new VillagerTradeStorage();
+    public static final VillagerTradeCacheConfig INSTANCE = new VillagerTradeCacheConfig();
 
-    private static final Logger log = LogManager.getLogger(VillagerTradeStorage.class);
+    private static final Logger log = LogManager.getLogger(VillagerTradeCacheConfig.class);
 
     /** 相对存档根目录的文件位置：{@code <world>/villagerdetails/villager_trade_cache.json}。 */
     private static final String SAVE_PATH = "villagerdetails/villager_trade_cache.json";
@@ -50,7 +50,7 @@ public final class VillagerTradeStorage extends AbstractWorldConfig {
      * <p>构造时父类会把它登记进静态表，因此 {@link AbstractWorldConfig#tickAll()} /
      * {@link AbstractWorldConfig#flushAll()} / {@link AbstractWorldConfig#resetAll()} 自动覆盖到它。
      */
-    private VillagerTradeStorage() {
+    private VillagerTradeCacheConfig() {
     }
 
     // ==============================================================
@@ -85,7 +85,7 @@ public final class VillagerTradeStorage extends AbstractWorldConfig {
      */
     @Override
     public String configName() {
-        return "VillagerTradeStorage";
+        return "VillagerTradeCacheConfig";
     }
 
     /**
@@ -99,7 +99,7 @@ public final class VillagerTradeStorage extends AbstractWorldConfig {
      */
     @Override
     protected int flushIntervalTicks() {
-        return 1200;
+        return 200;
     }
 
     /**

@@ -5,7 +5,7 @@ import net.minecraft.server.MinecraftServer;
 /**
  * 可重载配置的统一契约：{@code ConfigRegistry} 只认这一个接口。
  *
- * <p>两个入口的区别和 {@code UnifiedConfigFile} 对外的两个入口完全一致：
+ * <p>两个入口的区别和 {@code RuleConfig} 对外的两个入口完全一致：
  * <ul>
  *     <li>{@link #reload(MinecraftServer)}：<b>开服回灌</b>用的轻量入口 ——
  *         已经加载过同一台服务器时只把内存里的内容重新应用一遍，不重复读盘；</li>

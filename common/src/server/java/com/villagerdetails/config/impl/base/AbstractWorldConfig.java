@@ -139,8 +139,8 @@ public abstract class AbstractWorldConfig extends AbstractAsyncConfig implements
     /**
      * {@link #reload} 里、{@code ensureLoaded} 之后、{@code markDirty} 之前执行。
      *
-     * <p>典型用法：把读到的内容应用到别的系统（{@code RuleConfig} → 回灌 {@code RuleCache}，
-     * {@code UnifiedConfigFile} → 带上所有 section 子配置）。
+     * <p>典型用法：把读到的内容应用到别的系统（{@code RuleSwitchConfig} → 回灌 {@code RuleCache}，
+     * {@code RuleConfig} → 带上所有 section 子配置）。
      *
      * @param server 当前服务器；可能为 {@code null}（停服路径上的重载）
      */
@@ -164,7 +164,7 @@ public abstract class AbstractWorldConfig extends AbstractAsyncConfig implements
      * @return 两次落盘之间至少间隔多少 tick
      */
     protected int flushIntervalTicks() {
-        return 1;
+        return 20;
     }
 
     // ==============================================================
@@ -283,7 +283,7 @@ public abstract class AbstractWorldConfig extends AbstractAsyncConfig implements
     /**
      * 挂上 server；没加载过（或换了一台 server）就读一次盘。
      *
-     * <p>server 相同且已加载时是纯粹的两次字段比较，随便调 —— {@code RuleConfig.getOrCreate}
+     * <p>server 相同且已加载时是纯粹的两次字段比较，随便调 —— {@code RuleSwitchConfig.getOrCreate}
      * 这种「每改一次规则都会走一遍」的路径依赖这个特性。
      *
      * @param server 目标服务器；可以为 {@code null}

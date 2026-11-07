@@ -1,7 +1,7 @@
 package com.villagerdetails.config.impl.section.item;
 
 import com.villagerdetails.command.SwitchComponentType;
-import com.villagerdetails.config.impl.RuleConfig;
+import com.villagerdetails.config.impl.RuleSwitchConfig;
 import com.villagerdetails.config.impl.section.base.IdSetConfig;
 import com.villagerdetails.config.impl.section.storage.IdSetStorage;
 import com.villagerdetails.rule.RuleChangeService;
@@ -46,7 +46,7 @@ public final class NoSqueezeConfig extends IdSetConfig {
     }
 
     private static void migrateLegacyRuleState(MinecraftServer server) {
-        RuleConfig config = RuleConfig.getOrCreate(server);
+        RuleSwitchConfig config = RuleSwitchConfig.getOrCreate(server);
         String key = VILLAGER_NO_SQUEEZE.getRegisterName();
         String legacy = config.getBindingState(key);
         if (!isLegacyState(legacy)) return;
@@ -55,7 +55,7 @@ public final class NoSqueezeConfig extends IdSetConfig {
         if (!ids.isEmpty()) INSTANCE.addAll(ids);
 
         // 写规则状态统一走 RuleChangeService —— 它会经 RuleCache 落盘，
-        // 这里不再自己动 RuleConfig（以前是 setBindingState + setState 写两遍）
+        // 这里不再自己动 RuleSwitchConfig（以前是 setBindingState + setState 写两遍）
         RuleChangeService.change(VILLAGER_NO_SQUEEZE, SwitchComponentType.TRUE_STR);
         log.info("已把「无挤压」规则状态里的老名单迁移进配置（{} 项）", ids.size());
     }

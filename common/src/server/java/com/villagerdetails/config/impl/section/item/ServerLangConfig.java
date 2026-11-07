@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.config.ReloadableConfig;
-import com.villagerdetails.config.impl.UnifiedConfigFile;
+import com.villagerdetails.config.impl.RuleConfig;
 import com.villagerdetails.lang.ServerTranslations;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
@@ -77,7 +77,7 @@ public final class ServerLangConfig implements ReloadableConfig {
     }
 
     public static void loadFromWorld() {
-        JsonObject sec = UnifiedConfigFile.getSection(SETTING_LANGUAGE.getRegisterName());
+        JsonObject sec = RuleConfig.getSection(SETTING_LANGUAGE.getRegisterName());
         boolean changed = false;
 
         if (sec.has("preload") && sec.get("preload").isJsonArray()) {
@@ -101,7 +101,7 @@ public final class ServerLangConfig implements ReloadableConfig {
         }
 
         // 补默认值只是改了内存 root：标脏即可，落盘由本 tick 末尾的 flush 合并完成
-        if (changed) UnifiedConfigFile.INSTANCE.markDirty();
+        if (changed) RuleConfig.INSTANCE.markDirty();
         log.info("[ServerLang] preload={}, default={}", preloadLanguage, defaultLang);
     }
 }

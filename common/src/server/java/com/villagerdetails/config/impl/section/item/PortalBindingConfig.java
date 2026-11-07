@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.villagerdetails.config.ReloadableConfig;
-import com.villagerdetails.config.impl.UnifiedConfigFile;
+import com.villagerdetails.config.impl.RuleConfig;
 import com.villagerdetails.config.impl.util.BindingJson;
 import com.villagerdetails.pojo.dto.PortalBinding;
 import net.minecraft.core.BlockPos;
@@ -27,12 +27,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * 传送门绑定的持久化。
  *
  * <p>存进统一配置文件 {@code <world>/villagerdetails/config.json} 的 {@value #SECTION} 节。
- * 注意和 {@code RuleConfig} 那份 {@code villager_details_binding.json} 不是一回事：
+ * 注意和 {@code RuleSwitchConfig} 那份 {@code villager_details_binding.json} 不是一回事：
  * 那边存的是<b>规则开关</b>，这里存的是<b>坐标数据</b>。
  *
  * <p>数据源就在这个类里（不是内存里另存一份），所以「改过但忘了落盘」不存在：
  * 指令 {@code /ec PortalBinding bind} 走 {@link #add}，加完立刻标脏，
- * 本 tick 末尾由 {@code UnifiedConfigFile.flush()} 统一写文件。
+ * 本 tick 末尾由 {@code RuleConfig.flush()} 统一写文件。
  *
  * <p>一条绑定就是<b>一个对象</b>：键是两端的维度 id，值是该维度里的坐标区域
  * （{@code max} 省略时按单格区域算，{@code min}/{@code max} 顺序写反了会被归一化）。
@@ -126,7 +126,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
     }
 
     /**
-     * 从统一配置的内存 root 重新读一遍；服务器启动 / 重载时由 {@link UnifiedConfigFile} 驱动。
+     * 从统一配置的内存 root 重新读一遍；服务器启动 / 重载时由 {@link RuleConfig} 驱动。
      */
     @Override
     public void reload(MinecraftServer server) {
@@ -174,7 +174,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
     }
 
     /**
-     * 按 ID 删除一条并<b>标脏</b>（真正的写盘由 {@code UnifiedConfigFile.flush()} 在本 tick 末尾合并完成）；
+     * 按 ID 删除一条并<b>标脏</b>（真正的写盘由 {@code RuleConfig.flush()} 在本 tick 末尾合并完成）；
      * 找不到返回 {@code null}。
      *
      * <p>ID 只增不回退：删掉的号不会分给别人，所以「别人手里那个 ID 突然指到新条目」
@@ -366,7 +366,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
     /**
      * 从内存 root 读。
      *
-     * <p>解析完顺手把规范化后的内容写回 root，{@code UnifiedConfigFile.flush()} 会一起落盘 ——
+     * <p>解析完顺手把规范化后的内容写回 root，{@code RuleConfig.flush()} 会一起落盘 ——
      * 于是手改潦草 / 写坏的条目会被清理成标准格式，没绑过时也会留下一个空骨架给用户照着填。
      *
      * <p><b>旧存档的 ID 迁移</b>（这里也是「不会重号」的全部保证）：
@@ -388,7 +388,7 @@ public final class PortalBindingConfig implements ReloadableConfig {
         bindings.clear();
         nextId = 1;
 
-        JsonObject section = UnifiedConfigFile.getSection(SECTION);
+        JsonObject section = RuleConfig.getSection(SECTION);
         JsonElement element = section.get(BINDINGS_KEY);
         int skipped = 0;
         int duplicated = 0;
@@ -494,11 +494,11 @@ public final class PortalBindingConfig implements ReloadableConfig {
     }
 
     private void markDirty() {
-        JsonObject section = UnifiedConfigFile.getSection(SECTION);
+        JsonObject section = RuleConfig.getSection(SECTION);
         section.add(BINDINGS_KEY, toJsonArray());
         // 计数器一起写进 root：否则「删掉最大的号 → 重启」会让那个号被重新发出去
         section.addProperty(KEY_NEXT_ID, nextId);
-        UnifiedConfigFile.INSTANCE.markDirty();
+        RuleConfig.INSTANCE.markDirty();
     }
 
     private JsonArray toJsonArray() {

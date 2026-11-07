@@ -52,7 +52,36 @@ public final class ServerThreadManager {
     private static final int CORE_SIZE = 2;
     private static final int MAX_SIZE = 4;
 
-    private static ModThreadPool serverPool;
+    /**
+     * 查询线程池的名字（{@code /ec c TradeSearch} 的异步查询专用）。
+     *
+     * <p>独立于快照池，见 {@link #executeQuery(Runnable)} 的注释。
+     */
+    private static final String QUERY_POOL_NAME = "VillagerDetails-Query";
+
+    /**
+     * 查询池容量：玩家点一次命令就一个任务，{@value #QUERY_CORE_SIZE}~{@value #QUERY_MAX_SIZE}
+     * 条线程、队列 {@value #QUERY_QUEUE_CAPACITY} 已经够用；打满就把「稍后再试」交还调用方。
+     */
+    private static final int QUERY_CORE_SIZE = 1;
+    private static final int QUERY_MAX_SIZE = 2;
+    private static final int QUERY_QUEUE_CAPACITY = 16;
+
+    /**
+     * 当前服务端线程池。
+     *
+     * <p>{@code volatile}：写方（{@link #init()} / {@link #shutdown()}）在 {@code ServerThreadManager.class}
+     * 锁内，读方 {@link #getPool()} 在锁外读，换存档重建池时需要保证读到的是新引用而不是缓存值。
+     * 它只补可见性，<b>不承担互斥</b>（互斥仍由 init / shutdown 的类锁负责）。
+     */
+    private static volatile ModThreadPool serverPool;
+
+    /**
+     * 异步查询池（只跑「只读搜索」，绝不写缓存）。
+     *
+     * <p>和 {@link #serverPool} 相同的可见性约定：类锁内写、锁外读。
+     */
+    private static volatile ModThreadPool queryPool;
 
     /**
      * 生命周期钩子是否已经挂过（只在第一次 init 时挂）。
@@ -73,7 +102,7 @@ public final class ServerThreadManager {
     /**
      * 登记一个「关池之前」的收尾动作。
      *
-     * <p>典型用法：{@code ServerThreadManager.addPreShutdownHook(UnifiedConfigFile::flush)}。
+     * <p>典型用法：{@code ServerThreadManager.addPreShutdownHook(RuleConfig::flush)}。
      * 重复登记同一个实例会被忽略（避免换存档时越堆越多）。
      *
      * <p><b>执行顺序 = 登记顺序</b>：所有「把内容交给异步写线程」的动作必须排在
@@ -89,15 +118,20 @@ public final class ServerThreadManager {
     }
 
     /**
-     * 建立（或在池子已关闭时重建）服务端线程池。
+     * 建立（或在池子已关闭时重建）服务端线程池 + 查询池。
+     *
+     * <p>两个池各自独立判断「还活着吗」：换存档时 {@link #shutdown()} 会把引用一起清空，
+     * 下一次 {@code SERVER_STARTED} 重新建；只重建其中一个也不会把另一个弄丢。
      */
     public static synchronized void init() {
-        // 池子还活着：什么都不用做
-        if (serverPool != null && !serverPool.isShutdown()) {
-            return;
+        if (serverPool == null || serverPool.isShutdown()) {
+            serverPool = new ModThreadPool(POOL_NAME, CORE_SIZE, MAX_SIZE, QUEUE_CAPACITY, rejectWithWarn());
+            ModContext.setServerPool(serverPool);
         }
-        serverPool = new ModThreadPool(POOL_NAME, CORE_SIZE, MAX_SIZE, QUEUE_CAPACITY, rejectWithWarn());
-        ModContext.setServerPool(serverPool);
+        if (queryPool == null || queryPool.isShutdown()) {
+            queryPool = new ModThreadPool(QUERY_POOL_NAME, QUERY_CORE_SIZE, QUERY_MAX_SIZE,
+                    QUERY_QUEUE_CAPACITY, rejectWithWarn());
+        }
         hookLifecycle();
     }
 
@@ -128,7 +162,13 @@ public final class ServerThreadManager {
         };
     }
 
-    private static synchronized void hookLifecycle() {
+    /**
+     * 挂生命周期钩子（只在第一次 {@code init} 时挂一次）。
+     *
+     * <p><b>不加锁</b>：仅由 {@link #init()} 在类锁内调用，故无需额外同步 ——
+     * 这里再写 {@code synchronized} 只是对同一把类锁的重入获取。
+     */
+    private static void hookLifecycle() {
         if (lifecycleHooked) {
             return;
         }
@@ -149,14 +189,22 @@ public final class ServerThreadManager {
         // 顺序关键：收尾钩子（配置刷盘）必须在池子还活着的时候跑
         runPreShutdownHooks();
 
-        ModThreadPool pool;
+        ModThreadPool main;
+        ModThreadPool query;
         synchronized (ServerThreadManager.class) {
-            pool = serverPool;
+            main = serverPool;
+            query = queryPool;
             serverPool = null;
+            queryPool = null;
             ModContext.setServerPool(null);
         }
-        if (pool != null) {
-            pool.shutdown();
+        // 查询池<b>先</b>关：查询是一次性的（玩家重新敲一遍就好），丢了不心疼，
+        // 也绝不该为它多等一秒；快照池后关，它要等队列里的快照解析完（最多 1 秒）。
+        if (query != null) {
+            query.shutdown();
+        }
+        if (main != null) {
+            main.shutdown();
         }
     }
 
@@ -186,6 +234,25 @@ public final class ServerThreadManager {
     }
 
     /**
+     * 提交一个「只读查询」任务（{@code /ec c TradeSearch} 用）。
+     *
+     * <p><b>为什么必须和快照池分开</b>：查询是玩家随时能触发的（还可能被狂刷），而快照任务是
+     * 区块卸载时的数据来源。共用一个队列时，玩家刷几次查询就能吃掉容量，把「村民交易快照」
+     * 挤成 {@code false} —— 那是会丢数据的；而查询被拒只是让玩家重敲一遍。
+     * 所以独立线程池、独立队列（{@value #QUERY_QUEUE_CAPACITY}），线程数也很小，
+     * 打满时按标准拒绝语义把「稍后再试」交还调用方。
+     *
+     * @return true = 已入队；false = 池未初始化 / 已关闭（调用方负责给玩家提示）
+     */
+    public static boolean executeQuery(Runnable task) {
+        ModThreadPool pool = getQueryPool();
+        if (pool == null) {
+            return false;
+        }
+        return pool.execute(task);
+    }
+
+    /**
      * 提交一个异步任务，并提供拒绝后的回调。
      */
     public static void execute(Runnable task, Runnable onRejected) {
@@ -196,6 +263,14 @@ public final class ServerThreadManager {
 
     private static ModThreadPool getPool() {
         ModThreadPool pool = serverPool;
+        if (pool == null || pool.isShutdown()) {
+            return null;
+        }
+        return pool;
+    }
+
+    private static ModThreadPool getQueryPool() {
+        ModThreadPool pool = queryPool;
         if (pool == null || pool.isShutdown()) {
             return null;
         }

@@ -25,7 +25,7 @@ import java.util.UUID;
  * 村民交易索引（{@code villager_trade_cache.json}）的 <b>JSON 编解码</b>：
  * 只做「内存数据 ⇄ JSON 文本」的纯转换。
  *
- * <p>从 {@code VillagerTradeStorage} 里拆出来的一层，目的是让那边只负责生命周期与落盘调度。
+ * <p>从 {@code VillagerTradeCacheConfig} 里拆出来的一层，目的是让那边只负责生命周期与落盘调度。
  * 两个入口：
  * <ul>
  *     <li>{@link #encode(Map)}：内存 → 要落盘的 {@link JsonObject}（写盘时由存储类调用）；</li>
