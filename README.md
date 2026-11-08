@@ -32,17 +32,15 @@ VillagerDetails is a Fabric mod that provides a large collection of behavior fix
 | VillagerWorkBlockBinding | Villager work block editor — rebind the work block with a lead named `work` |
 | VillagerBatchBedBinding | Batch bed binding — auto-bind villagers in an area to the nearest bed |
 | VillagerInfiniteTrade | Infinite trades — villager trades never run out |
-| VillagerAutoTrader | Auto trade refresh — write an item / enchantment id on a name tag (`emerald`, `mending`, `经验修补`…) and right-click a villager: the trade table is re-rolled with **vanilla probabilities**, sliced across ticks (100 rolls/tick, 1000 rolls max), until the target shows up; enchanted books are topped up to max level on a hit. Default: **on** |
+| VillagerAutoTrader | Auto trade refresh — write an item / enchantment id on a name tag (`emerald`, `mending`, `经验修补`…) and right-click a villager: the trade table is re-rolled with **vanilla probabilities**, sliced across ticks (rolls per tick set by `VillagerOneTickTraderCount`, default 500; 1000 rolls max per task), until the target shows up; enchanted books are topped up to max level on a hit. The same rule also covers `331a` / `331b` (a weaponsmith ends up with the triple-enchanted diamond pickaxe / shovel / axe) and terracotta names (terracotta + its glazed counterpart in one table, with 3x rolls) — there are no separate switches for those. Default: **on** |
 | VillagerSilentTrader | Silent trade reroll — remove the name tag after rerolling |
 | VillagerAutoLockHitTrader | Auto-lock trades — lock rerolled enchanted books automatically |
-| VillagerGodTools | God tools — `331a` / `331b` name tags reroll a weaponsmith's trades (tick-sliced, up to 500 rolls) and always end with a triple-enchanted diamond pickaxe / shovel / axe |
-| VillagerTerracottaTrader | Terracotta trader — name tag `Terracotta` rerolls both terracotta and glazed terracotta |
 | VillagerHardWorking | Hard-working villagers — adjust restock amount per trade |
 | VillagerMoveController | Move controller — set a destination with a lead named `move` |
 | VillagerToolsmithExchange | Diamond exchange reversal — toolsmith trades emeralds for diamonds |
 | VillagerBookshelfDecompose | Auto bookshelf decomposition — bookshelves auto-decompose into books when used as payment |
 | VillagerEmeraldDecompose | Auto emerald block decomposition — emerald blocks auto-decompose into emeralds when used as payment |
-| VillagerOneTickTraderCount | Adjust trades refreshed per tick |
+| VillagerOneTickTraderCount | Adjust trades refreshed per tick (50 / 100 / 500 / 1000, default 500) |
 | VillagerTradeSearch | Villager trade search — locked trades are snapshotted when a chunk unloads (raw ids / counts / max uses / enchantment ids are copied on the main thread, parsed on the server thread pool) and indexed in memory + `villagerdetails/villager_trade_cache.json`; `/ec c TradeSearch item <item>` and `/ec c TradeSearch book <enchantment>` search that index without touching the world. Names are localized on the client; results list only the matched offers (up to 10 villagers, UUID click-to-copy) |
 
 #### Entities & Mobs
@@ -50,7 +48,7 @@ VillagerDetails is a Fabric mod that provides a large collection of behavior fix
 | Rule | Description |
 |------|-------------|
 | NoSqueeze | No squeeze — specified entities are immune to entity cramming damage |
-| MobNoSpawn | No mob spawning — listed entity types never spawn (natural spawn, spawners, eggs, `/summon`, breeding) |
+| MobNoSpawn | No mob spawning — listed entity types can no longer be **created** (natural spawn, spawners, eggs, `/summon`, breeding, structure spawning; existing mobs are untouched) |
 | PortalPiglinNoSpawn | No zombified piglins at bound portals — pick a nether portal region with a `tool` leash and bind it, then those portals stop spawning zombified piglins |
 | PiglinBarterDelay | Piglin barter delay adjustment |
 | PiglinGoldBlockMultiply | Gold block barter — piglins accept gold blocks, 9x output |
@@ -164,8 +162,8 @@ from the cache on `ServerLivingEntityEvents.AFTER_DEATH`. Names are localized on
 Results are capped at 10 villagers, and each villager lists only the **matched** offers (6 per villager,
 the rest folded into "…and N more"). Tab completion for `item` is collected from the `VILLAGER_TRADE`
 registry (so datapack/modded trades are included); `book` completes enchantment ids (`mending`,
-`minecraft:mending`) and their localized names. The index *is* persisted (asynchronously, checked once a
-minute and flushed on stop / rule off), so it survives restarts; a trade locked while its chunk stays
+`minecraft:mending`) and their localized names. The index *is* persisted (asynchronously, checked every
+200 ticks / ~10 seconds and flushed on stop / rule off), so it survives restarts; a trade locked while its chunk stays
 loaded still appears only after the chunk unloads.
 
 `/ec c reload` reloads **whole files** — every section of `villagerdetails/config.json`,
@@ -304,8 +302,12 @@ server source set (single-player / LAN without a separate server jar).
 - Classpath scanning is restricted to an allow-list (`ScanService.SCAN_PACKAGES`) containing only
   the packages that hold scan-registered components (`cache.impl`, `event.impl`, `network.sync`,
   plus the client counterparts). Adding a scan-registered component package requires adding it
-  there — a package outside the list logs an ERROR and yields zero classes, which the per-registry
-  `checkNotEmpty` then reports.
+  there — asking for a package outside the list logs the offending package and then throws
+  `IllegalStateException`, so a forgotten entry fails the server at startup instead of quietly
+  registering nothing.
+- Design documentation lives in two bilingual suites: [`doc/business/`](doc/business/README.md)
+  (what each rule does, for players and server owners) and [`doc/framework/`](doc/framework/README.md)
+  (how the framework is built, for maintainers).
 
 ### License
 
@@ -350,17 +352,15 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 | VillagerWorkBlockBinding | 村民工作方块编辑器 — 使用命名为 `work` 的拴绳修改工作方块 |
 | VillagerBatchBedBinding | 批量村民床编辑器 — 区域内村民自动绑定最近的床 |
 | VillagerInfiniteTrade | 无限交易 — 村民交易永不耗尽 |
-| VillagerAutoTrader | 自动刷新交易 — 命名牌写物品 / 附魔（`绿宝石`、`mending`、`minecraft:emerald`），右键任意村民后按**原版概率**重掷交易表：分帧执行（每 tick 100 次、单任务上限 1000 次），命中后写回并把附魔书补到满级；`331a/331b` 与陶瓦另有独立规则。默认**开启** |
+| VillagerAutoTrader | 自动刷新交易 — 命名牌写物品 / 附魔（`绿宝石`、`mending`、`minecraft:emerald`），右键任意村民后按**原版概率**重掷交易表：分帧执行（每 tick 次数由「每 tick 刷新交易次数」控制，默认 500，可配 50/100/500/1000；单任务上限 1000 次），命中后写回并把附魔书补到满级。`331a/331b`（武器匠三附魔钻石工具）与陶瓦成对刷新都并入本规则（陶瓦路线次数 ×3），没有独立开关。默认**开启** |
 | VillagerSilentTrader | 无感交易刷新 — 刷新后自动移除命名标签 |
 | VillagerAutoLockHitTrader | 自动锁定交易 — 刷新出的附魔书自动锁定 |
-| VillagerGodTools | 神装工具刷新 — 使用 `331a/331b` 命名牌刷三附魔钻石工具（同样走分帧调度，最多 500 次模拟，最终一定会补齐三件套） |
-| VillagerTerracottaTrader | 陶瓦刷新 — 用陶瓦名称命名牌同时刷出陶瓦和带釉陶瓦（分帧模拟，最多 2000 次） |
 | VillagerHardWorking | 勤劳的村民 — 调整村民每次补货数量 |
 | VillagerMoveController | 村民移动控制器 — 使用命名为 `move` 的拴绳设置目的地 |
 | VillagerToolsmithExchange | 钻石兑换反转 — 工具匠改为绿宝石换钻石 |
 | VillagerBookshelfDecompose | 书架自动拆解 — 用书架支付时自动拆成书 |
 | VillagerEmeraldDecompose | 绿宝石块自动拆解 — 用绿宝石块支付时自动拆成绿宝石 |
-| VillagerOneTickTraderCount | （已停用）重刷统一改为固定每 tick 100 次模拟，本规则不再生效 |
+| VillagerOneTickTraderCount | 每 tick 刷新交易次数 — 控制自动刷新交易每 tick 的模拟次数（50 / 100 / 500 / 1000，默认 500） |
 | VillagerTradeSearch | 村民交易查询 — 区块卸载时把「已锁定交易」的村民快照收录进索引（id / 数量 / 可交易次数 / 附魔 id，主线程拷贝、服务端线程池解析，并异步落盘）；之后用 `/ec c TradeSearch item <物品>` 或 `/ec c TradeSearch book <附魔>` 直接搜内存缓存，不遍历世界。展示名由客户端本地化，每条只列命中的交易（最多 10 个村民，可点 UUID 复制） |
 
 #### 实体与怪物
@@ -368,7 +368,7 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 | 规则名 | 说明 |
 |--------|------|
 | NoSqueeze | 无挤压 — 指定实体不参与挤压、不受挤压伤害 |
-| MobNoSpawn | 禁止生物生成 — 名单里的实体类型不再生成（自然生成 / 刷怪笼 / 刷怪蛋 / `/summon` / 繁殖） |
+| MobNoSpawn | 禁止生物生成 — 名单里的实体类型不再被**创建**（自然生成 / 刷怪笼 / 刷怪蛋 / `/summon` / 繁殖 / 结构生成；已存在的生物不受影响） |
 | PortalPiglinNoSpawn | 禁用地狱门刷僵尸猪灵 — 用命名为 `tool` 的拴绳圈出地狱门区域并执行绑定，该区域的地狱门不再刷出僵尸猪灵 |
 | PiglinBarterDelay | 猪灵交易等待时间调整 |
 | PiglinGoldBlockMultiply | 金块交易 — 猪灵愿捡金块，9 倍产出 |
@@ -493,7 +493,7 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
 扫不到时退回「服务器认识的全部附魔」。搜索同理：`item` 匹配结果物 / 价格物的 id 与中文叫法，
 `book` 只匹配每笔交易的附魔 id 与中文名。
 
-索引**会落盘**：内存标脏后每 1200 tick 检查一次、脏了就丢进服务端线程池异步写盘（主线程不做 I/O），
+索引**会落盘**：内存标脏后每 200 tick（约 10 秒）检查一次、脏了就丢进服务端线程池异步写盘（主线程不做 I/O），
 停服 / 关闭规则时同步刷一次再清内存，所以重启后仍能查询；「交易已锁定但区块一直没卸载」时，仍要等
 下一次区块卸载才会出现在查询结果里。旧版本（`format: 1`）的缓存文件会被静默作废，随区块卸载重建。
 
@@ -625,8 +625,10 @@ VillagerDetails 是一个 Fabric 模组，提供了大量村民、实体、方�
   - 规则配置必须是唯一实例，且不能再注册进 `ConfigRegistry`（`verifyReloadableConfigs`）。
 - 扫包有白名单（`ScanService.SCAN_PACKAGES`）：只有真正含有「扫包注册组件」的包会被索引
   （`cache.impl`、`event.impl`、`network.sync`，以及客户端对应的几个）。新增一个扫包注册中心时
-  必须把它的包加进白名单 —— 不在名单里的包会打 ERROR 且扫到 0 个类，随后由各注册中心的
-  `checkNotEmpty` 报出来。
+  必须把它的包加进白名单 —— 请求不在名单里的包会先打出包名和允许的前缀，然后抛
+  `IllegalStateException`，所以漏登记会让服务器在启动时直接失败，而不是静默注册不到任何东西。
+- 设计文档分两套，均为中英双语：[`doc/business/`](doc/business/README.md)（每条规则干什么，
+  面向玩家与服主）与 [`doc/framework/`](doc/framework/README.md)（框架怎么实现，面向维护者）。
 
 ### 许可证
 

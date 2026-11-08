@@ -30,13 +30,7 @@ import net.minecraft.world.item.trading.VillagerTrade;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -86,7 +80,7 @@ public final class TradeItemCompletionCache {
             return;
         }
 
-        boolean submitted = ServerThreadManager.execute(() -> {
+        boolean submitted = ServerThreadManager.executeQuery(() -> {
             try {
                 // 1. 后台线程：执行耗时的遍历和计算
                 RefreshResult result = compute(server);
@@ -102,9 +96,11 @@ public final class TradeItemCompletionCache {
                 });
             } catch (Throwable t) {
                 log.error("异步刷新交易补全缓存发生异常", t);
-                // 异常也要切回主线程解锁并通知
+                // 【改动】先直接解锁，不依赖主线程调度器还活着。
+                // 否则停服过程中 server.execute 里的任务可能永远不执行，REFRESHING 永久卡死。
+                REFRESHING.set(false);
+                // 通知玩家（如果主线程还活着，这条才执行；停服时不执行也没关系）
                 server.execute(() -> {
-                    REFRESHING.set(false);
                     if (source != null) {
                         source.sendSystemMessage(Component.literal("刷新失败，请查看后台日志！")
                                 .withStyle(ChatFormatting.RED));
@@ -125,6 +121,13 @@ public final class TradeItemCompletionCache {
 
     /**
      * 同步刷新补全缓存（兼容旧调用，如启动时、数据包重载时不需要发给玩家的场景）。
+     *
+     * <p><b>必须在主线程调用</b>：它直接调用 {@link #applyResult} 改写
+     * {@link #CACHED_TRADE_ITEM_IDS} 等静态缓存，而这些缓存被主线程的 Tab 补全 /
+     * {@code /ec c TradeSearch} 读取。在非主线程改会让读侧看到中间态。
+     *
+     * <p>需要异步场景请用 {@link #refreshAsync}：它只把 {@code compute()} 放到池线程，
+     * {@code applyResult} 仍切回主线程执行。
      */
     public static void refresh(MinecraftServer server) {
         if (server == null) {

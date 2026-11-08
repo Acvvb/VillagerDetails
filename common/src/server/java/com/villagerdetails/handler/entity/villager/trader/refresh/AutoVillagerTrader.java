@@ -144,24 +144,27 @@ public class AutoVillagerTrader {
         if (raw == null) return -2;
         String key = normalize(raw);
         if (!(villager.level() instanceof ServerLevel level)) return -1;
+        if (!RuleCache.isEnabled(VILLAGER_AUTO_TRADER)) return -3;
 
         // ===== 331a（精准）/ 331b（时运）：三件套 + 三附魔，同样走调度器 =====
         if (key.equals("331a") || key.equals("331b")) {
-            if (isProfessionAllowed(villager)) return -4;
+            if (isProfessionNotSupported(villager)) return -4;
             if (isRerollable(villager)) return -1;
             return enqueueCombo(level, villager, player, raw.trim(), key.equals("331a"));
         }
 
         // ===== 点名：物品 / 附魔书 / 陶瓦 =====
-        if (!RuleCache.isEnabled(VILLAGER_AUTO_TRADER)) return -3;
-
         Target target = resolveTarget(villager, raw);
         if (target == null) return -2;
         if (target.requiredLevel() == TradePoolChecker.NO_LEVEL) return -7;
         if (isRerollable(villager)) return -1;
-        if (target.route() == Route.TERRACOTTA) return -3;
 
-        int attempts = TradeRerollScheduler.MAX_ATTEMPTS;
+        // 陶瓦要「普通 + 对应釉陶」成对出现，概率明显低于单物品：
+        // 原版石匠 4 级的交易集只抽 2 笔、候选 33 条，成对命中的单次概率约 1/528，
+        // 所以次数上限单独放大 3 倍（3000 次≈99.7% 命中）。
+        int attempts = target.route() == Route.TERRACOTTA
+                ? TradeRerollScheduler.MAX_ATTEMPTS * 3
+                : TradeRerollScheduler.MAX_ATTEMPTS;
 
         // 💡 触发瞬间：从全局随机源抓取一个盐值，打破固定序列
         long randomSalt = level.getRandom().nextLong();
@@ -430,15 +433,21 @@ public class AutoVillagerTrader {
         if (offers != null && !offers.isEmpty()) {
             offers.getFirst().increaseUses();
         }
-        villager.setVillagerXp(1);
+        // 只把经验"垫底到 1"（villagerXp > 0 之后不再允许重掷），不能覆盖玩家已经攒下的高经验
+        villager.setVillagerXp(Math.max(1, villager.getVillagerXp()));
     }
 
-    private static boolean isProfessionAllowed(Villager villager) {
+    /**
+     * 331a/331b 是「神装工具」路线：只支持 {@link #GOD_TOOLS_PROFESSIONS} 里的职业。
+     *
+     * @return {@code true} 表示这个职业<b>不支持</b> 331 路线（调用方据此返回 -4）
+     */
+    private static boolean isProfessionNotSupported(Villager villager) {
         if (villager == null) return false;
         return villager.getVillagerData().profession()
                 .unwrapKey()
-                .map(key -> !AutoVillagerTrader.GOD_TOOLS_PROFESSIONS.contains(key))   // 不在白名单 → true
-                .orElse(true);                           // 无职业 → 禁止
+                .map(key -> !AutoVillagerTrader.GOD_TOOLS_PROFESSIONS.contains(key))   // 不在白名单 → 不支持
+                .orElse(true);                           // 无职业 → 不支持
     }
 
     /**

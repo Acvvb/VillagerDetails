@@ -62,8 +62,14 @@ public enum RuleType implements RegisterTypeServer {
      * 「moved too quickly / moved wrongly」判定，<b>不影响外部反作弊</b>
      * （NoCheatPlus、Matrix、服务端专属反作弊插件等仍按自己的规则判定）。
      *
-     * <p>船 / 矿车 / 其他模组载具 / 玩家头顶乘坐<b>不再</b>被这条规则放行（历史版本是全局放行，
-     * 已于收窄中移除）。实现在 {@code GlobalSpeedBypassMixin#villagerdetails$isBypassAllowed()}。
+     * <p>船 / 矿车 / 其他模组载具 / 玩家头顶乘坐<b>不</b>被这条规则放行（历史版本是全局放行，
+     * 已于收窄中移除）。两条实现路径都必须同时满足"范围"：
+     * <ul>
+     *     <li>玩家自身移动 → {@code GlobalSpeedBypassMixin#villagerdetails$isBypassAllowed()}；
+     *         那里只放行"没骑载具"与"控制着乐魂"两种情况；</li>
+     *     <li>载具移动 → {@code VehicleMoveTrust#isTrusted(ServerPlayer, Entity)}；
+     *         那里要求根载具的类型是 {@code EntityType.HAPPY_GHAST}，其它载具走原版校验。</li>
+     * </ul>
      */
     GLOBAL_SPEED_BYPASS("GlobalSpeedBypass", "setting.global_speed_bypass", "setting.global_speed_bypass.desc", List.of(FIX), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
@@ -78,7 +84,13 @@ public enum RuleType implements RegisterTypeServer {
     VILLAGER_NO_SQUEEZE("NoSqueeze", "setting.villager_no_squeeze", "setting.villager_no_squeeze.desc", List.of(ENTITY, VILLAGER), new ArrayList<>(), () -> NoSqueezeServerImpl.INSTANCE, () -> NoSqueezeConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR),
 
     /**
-     * 禁止生成。阻止特定实体生成。实体名单由 /ec c MobNoSpawn 维护。
+     * 禁止生成。名单里的实体类型不再被"创建"。
+     *
+     * <p><b>实际拦截点是 {@code EntityType#create}</b>，所以拦的不只是自然生成：
+     * {@code /summon}、刷怪蛋、刷怪笼、繁殖、袭击、结构生成全部会被拦。
+     * 只放行三种创建原因：区块加载（{@code LOAD}）、跨维度（{@code DIMENSION_TRAVEL}）、
+     * 转化（{@code CONVERSION}，如僵尸村民治愈）—— 拦它们会把已存在的实体弄丢。
+     * 名单由 {@code /ec c MobNoSpawn} 维护。
      */
     MOB_NO_SPAWN("MobNoSpawn", "rule.entity.no_spawn", "rule.entity.no_spawn.desc", List.of(ENTITY, COMMAND), new ArrayList<>(), () -> MobNoSpawnServerImpl.INSTANCE, () -> MobNoSpawnConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR),
 
@@ -86,6 +98,10 @@ public enum RuleType implements RegisterTypeServer {
      * 禁用地狱门刷僵尸猪灵。用命名为 tool 的拴绳左/右键选出地狱门方块区域，
      * 执行 {@code /ec c PortalPiglinNoSpawn bind} 绑定；绑定区域里的地狱门方块
      * 随机刻时不再刷出僵尸猪灵（区域表见 {@link PortalPiglinNoSpawnConfig}）。
+     *
+     * <p><b>档位只 gate「命令」的准入</b>（{@code /ec c PortalPiglinNoSpawn ...}）；
+     * 运行时的区域判定是<b>全局</b>的（{@code isBlocked(level, pos)} 不看执行者），
+     * 只要规则不是 {@code false}，绑定区域对所有实体一律不再刷僵尸猪灵。
      */
     PORTAL_PIGLIN_NO_SPAWN("PortalPiglinNoSpawn", "rule.entity.portal_piglin_no_spawn", "rule.entity.portal_piglin_no_spawn.desc", List.of(ENTITY, COMMAND), List.of(ListenerType.BLOCK_RANGE_SELECTION), () -> PortalPiglinNoSpawnServerImpl.INSTANCE, () -> PortalPiglinNoSpawnConfig.INSTANCE, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR),
 
@@ -105,7 +121,13 @@ public enum RuleType implements RegisterTypeServer {
     PIGLIN_BARTER_DELAY("PiglinBarterDelay", "setting.piglin_barter_delay", "setting.piglin_barter_delay.desc", List.of(ENTITY), new ArrayList<>(), null, null, () -> List.of("3", "6", "12"), RuleConfigKind.NONE, "6"),
 
     /**
-     * 猪灵金块交易惩罚。如果给金块交易失败时的惩罚机制（如消耗数量）。
+     * 猪灵金块交易惩罚：金块交易的<b>等待时长倍数</b>。
+     *
+     * <p>金块交易的实际欣赏时长 = {@link #PIGLIN_BARTER_DELAY} 算出的基础时长 × 本倍数
+     * （默认 9 → 约 53 秒）。<b>不消耗任何物品、不减少产出</b>，纯粹的"多等一会儿"。
+     * 普通金锭交易永远是 1 倍。
+     *
+     * <p>没有 {@code stateValidator}：非法值会被 {@code ParseUtils.toInt} 回落成默认 9。
      */
     PIGLIN_GOLD_BLOCK_MULTIPLY_PUNISHMENT("PiglinGoldBlockMultiplyPunishment", "setting.piglin_gold_block_multiply_punishment", "setting.piglin_gold_block_multiply_punishment.desc", List.of(ENTITY), new ArrayList<>(), null, null, () -> List.of("1", "3", "9"), RuleConfigKind.NONE, "9"),
 
@@ -123,6 +145,11 @@ public enum RuleType implements RegisterTypeServer {
      *         或手改配置文件这类情况。</li>
      * </ol>
      *
+     * <p><b>上界与消费侧保持一致（0.0 ~ 5.0 = 原版 0 ~ 100 倍）</b>：曾经校验上界写成 20.0、
+     * 消费侧却夹到 5.0，于是 5.0~20.0 的值会"提示修改成功但实际被静默夹断"。
+     * 20.0 是原版 400 倍，远超区块加载速度、玩家也驾驭不了（只会被原版位移判定截断），
+     * 所以直接把上界收到 5.0。
+     *
      * <p><b>与 {@link #GLOBAL_SPEED_BYPASS} 的耦合</b>：两条规则相互独立，只开速度不开 bypass
      * 照样生效，但移速过快时仍可能被服务端拉回、并刷 {@code moved too quickly} 日志。
      * 所以调高速度前建议同时开启 GlobalSpeedBypass（代码只提示、不自动开启）。
@@ -130,7 +157,7 @@ public enum RuleType implements RegisterTypeServer {
      * <p>骑乘中改规则会立即生效；still-timeout / 取下挽具 / 控制者变成非玩家后，
      * 每秒一次的巡检会把速度回滚到原版。
      */
-    HAPPY_GHAST_SPEED("HappyGhastSpeed", "setting.happy_ghast_speed", "setting.happy_ghast_speed.desc", List.of(FIX), new ArrayList<>(), null, null, () -> List.of("0.05", "0.1", "0.2", "0.3", "0.5", "1.0"), RuleConfigKind.NONE, "0.05", RuleStateValidator.numericRange(0.0, 20.0)),
+    HAPPY_GHAST_SPEED("HappyGhastSpeed", "setting.happy_ghast_speed", "setting.happy_ghast_speed.desc", List.of(FIX), new ArrayList<>(), null, null, () -> List.of("0.05", "0.1", "0.2", "0.3", "0.5", "1.0"), RuleConfigKind.NONE, "0.05", RuleStateValidator.numericRange(0.0, 5.0)),
 
 
     // ==========================================
@@ -138,7 +165,13 @@ public enum RuleType implements RegisterTypeServer {
     // ==========================================
 
     /**
-     * 过门失智。怪物穿过下界传送门后失去 AI，变成无脑状态。
+     * 过门失智。怪物穿过下界传送门后失去全部 AI（goal + target 两个选择器被清空）。
+     *
+     * <p><b>触发条件是「换过维度」，不只是传送门</b>：末地门、跨维度 {@code /tp}、
+     * 被其它模组搬运都会触发（监听的是 {@code AFTER_ENTITY_CHANGE_LEVEL}）。
+     *
+     * <p><b>不可逆</b>：清掉的 goal 不会恢复，只有实体重载（区块卸载再加载）或服务器重启
+     * 才会回到原版行为。
      */
     NO_BRAIN_ON_PORTAL("NoBrainOnPortal", "setting.no_brain_on_portal", "setting.no_brain_on_portal.desc", List.of(MONSTER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
@@ -224,12 +257,20 @@ public enum RuleType implements RegisterTypeServer {
     VILLAGER_SILENT_AUTO_REROLL_TRADER("VillagerSilentTrader", "setting.villager_silent_auto_reroll_trader", "setting.villager_silent_auto_reroll_trader.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
     /**
-     * 每 tick 刷新交易次数。调整自动刷新交易的单 tick 刷新次数。
+     * 每 tick 刷新交易次数：<b>每个任务</b>每个 tick 最多模拟几次。
+     *
+     * <p>它是<b>预算，不是开关</b>：可选值 50 / 100 / 500 / 1000 全是数字（自定义列表），
+     * 消耗侧 {@code Math.clamp(v, 1, 1000)}，<b>没有 {@code false} 档</b> ——
+     * 「关掉自动刷新」请用 {@link #VILLAGER_AUTO_TRADER}，不要指望把这里设成 0。
      */
     VILLAGER_ONE_TICK_TRADER_COUNT("VillagerOneTickTraderCount", "setting.villager_one_tick_trader_count", "setting.villager_one_tick_trader_count.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> List.of("50", "100", "500", "1000"), RuleConfigKind.NONE, "500"),
 
     /**
-     * 勤劳的村民。调整村民每次补货的数量（默认两倍补货）。
+     * 勤劳的村民：补货后的"可卖次数倍率"（1 = 原版，2 = 补货后能卖原来的两倍）。
+     *
+     * <p>实现方式是把 {@code MerchantOffer#uses} 写成<b>负数</b>（{@code -(倍率-1) × maxUses}），
+     * 所以界面上可能出现 {@code -3/12} 这种"已使用次数为负"的显示 —— <b>已知问题，不影响功能</b>
+     * （原版只比较 {@code uses >= maxUses}）。倍率 ≤ 1 时走原版 {@code resetUses()}。
      */
     VILLAGER_HARD_WORKING("VillagerHardWorking", "setting.villager_hard_working", "setting.villager_hard_working.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> List.of("1", "2", "5"), RuleConfigKind.NONE, "1"),
 
@@ -257,7 +298,7 @@ public enum RuleType implements RegisterTypeServer {
      * </ol>
      *
      * <p>索引<b>会落盘</b>（{@code <存档>/villagerdetails/villager_trade_cache.json}，格式版本 2）：
-     * 内存标脏 + 每 1200 tick / 停服时异步写盘，所以<b>重启后仍能查询</b>。
+     * 内存标脏 + 每 200 tick（约 10 秒）/ 停服时异步写盘，所以<b>重启后仍能查询</b>。
      * 展示与本地化在<b>客户端</b>做（服务端只发 {@code Component.translatable}），服务端不维护物品名。
      * 已知边界：交易刚锁定但区块一直没卸载时，索引要等下一次区块卸载才会更新。
      */
@@ -269,7 +310,11 @@ public enum RuleType implements RegisterTypeServer {
     VILLAGER_MOVE_CONTROLLER("VillagerMoveController", "setting.villager_move_controller", "setting.villager_move_controller.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR),
 
     /**
-     * 村民可兑换钻石。把工具匠的钻石换绿宝石改成绿宝石换钻石。
+     * 村民可兑换钻石。把工具匠 / 武器匠高等级的「钻石 → 绿宝石」改写成「绿宝石 → 钻石」。
+     *
+     * <p><b>已知脆弱点</b>：定位用的是 {@code offers} 的<b>下标 ≥ 5</b>（"第 6 笔起"），
+     * 而不是村民等级。交易表结构一变（别的模组插入条目、版本改了交易数目），
+     * 就可能改到不该改的条目上。
      */
     VILLAGER_TOOLSMITH_EXCHANGE("VillagerToolsmithExchange", "setting.villager_toolsmith_exchange", "setting.villager_toolsmith_exchange.desc", List.of(VILLAGER), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),
 
@@ -321,9 +366,10 @@ public enum RuleType implements RegisterTypeServer {
     /**
      * 传送门绑定。将特定范围内的方块绑定到传送门。
      *
-     * <p>开关走权限档位（{@code false / true / ops / master / admin / owner}），
-     * 和「禁用地狱门刷僵尸猪灵」一致：档位既是开关，也是「谁能触发这条绑定」的权限等级 ——
-     * 设成 {@code ops} 就只有 OP 及以上进绑定区域才会被强制传送，普通玩家照常走原版。
+     * <p>开关走权限档位（{@code false / true / ops / master / admin / owner}）。
+     * <b>档位只 gate「绑定命令」的准入</b>（{@code /ec c PortalBinding ...}），
+     * <b>不 gate 实体传送</b>：注入点读的是全局 {@code RuleCache.isEnabled(PORTAL_BINDING)}，
+     * 因为怪物 / 掉落物没有权限概念 —— 只要规则不是 {@code false}，所有实体都会被强制传送。
      */
     PORTAL_BINDING("PortalBinding", "setting.PortalBinding", "setting.PortalBinding.desc", List.of(BLOCK), List.of(ListenerType.BLOCK_RANGE_SELECTION), () -> PortalBindingServerImpl.INSTANCE, () -> PortalBindingConfig.INSTANCE, () -> PERMISSIONS, RuleConfigKind.NONE, FALSE_STR),
 

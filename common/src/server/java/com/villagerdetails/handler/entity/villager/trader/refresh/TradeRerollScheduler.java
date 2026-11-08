@@ -1,5 +1,8 @@
 package com.villagerdetails.handler.entity.villager.trader.refresh;
 
+import com.villagerdetails.cache.RuleCache;
+import com.villagerdetails.rule.type.RuleType;
+import com.villagerdetails.util.ParseUtils;
 import com.villagerdetails.util.SendMessengerUtils;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
@@ -36,9 +39,10 @@ import java.util.function.Predicate;
  *
  * <p>规则很硬：
  * <ul>
- *     <li>每个 tick、每个任务固定最多跑 {@link #ATTEMPTS_PER_TICK} 次模拟，跑完就
- *     {@code break} 去处理下一个任务，剩下的次数留到下一 tick；</li>
- *     <li><b>没有时间阀门</b>：100 次模拟即使花掉 15ms 也仍在 50ms 的 tick 预算内；</li>
+ *     <li>每个 tick、每个任务最多跑「每 tick 刷新次数」档位对应的次数
+ *     （规则 {@code VillagerOneTickTraderCount}：50 / 100 / 500 / 1000，默认 500），
+ *     跑完就 {@code break} 去处理下一个任务，剩下的次数留到下一 tick；</li>
+ *     <li><b>没有时间阀门</b>：跑满本 tick 的预算才停，不会因为某一次模拟慢就提前收工；</li>
  *     <li>任务<b>只存 UUID + 维度 + 谓词 + 随机盐值</b>，每 tick 用 {@code level.getEntity(uuid)} 现查实体；
  *     实体卸载 / 死亡 / 换维度立刻取消（绝不强引用 {@link Villager}）；</li>
  *     <li>同一村民再次发起：旧任务<b>立刻取消</b>，只留新的一个。</li>
@@ -50,11 +54,6 @@ import java.util.function.Predicate;
 public final class TradeRerollScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(TradeRerollScheduler.class);
-
-    /**
-     * 每 tick 每个任务的真实模拟次数（固定值）。
-     */
-    public static final int ATTEMPTS_PER_TICK = 100;
 
     /**
      * 点名刷物品 / 附魔：单任务上限。
@@ -74,6 +73,18 @@ public final class TradeRerollScheduler {
     private static final Map<UUID, State> TASKS = new LinkedHashMap<>();
 
     private TradeRerollScheduler() {
+    }
+
+    /**
+     * 每 tick 每个任务的模拟次数：读规则 {@code VillagerOneTickTraderCount}
+     * （档位 50 / 100 / 500 / 1000，默认 500），并夹到 1~1000。
+     *
+     * <p>每 tick 只读一次（见 {@link #tick(MinecraftServer)}）：规则状态在 tick 内不会变，
+     * 循环里反复读没有意义。
+     */
+    private static int attemptsPerTick() {
+        int v = ParseUtils.toInt(RuleCache.getState(RuleType.VILLAGER_ONE_TICK_TRADER_COUNT), 500);
+        return Math.clamp(v, 1, 1000);
     }
 
     // ==============================================================
@@ -176,10 +187,13 @@ public final class TradeRerollScheduler {
     // ==============================================================
 
     /**
-     * {@code END_SERVER_TICK} 调用：每个任务固定跑最多 {@link #ATTEMPTS_PER_TICK} 次模拟。
+     * {@code END_SERVER_TICK} 调用：每个任务本 tick 最多跑 {@link #attemptsPerTick()} 次模拟。
      */
     public static void tick(MinecraftServer server) {
         if (TASKS.isEmpty() || server == null) return;
+
+        // 每 tick 只读一次规则：同一个 tick 里所有任务共用一个预算
+        int perTick = attemptsPerTick();
 
         for (State state : new ArrayList<>(TASKS.values())) {
             // 同一 tick 里前面的任务可能已经清掉 / 覆盖了它
@@ -193,7 +207,7 @@ public final class TradeRerollScheduler {
                 continue;
             }
 
-            if (runSlice(server, level, villager, state)) continue;
+            if (runSlice(server, level, villager, state, perTick)) continue;
 
             // 次数用尽：331 这类「允许事后补齐」的任务仍然写回最后一次结果
             if (state.attempts >= task.maxAttempts()) {
@@ -207,13 +221,15 @@ public final class TradeRerollScheduler {
     }
 
     /**
-     * 一个任务在本 tick 的模拟切片（固定 {@link #ATTEMPTS_PER_TICK} 次）。
+     * 一个任务在本 tick 的模拟切片（最多 {@code perTick} 次）。
      *
+     * @param perTick 本 tick 的模拟次数预算（由规则 {@code VillagerOneTickTraderCount} 决定）
      * @return {@code true} 表示命中并已写回
      */
-    private static boolean runSlice(MinecraftServer server, ServerLevel level, Villager villager, State state) {
+    private static boolean runSlice(MinecraftServer server, ServerLevel level, Villager villager,
+                                    State state, int perTick) {
         Task task = state.task;
-        for (int i = 0; i < ATTEMPTS_PER_TICK && state.attempts < task.maxAttempts(); i++) {
+        for (int i = 0; i < perTick && state.attempts < task.maxAttempts(); i++) {
             state.attempts++;
 
             RandomSource random = RandomSource.create(task.randomSalt() + state.attempts);

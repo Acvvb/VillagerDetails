@@ -26,7 +26,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * <ul>
  *     <li>只有当实例真正发生数据变更调用了 {@link #markDirty()} 时，它才会主动把自己推入 {@code DIRTY_SET}（脏队列）。</li>
  *     <li>{@link #tickAll()} 绝大多数情况下在检测到集合为空时直接极速返回，完全没有遍历开销。</li>
- *     <li>每一个实例可以通过 {@link #flushIntervalTicks()} 声明自己的落盘节流周期（如村民数据为 1200 tick，普通配置为 1 tick）。</li>
+ *     <li>每一个实例可以通过 {@link #flushIntervalTicks()} 声明自己的落盘节流周期（如村民数据为 200 tick，默认 20 tick）。</li>
  * </ul>
  *
  * <h2>谁来驱动</h2>
@@ -46,15 +46,18 @@ public abstract class AbstractWorldConfig extends AbstractAsyncConfig implements
 
     // 主线程每 tick 驱动一次观察者队列。
     // 这是全类唯一的 tick 注册点：别处（例如 ConfigFlushManager）再注册一次会让
-    // globalTicks 每 tick +2，把 1200 tick 的节流周期实际变成 600 tick。
+    // globalTicks 每 tick +2，把 200 tick 的节流周期实际变成 100 tick。
     static {
         ServerTickEvents.END_SERVER_TICK.register(_ -> AbstractWorldConfig.tickAll());
     }
 
     /**
      * 重载前等待异步写落地的上限（毫秒）。等的是本地一次小文件写，正常毫秒级。
+     *
+     * <p><b>全项目唯一的一份超时值</b>：{@code ConfigRegistry} 直接引用这里，
+     * 不再各自维护一份（曾经外层 3000 / 内层 5000 两套，语义容易漂）。
      */
-    protected static final long RELOAD_AWAIT_MS = 5000L;
+    public static final long RELOAD_AWAIT_MS = 5000L;
 
     /**
      * 所有实例（仅用于停服时的兜底 flushAll / resetAll）。
@@ -158,8 +161,8 @@ public abstract class AbstractWorldConfig extends AbstractAsyncConfig implements
     }
 
     /**
-     * 落盘周期（tick）。默认 1 = 每 tick 只要脏了就立刻写。
-     * 只有「序列化代价高」的配置（整份村民索引）才需要调大。
+     * 落盘周期（tick）。<b>默认 20</b>（约 1 秒）：脏了也不是每 tick 都写，避免小改动频繁落盘。
+     * 只有「序列化代价高」的配置（整份村民索引，200 tick）才需要再调大。
      *
      * @return 两次落盘之间至少间隔多少 tick
      */
@@ -176,6 +179,10 @@ public abstract class AbstractWorldConfig extends AbstractAsyncConfig implements
      *
      * <p>只置标志 + 入集合，<b>不碰磁盘</b>，可以随意在事件回调 / 命令 / 网络包里调；
      * 真正的写盘由 {@link #tickAll()} 按各实例的节流周期触发。
+     *
+     * <p><b>只允许主线程调用</b>：{@code DIRTY_SET} 虽然是并发集合，但遍历语义依赖主线程独占
+     * —— 在 {@code tickAll} 遍历期间新加进来的实例，本轮很可能看不到（下一轮才会被处理）。
+     * 将来若有异步线程要标脏，必须先把这里的并发模型重新设计一遍。
      */
     @Override
     public void markDirty() {

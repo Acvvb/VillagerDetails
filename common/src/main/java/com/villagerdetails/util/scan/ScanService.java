@@ -87,8 +87,16 @@ public final class ScanService {
      *     <li>{@code client.feature} —— {@code ClientFeatureScanner}</li>
      * </ul>
      *
-     * <p>加一个新的扫包注册中心时，把它的包名加进这里即可；忘了加会立刻在启动日志里看到 ERROR
-     * （见 {@link #classNames(String)}），不会是「扫到 0 个、功能静默失效」。
+     * <p>加一个新的扫包注册中心时，把它的包名加进这里即可；忘了加会在启动期直接抛
+     * {@link IllegalStateException}（见 {@link #classNames(String)}），不会是「扫到 0 个、功能静默失效」。
+     *
+     * <p><b>新增注册中心的 checklist</b>：
+     * <ol>
+     *     <li>包名加进本白名单 {@code SCAN_PACKAGES}（漏了 → 启动崩，报错信息里带这个列表）；</li>
+     *     <li>角色接口注册进对应注册中心的 {@code ROLES}（{@code ServerChannels}）/ 扫描清单；</li>
+     *     <li>实现类必须是 {@code public static final Xxx INSTANCE} + 私有构造器
+     *         （扫包靠它拿实例，拿不到才退回无参构造）。</li>
+     * </ol>
      */
     private static final List<String> SCAN_PACKAGES = List.of(
             // 服务端
@@ -150,18 +158,20 @@ public final class ScanService {
     /**
      * 取某个包（含子包）的类名，不加载。
      *
-     * <p><b>只接受白名单内的包</b>：不在 {@link #SCAN_PACKAGES} 覆盖范围内的包名会直接报 ERROR
-     * 并返回空列表 —— 这样「新加了注册中心却忘了登记包」会在启动日志里一眼看到，
-     * 而不是安静地扫到 0 个、功能悄悄失效。
+     * <p><b>只接受白名单内的包</b>：不在 {@link #SCAN_PACKAGES} 覆盖范围内的包名会直接
+     * 抛 {@link IllegalStateException} —— 「新加了注册中心却忘了登记包」属于启动配置错误，
+     * 让它<b>在启动期就崩掉</b>，比"扫到 0 个、功能静默失效"好排查得多。
      *
      * @param packageName 包名，例如 {@code com.villagerdetails.event.impl}
+     * @throws IllegalStateException 包名不在 {@link #SCAN_PACKAGES} 白名单里
      */
     public static List<String> classNames(String packageName) {
         if (!isCovered(packageName)) {
-            log.error("扫包包名不在白名单里：{}；允许的前缀 = {}。"
-                            + "请把它的包加进 ScanService.SCAN_PACKAGES，否则这段注册会扫到 0 个类",
-                    packageName, SCAN_PACKAGES);
-            return List.of();
+            String message = "扫包包名不在白名单里：" + packageName
+                    + "；允许的前缀 = " + SCAN_PACKAGES
+                    + "。请把它的包加进 ScanService.SCAN_PACKAGES（见类注释的 checklist）";
+            log.error(message);
+            throw new IllegalStateException(message);
         }
         return index().under(packageName);
     }
@@ -496,7 +506,7 @@ public final class ScanService {
         }
         int lastDot = className.lastIndexOf('.');
         String packageName = lastDot < 0 ? "" : className.substring(0, lastDot);
-        Set<String> bucket = out.computeIfAbsent(packageName, k -> new LinkedHashSet<>());
+        Set<String> bucket = out.computeIfAbsent(packageName, _ -> new LinkedHashSet<>());
         bucket.add(className);
     }
 }

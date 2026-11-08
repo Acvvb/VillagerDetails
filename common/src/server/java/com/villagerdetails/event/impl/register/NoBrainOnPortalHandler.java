@@ -9,6 +9,15 @@ import net.minecraft.world.entity.ai.goal.GoalSelector;
 import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.entity.monster.Monster;
 
+/**
+ * 「过门失智」的事件入口：怪物<b>换过维度</b>之后清空它的全部 AI。
+ *
+ * <p>监听的是 {@code ServerEntityLevelChangeEvents.AFTER_ENTITY_CHANGE_LEVEL}，所以触发面
+ * <b>不限于传送门</b>：末地门、跨维度 {@code /tp}、被其它模组搬运都会触发。
+ *
+ * <p><b>不可逆</b>：被清掉的 goal 不会恢复，只有实体重载（区块卸载再加载）或服务器重启
+ * 才会回到原版行为。规则只清 {@code Monster}，其它实体不受影响。
+ */
 public final class NoBrainOnPortalHandler implements ServerEventRegisterServer {
 
     private NoBrainOnPortalHandler() {

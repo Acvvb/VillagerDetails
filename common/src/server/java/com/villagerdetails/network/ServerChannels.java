@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * 所有同步通道的<b>唯一注册入口</b>（服务端侧对应物是客户端的 {@code ClientChannels}）。
@@ -112,6 +113,16 @@ public final class ServerChannels {
         log.info("同步扫包注册完成：{}", String.join("、", summary));
 
         ChannelScanner.reportFailures(log, "同步注册", failures);
+
+        // 任何一项失败都中止启动：半注册的通道 / 收包器不会报错，只会表现为
+        // 「包发不出去也没人收」（例如 SyncChannel#register 的包定义自检失败），
+        // 那种故障比启动失败难查得多，所以这里直接抛。
+        if (!failures.isEmpty()) {
+            String detail = failures.stream()
+                    .map(ChannelScanner.Failure::describe)
+                    .collect(Collectors.joining("；"));
+            throw new IllegalStateException("同步注册失败 " + failures.size() + " 项，启动中止：" + detail);
+        }
     }
 
     /**

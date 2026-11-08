@@ -89,7 +89,8 @@ public final class ServerSessionStates {
      * <p><b>不再加锁的前提</b>：它只可能从服务器主线程进来 —— {@link #init()}（入口点）/
      * {@link #clearPlayer(UUID)}（{@code DISCONNECT}）/ {@link #clearAll()}（{@code SERVER_STOPPING}）
      * 都是主线程事件，三者天然串行。{@code registered} 的 volatile 只负责发布，
-     * 不负责互斥；若将来有非主线程的调用方，必须重新加锁或改成 CAS 抢占，否则会重复填充 {@code STATES}。
+     * 不负责互斥；<b>若将来出现非主线程的调用方，必须重新加锁或改成 CAS 抢占</b>，
+     * 否则会重复填充 {@code STATES}。
      */
     private void registerAll() {
         if (registered) {
@@ -106,6 +107,8 @@ public final class ServerSessionStates {
                     names.add(state.getClass().getSimpleName());
                 }, failures);
 
+        // 手工登记的「外挂状态」：不在 cache.impl 包里（属于网络框架），但同样只活一次会话。
+        // 将来若有同类状态，记得在这里补一行 —— 它不在扫包范围里，漏了不会有任何自检提醒。
         STATES.add(SyncSubscriptions.INSTANCE);
         names.add("SyncSubscriptions");
 

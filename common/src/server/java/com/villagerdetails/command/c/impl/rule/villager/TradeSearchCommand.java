@@ -116,8 +116,6 @@ public final class TradeSearchCommand implements RegisterServer {
      *
      * <p><b>为什么需要它</b>：{@code greedyString} 的命令很容易被连按（尤其是没命中时玩家会
      * 反复回车重试）。不加防抖的话，每次回车都是一个查询任务，十几下就能把
-     * {@value #QUERY_QUEUE_CAPACITY} 的队列填满 —— 后面的人（包括自己）就都收到「稍后再试」。
-     *
      * <p>条目数上限 = 本服跑过这条命令的玩家数，量级极小，不需要额外清理；换存档后
      * {@code gameTime} 归零会命中下面的 {@code now >= last} 判断，自然放行。
      */
@@ -127,11 +125,6 @@ public final class TradeSearchCommand implements RegisterServer {
      * 防抖窗口：20 tick = 1 秒。
      */
     private static final long QUERY_COOLDOWN_TICKS = 20L;
-
-    /**
-     * 查询池队列容量，只用于注释里说明「为什么第 17 个会被拒」。
-     */
-    private static final int QUERY_QUEUE_CAPACITY = 16;
 
     private TradeSearchCommand() {
     }
@@ -228,10 +221,6 @@ public final class TradeSearchCommand implements RegisterServer {
      */
     private static boolean passQueryCooldown(MinecraftServer server, UUID playerId) {
         ServerLevel overworld = server.overworld();
-        if (overworld == null) {
-            // 世界还没就绪：不做防抖，直接放行（此时玩家也基本敲不出命令）
-            return true;
-        }
         long now = overworld.getGameTime();
         Long last = LAST_QUERY_TICK.get(playerId);
         // now < last：换存档 / 重开服后 gameTime 归零，视为过期记录，直接放行并刷新

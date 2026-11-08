@@ -158,6 +158,10 @@ public final class JsonIO {
      *   <li>JSON 字符串里的换行一定是转义过的（{@code \n}），所以这个模式匹配不到字符串内容；</li>
      *   <li>字符串数组、空数组、已经在一行上的数组都不动。</li>
      * </ul>
+     *
+     * <p><b>已知代价</b>：这是对<b>整份 JSON 字符串</b>的一次正则扫描 + 重建，纯 CPU。
+     * 小配置（几 KB）可忽略；几 MB 的村民索引会明显拖慢序列化。
+     * 将来若要优化，可在 Gson 树上直接控制数组格式，或对大文件关掉美化。
      */
     private static String inlineNumberArrays(String json) {
         Matcher arrays = MULTILINE_NUMBER_ARRAY.matcher(json);

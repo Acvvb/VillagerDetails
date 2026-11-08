@@ -27,15 +27,18 @@ public final class VillagerMoveHandler {
 
     /**
      * 命令村民走到指定位置。
+     *
+     * @return {@code true} 表示移动任务已建立；{@code false} 表示目标附近找不到可站立位置
+     *         （或不在服务端），调用方应据此提示失败、且不要扣掉工具
      */
-    public static void sendTo(Villager villager, BlockPos rawTarget) {
-        if (!(villager.level() instanceof ServerLevel level)) return;
+    public static boolean sendTo(Villager villager, BlockPos rawTarget) {
+        if (!(villager.level() instanceof ServerLevel level)) return false;
 
         // ★ 归一化：把传入坐标转成真正可站立的位置
-        BlockPos destination = StoodFinder.find(level, rawTarget);
+        BlockPos destination = StoodFinder.find(level, rawTarget).orElse(null);
         if (destination == null) {
             // 目标附近没有可站立位置，直接放弃
-            return;
+            return false;
         }
         MoveToDestination.resetTimer(villager);
         Brain<Villager> brain = villager.getBrain();
@@ -52,5 +55,6 @@ public final class VillagerMoveHandler {
         brain.setMemory(MemoryModuleType.WALK_TARGET,
                 new WalkTarget(destination, 0.5F, 0));   // closeEnoughDist 保持 2
         ((BrainInterfaceMixin) brain).invokeSetActiveActivity(ModActivities.GO_TO_DESTINATION);
+        return true;
     }
 }

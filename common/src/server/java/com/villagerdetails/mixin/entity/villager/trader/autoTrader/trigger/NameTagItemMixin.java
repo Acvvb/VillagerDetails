@@ -1,7 +1,9 @@
 package com.villagerdetails.mixin.entity.villager.trader.autoTrader.trigger;
 
+import com.villagerdetails.cache.RuleCache;
 import com.villagerdetails.handler.entity.villager.trader.refresh.AutoVillagerTrader;
 import com.villagerdetails.handler.monster.zombieVillager.ZombieVillagerCureHandler;
+import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -58,7 +60,11 @@ public class NameTagItemMixin {
         if (!AutoVillagerTrader.isSupportedName(name)) return;
         ServerPlayer sp = (ServerPlayer) player;
         int outcome = AutoVillagerTrader.tickByName(villager, name, sp);
-        villager.setCustomName(null);
+        // 只在「任务真的排上了」（outcome >= 0）且开了「无感刷新」时才清名字：
+        // 刷新被拒绝时保留名字，玩家可以原地改名重试。
+        if (outcome >= 0 && RuleCache.isEnabled(RuleType.VILLAGER_SILENT_AUTO_REROLL_TRADER)) {
+            villager.setCustomName(null);
+        }
 
         // 6) 反馈
         switch (outcome) {
@@ -68,8 +74,6 @@ public class NameTagItemMixin {
             case -4 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.wrong_profession"));
             case -7 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.not_producible", name));
             case -8 -> sendOverlayOrBroadcast(sp, Component.translatable("msg.auto_trader.too_many_tasks"));
-//            default -> sendOverlayOrBroadcast(sp, Component.translatable(
-//                    "msg.auto_trader.task_started", name, outcome));
         }
     }
 }

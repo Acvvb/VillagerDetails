@@ -5,6 +5,7 @@ import com.mojang.brigadier.tree.CommandNode;
 import com.villagerdetails.command.c.handler.PermissionAwareLiteralArgumentBuilder;
 import com.villagerdetails.command.c.impl.reload.ReloadMapping;
 import com.villagerdetails.command.c.server.RegisterServer;
+import com.villagerdetails.command.c.server.RegisterTypeServer;
 import com.villagerdetails.event.type.ListenerType;
 import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.commands.CommandSourceStack;
@@ -32,6 +33,11 @@ import java.util.function.Predicate;
  * 现场表现为「某条规则的命令莫名消失 / 权限判错」，而且没有任何报错。
  * {@link #validateSubcommands(List)} 就是为了让这种情况在<b>启动期</b>直接炸掉，
  * 而不是等到玩家敲命令时才发现。
+ *
+ * <p><b>权限分工（设计如此）</b>：{@code /ec c <规则>} 的权限<b>完全跟随规则自身的
+ * {@link RegisterTypeServer#requirement()}</b>，本类只负责把它挂到子命令上；补全的可见性同理
+ * （见 {@link PermissionAwareLiteralArgumentBuilder}），<b>不需要</b>额外的全局权限校验。
+ * {@code /ec} 总权限（{@code RuleCommand}）只管 {@code /ec} / {@code /ec list} / {@code /ec <规则>} 那一层。
  */
 public class CCommand {
 

@@ -69,6 +69,10 @@ public interface RuleStateValidator {
      * <p>非有限值（{@code NaN} / {@code ±Infinity}）按「不是数字」处理：它们能通过
      * {@link Double#parseDouble}，但写进数值消费方只会污染状态，不该被当成合法输入。
      *
+     * <p><b>合法状态域是混合的</b>：{@code {true, false} ∪ [min, max] 内的有限数字}。
+     * 所以消费方<b>不要</b>直接 {@code Double.parseDouble(state)}（规则关闭时状态是 {@code "false"}，
+     * 会抛异常），统一走 {@code ParseUtils.toDouble(state, fallback)}（它带兜底）。
+     *
      * @param min 下限（含）
      * @param max 上限（含）
      */

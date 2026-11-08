@@ -7,8 +7,10 @@ import org.apache.logging.log4j.Logger;
 
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -27,6 +29,10 @@ import java.util.Set;
  * {@link ServerboundPayload}，然后<b>调那个接口的 {@code register(Class)}</b> 完成登记。
  * 放错目录最多是看着乱；忘了实现任何一个接口（或两个都实现）会直接报成失败项，
  * 不会再静默登记到错误的方向上。
+ *
+ * <p><b>包 ID 全局唯一，重复即启动失败</b>：两个 payload 声明同一个 {@code Identifier} 时，
+ * Fabric 的 {@code PayloadTypeRegistry} 可能<b>不报错而是默默覆盖</b>，症状变成"某个包发出去对端解不开"。
+ * 所以这里在登记前显式查重并抛 {@link IllegalStateException}。
  */
 public final class PayloadTypes {
 
@@ -64,21 +70,21 @@ public final class PayloadTypes {
         synchronized (PayloadTypes.class) {
             if (registered == null) {
                 List<ChannelScanner.Failure> failures = new ArrayList<>();
-                Set<Identifier> clientbound = new LinkedHashSet<>();
-                Set<Identifier> serverbound = new LinkedHashSet<>();
-                List<String> clientboundNames = new ArrayList<>();
-                List<String> serverboundNames = new ArrayList<>();
+                // 方向 → (包 id → 声明它的类名)：既用于查重，也用来生成体检用的 id 集合
+                Map<Identifier, String> clientbound = new LinkedHashMap<>();
+                Map<Identifier, String> serverbound = new LinkedHashMap<>();
 
-                scan(clientbound, clientboundNames, serverbound, serverboundNames, failures);
+                scan(clientbound, serverbound, failures);
 
-                ChannelScanner.checkNotEmpty(clientboundNames.size(), PAYLOAD_PACKAGE, "包类型（S→C）", failures);
-                ChannelScanner.checkNotEmpty(serverboundNames.size(), PAYLOAD_PACKAGE, "包类型（C→S）", failures);
+                ChannelScanner.checkNotEmpty(clientbound.size(), PAYLOAD_PACKAGE, "包类型（S→C）", failures);
+                ChannelScanner.checkNotEmpty(serverbound.size(), PAYLOAD_PACKAGE, "包类型（C→S）", failures);
 
-                log.info("包类型登记完成（S→C）：{} 个 {}", clientbound.size(), clientboundNames);
-                log.info("包类型登记完成（C→S）：{} 个 {}", serverbound.size(), serverboundNames);
+                log.info("包类型登记完成（S→C）：{} 个 {}", clientbound.size(), clientbound.values());
+                log.info("包类型登记完成（C→S）：{} 个 {}", serverbound.size(), serverbound.values());
 
                 ChannelScanner.reportFailures(log, "包类型注册", failures);
-                registered = new Registered(clientbound, serverbound);
+                registered = new Registered(new LinkedHashSet<>(clientbound.keySet()),
+                        new LinkedHashSet<>(serverbound.keySet()));
             }
             return registered;
         }
@@ -92,8 +98,7 @@ public final class PayloadTypes {
      * 同一份代码在不同机器上可能不同。登记进 {@code PayloadTypeRegistry} 是按 id 建表，顺序不影响结果，
      * 但排序后每次启动的日志与顺序完全一致。
      */
-    private static void scan(Set<Identifier> clientbound, List<String> clientboundNames,
-                             Set<Identifier> serverbound, List<String> serverboundNames,
+    private static void scan(Map<Identifier, String> clientbound, Map<Identifier, String> serverbound,
                              List<ChannelScanner.Failure> failures) {
         for (Class<?> candidate : ScanService.loadClasses(PAYLOAD_PACKAGE, PayloadTypes.class,
                 (name, cause) -> failures.add(new ChannelScanner.Failure("包类型", name,
@@ -114,17 +119,25 @@ public final class PayloadTypes {
                         null));
                 continue;
             }
+            Map<Identifier, String> target = toClient ? clientbound : serverbound;
+            Identifier id = PayloadRegistration.idOf(candidate).id();
+            // 显式查重：Fabric 注册表可能"默默覆盖"，那种故障比启动失败难查得多
+            String previous = target.putIfAbsent(id, candidate.getName());
+            if (previous != null) {
+                String message = "包 ID 重复：" + id + " 同时被 " + previous + " 与 " + candidate.getName()
+                        + " 声明（包 ID 必须全局唯一）";
+                log.error(message);
+                throw new IllegalStateException(message);
+            }
             try {
                 if (toClient) {
                     ClientboundPayload.register(candidate);
-                    clientbound.add(PayloadRegistration.idOf(candidate).id());
-                    clientboundNames.add(candidate.getSimpleName());
                 } else {
                     ServerboundPayload.register(candidate);
-                    serverbound.add(PayloadRegistration.idOf(candidate).id());
-                    serverboundNames.add(candidate.getSimpleName());
                 }
             } catch (Throwable t) {
+                // 登记失败：把 id 从表里撤掉，别影响后续体检与日志
+                target.remove(id);
                 failures.add(new ChannelScanner.Failure("包类型", candidate.getName(),
                         "登记失败，这个包不会生效", t));
             }

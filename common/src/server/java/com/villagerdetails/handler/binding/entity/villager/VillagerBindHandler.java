@@ -163,7 +163,12 @@ public class VillagerBindHandler extends VillagerBindServer {
     }
 
     public static boolean bindMove(ServerPlayer operator, Villager villager, BlockPos targetPos) {
-        VillagerMoveHandler.sendTo(villager,targetPos);
+        // 找不到可站立位置 = 绑定失败：不扣拴绳、不发"成功"消息，避免"扣了绳子但村民不动"
+        if (!VillagerMoveHandler.sendTo(villager, targetPos)) {
+            SendMessengerUtils.sendOverlayOrBroadcast(operator,
+                    Component.translatable(getMessageKey(BindingType.MOVE, "no_ground")));
+            return false;
+        }
         SendMessengerUtils.sendOverlayOrBroadcast(operator,
                 Component.translatable(getMessageKey(BindingType.MOVE, "success"), villager.getUUID().toString(),targetPos.toShortString()));
         return true;

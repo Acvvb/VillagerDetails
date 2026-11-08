@@ -48,6 +48,12 @@ import static com.villagerdetails.util.SendMessengerUtils.sendOrBroadcast;
  * 外加 set / clear 两个 helper。某个子类需要别的子命令（比如 {@code PortalBinding} 的
  * {@code refresh}）时，重写 {@link #addExtraSubcommands(LiteralArgumentBuilder)}
  * 自己往 {@code root} 上挂即可——基类不参与、不认识具体子命令。
+ *
+ * <p><b>权限（设计如此）</b>：本类<b>不</b>给自己挂 {@code requires}，准入完全由
+ * {@code CCommand} 在父节点上挂的 {@code RuleType#requirement()} 决定 ——
+ * 「规则开没开 / 档位够不够」只有那一处事实来源，补全权限同理。
+ * 因此这些子命令<b>必须</b>经 {@code CCommand} 挂进 {@code /ec c}；若要单独注册这棵子树，
+ * 调用方需自行加权限谓词。
  */
 public abstract class AbstractRegionBindingCommand implements RegisterServer {
 

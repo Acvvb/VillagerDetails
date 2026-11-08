@@ -15,7 +15,11 @@ public abstract class AbstractAsyncConfig {
     private final AtomicBoolean dirty = new AtomicBoolean(false);
 
     /**
-     * 当前嵌套的 {@link #batch} 深度。<b>只在主线程读写</b>（见类注释的线程约定）。
+     * 当前嵌套的 {@link #batch} 深度。
+     *
+     * <p>原子类型<b>只是防御</b>，不承诺并发安全：业务上必须在主线程调用 {@link #batch}，
+     * 而 {@link #flush()} 里的 {@code batchDepth.get() > 0} 是 check-then-act。
+     * 将来真要支持跨线程 batch，必须把"判定 + 提交"整段放进锁里。
      */
     private final AtomicInteger batchDepth = new AtomicInteger(0);
 

@@ -53,6 +53,19 @@ public final class AsyncConfigWriter {
     private static final String THREAD_NAME = "VillagerDetails-ConfigWriter";
 
     /**
+     * 单个文件的写盘重试上限。
+     *
+     * <p>Windows 上「文件正被另一个进程占用」是常态（杀毒 / 索引服务 / 编辑器），
+     * 一次失败就把内容丢掉等于静默丢配置，所以给 3 次机会，超过才彻底放弃。
+     */
+    private static final int MAX_WRITE_RETRIES = 3;
+
+    /**
+     * 路径 → 连续失败次数（写盘成功或新内容入队时清零）。
+     */
+    private static final ConcurrentHashMap<Path, Integer> RETRY_COUNT = new ConcurrentHashMap<>();
+
+    /**
      * 关机兜底排干的等待上限（毫秒）。
      */
     private static final long SHUTDOWN_DRAIN_MS = 5000L;
@@ -129,6 +142,8 @@ public final class AsyncConfigWriter {
         }
         // 先放内容再叫醒：写线程醒来时一定能拿到最新的那一份
         PENDING.put(filePath, jsonContent);
+        // 新内容重新计数：之前那份的失败次数不该拖累这一次
+        RETRY_COUNT.remove(filePath);
         ensureWorker();
         NOTIFY.offer(filePath);
     }
@@ -354,10 +369,36 @@ public final class AsyncConfigWriter {
             // 真正的字节级写入（唯一临时文件名 + 原子替换 + 失败回退）统一在 JsonIO 里
             JsonIO.writeString(path, content);
             WRITTEN.incrementAndGet();
+            // 写成功：这只文件的重试计数清零
+            RETRY_COUNT.remove(path);
         } catch (Throwable t) {
-            // 不重试：磁盘满 / 无权限这类问题重试只会刷日志，交给下一次修改触发新一轮提交
             FAILED.incrementAndGet();
-            log.error("异步写入配置失败（{} 字节）：{}", content == null ? 0 : content.length(), path, t);
+            if (content == null) {
+                // 极少见：刚取到内容就抛了，没有内容可放回
+                RETRY_COUNT.remove(path);
+                log.error("异步写入配置失败（本次没有可重试的内容）：{}", path, t);
+                return;
+            }
+            int attempts = RETRY_COUNT.merge(path, 1, Integer::sum);
+            if (attempts > MAX_WRITE_RETRIES) {
+                // 超过上限：彻底放弃，但必须留下能搜到的 WARN（这份内容确实没了）
+                RETRY_COUNT.remove(path);
+                log.warn("异步写入配置失败，已重试 {} 次仍失败，放弃本次写入（{} 字节）：{}",
+                        MAX_WRITE_RETRIES, content.length(), path, t);
+                return;
+            }
+            // 放回待写队列：putIfAbsent 不覆盖「已经入队的更新版本」。
+            // 返回非 null 说明队列里已有新内容 —— 本次这份已经过期，丢掉即可（新内容有自己的重试计数）。
+            String newer = PENDING.putIfAbsent(path, content);
+            if (newer == null) {
+                log.warn("异步写入配置失败（第 {}/{} 次），已放回待写队列稍后重试：{}",
+                        attempts, MAX_WRITE_RETRIES, path, t);
+            } else {
+                RETRY_COUNT.remove(path);
+                log.debug("异步写入配置失败，但队列里已有更新版本，丢弃这份过期内容：{}", path);
+            }
+            // 重新叫醒写线程：上面两种情况下队列里都还有内容要写
+            NOTIFY.offer(path);
         } finally {
             inFlight = null;
         }

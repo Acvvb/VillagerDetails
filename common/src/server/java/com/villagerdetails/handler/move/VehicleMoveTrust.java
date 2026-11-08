@@ -5,6 +5,7 @@ import com.villagerdetails.rule.type.RuleType;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.animal.happyghast.HappyGhast;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -22,6 +23,10 @@ import net.minecraft.world.phys.Vec3;
  * 的取坐标 API 在 26.2（{@code position()/yRot()/xRot()}）和 26.3
  * （{@code movingTo(): PositionAndRotation}）之间不兼容，所以读包那一小段留在各版本的薄 mixin 里，
  * 共用逻辑全部在这里。
+ *
+ * <p><b>放行范围只有乐魂</b>：{@link #isTrusted} 要求根载具是 {@link HappyGhast}、且控制者就是上报位移的玩家。
+ * 船 / 矿车 / 其它模组载具 <b>不在</b>本规则的放行范围内，仍走原版校验。
+ * （早期实现只判"玩家是根载具的控制者"，等于对所有玩家控制中的载具全域放行。）
  */
 public final class VehicleMoveTrust {
 
@@ -48,8 +53,13 @@ public final class VehicleMoveTrust {
     /**
      * 这次载具移动包要不要完全信任。
      *
-     * <p>放行条件（缺一不可）：规则开着、玩家确实骑在某个载具上、并且<b>他本人就是这辆载具的控制者</b>。
-     * 最后一条不是限速，而是正确性：乘客不该决定载具的位置，原版同样会直接 return。
+     * <p>放行条件（缺一不可）：规则开着、玩家确实骑在某个载具上、
+     * 他本人就是这辆载具的控制者、<b>并且载具是乐魂</b>。
+     *
+     * <p>"控制者"这条不是限速，而是正确性：乘客不该决定载具的位置，原版同样会直接 return。
+     *
+     * <p>"必须是乐魂"这条是<b>范围约束</b>：本规则只需要覆盖"玩家骑乐魂高速飞行"这一个场景，
+     * 船 / 矿车以及其它模组载具仍走原版校验（否则等于给所有载具开了无限速）。
      */
     public static boolean isTrusted(ServerPlayer rider, Entity root) {
         if (rider == null || root == null) {
@@ -60,6 +70,12 @@ public final class VehicleMoveTrust {
             return false;
         }
         if (root.getControllingPassenger() != rider) {
+            return false;
+        }
+        // 只放行乐魂：其它载具不在本规则的覆盖范围内。
+        // 用 instanceof 而不是 EntityType 常量比较：这两个支持版本里没有可用的
+        // EntityType.HAPPY_GHAST 静态字段（编译期已验证），instanceof 语义等价且不依赖映射名。
+        if (!(root instanceof HappyGhast)) {
             return false;
         }
         return RuleCache.isEnabled(RuleType.GLOBAL_SPEED_BYPASS);

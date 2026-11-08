@@ -39,7 +39,7 @@
     "entity.villager.trader.emeraldDecompose.AbstractVillagerExchangeMixin",
     "entity.villager.trader.infiniteTrade.MerchantOfferMixin",
     "entity.villager.trader.tradeSearch.TradeOpenMixin",
-    "fix.move.EntityUUIDWarningMixin",
+    "fix.log.EntityUUIDWarningMixin",
     "fix.move.GlobalSpeedBypassMixin",
     "fix.move.VehicleMoveTrustMixin",
     "monster.noBrainOnPortal.MobInterfaceMixin",

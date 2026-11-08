@@ -18,6 +18,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import static com.villagerdetails.rule.type.RuleType.VILLAGER_TOOLSMITH_EXCHANGE;
 
+/**
+ * 「村民可兑换钻石」：把工具匠 / 武器匠高等级的「钻石 → 绿宝石」原地改写成「绿宝石 → 钻石」。
+ *
+ * <p><b>已知脆弱点</b>：定位用的是 {@code offers} 的<b>下标 ≥ 5</b>（"第 6 笔起"），而不是村民等级
+ * 或交易内容特征。交易表结构一旦变化（别的模组插入条目、版本调整交易数目/顺序），
+ * 就可能改到不该改的条目上 —— 改这里之前先确认 {@code offers} 的顺序假设仍然成立。
+ */
 @Mixin(AbstractVillager.class)
 public abstract class AbstractVillagerExchangeMixin {
 

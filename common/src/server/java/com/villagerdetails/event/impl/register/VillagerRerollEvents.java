@@ -27,7 +27,7 @@ public final class VillagerRerollEvents implements ServerEventRegisterServer {
     public void register() {
         ServerTickEvents.END_SERVER_TICK.register(TradeRerollScheduler::tick);
         ServerLifecycleEvents.SERVER_STOPPING.register(_ -> TradeRerollScheduler.clear());
-        log.info("村民交易分帧刷新已接入：END_SERVER_TICK 推进，每 tick 最多 {} 次模拟 / 单任务上限 {} 次",
-                TradeRerollScheduler.ATTEMPTS_PER_TICK, TradeRerollScheduler.MAX_ATTEMPTS);
+        log.info("村民交易分帧刷新已接入：END_SERVER_TICK 推进，每 tick 次数由 VillagerOneTickTraderCount 控制（默认 500）/ 单任务上限 {} 次",
+                TradeRerollScheduler.MAX_ATTEMPTS);
     }
 }

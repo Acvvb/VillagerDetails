@@ -1,6 +1,7 @@
 package com.villagerdetails.config;
 
 import com.villagerdetails.config.impl.*;
+import com.villagerdetails.config.impl.base.AbstractWorldConfig;
 import com.villagerdetails.config.migration.MigrationManager;
 import com.villagerdetails.rule.type.RuleType;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -23,7 +24,6 @@ public final class ConfigRegistry {
 
     private static final Logger log = LogManager.getLogger(ConfigRegistry.class);
     private static final Map<String, ReloadableConfig> REGISTRY = new LinkedHashMap<>();
-    private static final long RELOAD_FLUSH_AWAIT_MS = 3000L;
     private static final AtomicBoolean startedHookRegistered = new AtomicBoolean();
 
     static {
@@ -78,11 +78,16 @@ public final class ConfigRegistry {
 
     /**
      * {@code /ec c reload}（无参数）：把所有物理文件从磁盘整份重读。
+     *
+     * <p><b>超时语义</b>：读盘前先 {@code flushAndAwait}，等待上限统一取
+     * {@link AbstractWorldConfig#RELOAD_AWAIT_MS}。超时只会记日志并继续按内存内容处理
+     * （最坏情况是读到磁盘上的旧版本），<b>不会清空内存</b>。
+     *
      * @return 成功加载的配置名列表
      * @throws RuntimeException 如果任何一个配置重载失败
      */
     public static List<String> reloadAllFromDisk(MinecraftServer server) {
-        RuleConfig.INSTANCE.flushAndAwait(server, RELOAD_FLUSH_AWAIT_MS);
+        RuleConfig.INSTANCE.flushAndAwait(server, AbstractWorldConfig.RELOAD_AWAIT_MS);
         MigrationManager.migrateIfNeeded(server);
 
         List<String> loaded = new ArrayList<>();
@@ -101,11 +106,14 @@ public final class ConfigRegistry {
 
     /**
      * {@code /ec c reload <name>}：只从磁盘重读指定的那一份配置。
+     *
+     * <p>超时语义同 {@link #reloadAllFromDisk(MinecraftServer)}：等不到也不清内存。
+     *
      * @return 成功加载的配置名列表
      * @throws RuntimeException 如果配置名不存在或重载失败
      */
     public static List<String> reloadSpecificFromDisk(MinecraftServer server, String name) {
-        RuleConfig.INSTANCE.flushAndAwait(server, RELOAD_FLUSH_AWAIT_MS);
+        RuleConfig.INSTANCE.flushAndAwait(server, AbstractWorldConfig.RELOAD_AWAIT_MS);
         MigrationManager.migrateIfNeeded(server);
 
         ReloadableConfig config = REGISTRY.get(name);

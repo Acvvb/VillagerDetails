@@ -4,7 +4,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.state.BlockState;
-import org.jspecify.annotations.Nullable;
+
+import java.util.Optional;
 
 public final class StoodFinder {
 
@@ -14,19 +15,23 @@ public final class StoodFinder {
      * 从给定位置出发，找到最近的可站立方块。
      * 搜索顺序：输入方块 → 上方 1 格 → 从输入向下逐格搜索。
      */
-    private static final int MAX_SEARCH_DOWN = 3;   // 最多向下搜 8 格
+    private static final int MAX_SEARCH_DOWN = 3;   // 最多向下搜 3 格（就是本常量，不是 8）
 
-    public static @Nullable BlockPos find(ServerLevel level, BlockPos input) {
-        if (isEnableStood(level, input)) return input;
+    /**
+     * @return 找到的可站立位置；附近没有可站立位置时返回 {@link Optional#empty()}
+     *         （调用方据此判断"绑定失败"，不要再当成"已成功但没动"）
+     */
+    public static Optional<BlockPos> find(ServerLevel level, BlockPos input) {
+        if (isEnableStood(level, input)) return Optional.of(input);
         BlockPos above = input.above();
-        if (isEnableStood(level, above)) return above;
+        if (isEnableStood(level, above)) return Optional.of(above);
         BlockPos.MutableBlockPos pos = input.mutable();
         for (int i = 0; i < MAX_SEARCH_DOWN; i++) {
             pos.move(0, -1, 0);
             if (pos.getY() <= level.getMinY()) break;
-            if (isEnableStood(level, pos)) return pos.immutable();
+            if (isEnableStood(level, pos)) return Optional.of(pos.immutable());
         }
-        return null;   // 超出范围就不走
+        return Optional.empty();   // 超出范围就不走
     }
 
     /**

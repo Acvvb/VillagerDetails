@@ -17,6 +17,10 @@ package com.villagerdetails.network.channel;
  * <p><b>不做旧版本兼容</b>：v1 的 {@code server_rule_sync} / {@code server_rule_request} 已经删掉，
  * 老客户端连新服务端（或者反过来）时这两个分类会空掉，不再有回退路径。
  * 协议形状一变就升版本号 + 加新包 id，不在同一个包 id 里塞兼容字段。
+ *
+ * <p><b>发布 checklist</b>：任何「改包字段 / 增删包 id / 改描述符结构」的改动都必须顺手抬
+ * {@link #VERSION} —— 服务端对版本不一致<b>只记日志、不拒绝</b>，忘了抬就会变成
+ * "能连上、但字段错位"的静默故障（混用新旧 jar 时尤其难查）。
  */
 public final class SyncProtocol {
 

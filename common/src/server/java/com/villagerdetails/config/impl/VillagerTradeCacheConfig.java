@@ -20,7 +20,7 @@ import static com.villagerdetails.config.impl.data.VillagerTradeIndexJson.parse;
  *
  * <p>生命周期与 IO 全部来自 {@link AbstractWorldConfig}（和 {@code RuleConfig} 同一套），
  * 本类只回答「写哪个文件、怎么把 JSON 读成缓存、清空成什么样」，外加一个它特有的差异：
- * <b>落盘周期是 1200 tick 而不是每 tick</b>（见 {@link #flushIntervalTicks()}）。
+ * <b>落盘周期是 200 tick（约 10 秒）而不是每 tick</b>（见 {@link #flushIntervalTicks()}）。
  *
  * <p><b>JSON 长什么样不归本类管</b>：字段结构、容错、旧格式作废全部在
  * {@link VillagerTradeIndexJson}（纯「内存 ⇄ JSON」转换）。本类只负责
@@ -89,13 +89,13 @@ public final class VillagerTradeCacheConfig extends AbstractWorldConfig {
     }
 
     /**
-     * 落盘周期：1200 tick ≈ 1 分钟。
+     * 落盘周期：200 tick ≈ 10 秒。
      *
      * <p>只有它需要节流：{@link #getDataToSave()} 要把整份村民索引转成 JSON，
      * 而区块卸载时每个村民都会 {@link #put} 一次 —— 每 tick 都试一次等于每 tick 整份重写。
      *
-     * <p>父类的计数器初值是 1，所以开服后<b>第一个 tick</b> 仍会提交一次，
-     * 保证文件一定被创建出来，不用先白等一分钟。
+     * <p>父类的 {@code lastFlushedTick} 初值是 {@code -1}，所以第一个脏条目不必等满两个周期
+     * 就会落盘；文件本身由「首次 {@code put} 标脏」触发创建。
      */
     @Override
     protected int flushIntervalTicks() {

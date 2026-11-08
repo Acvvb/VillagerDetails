@@ -217,6 +217,11 @@ public class RuleCache {
      * <p><b>别直接调这里</b> —— 对外的「改规则」入口是
      * {@link com.villagerdetails.rule.RuleChangeService}（它负责先做合法性校验）；
      * 只有两处例外：它自己，以及 {@link #syncRules}（配置回灌）。
+     *
+     * <p><b>值没变时本方法直接返回</b>（不写、不落盘、<b>也不触发回调</b>）。
+     * 所以不要靠"重设同一个值"来让规则重新生效 —— 需要强制重跑副作用时，
+     * 应显式调用对应业务侧的刷新入口（例如 {@code HappyGhastSpeedHandler#refreshAll}）
+     * 或监听器，而不是再 setState 一次。
      */
     public static void setState(RuleType type, String state) {
         if (type == null || state == null) return;

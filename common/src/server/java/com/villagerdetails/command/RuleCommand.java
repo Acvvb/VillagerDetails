@@ -99,6 +99,9 @@ public class RuleCommand {
      * （如 {@code PortalBindingEnhanced}）也必须能补出来，否则玩家会以为它消失了。
      * {@code /ec c <规则>} 那一层只列有命令对象的规则，两者的差集是设计如此；
      * 两个名字在「有命令」的规则上由启动期自检保证一致（见 {@code CCommand#buildCSubcommand}）。
+     *
+     * <p>（历史上这里的注释写过「40 条规则全部传 {@code null}」，那种按规则数量写的描述已经过时，
+     * 现在统一以 {@code RuleType.values()} 为准，不再写死条数。）
      */
     private static final SuggestionProvider<CommandSourceStack> RULE_SUGGESTER = (_, builder) ->
             SharedSuggestionProvider.suggest(RuleType.allRegisterNames(), builder);

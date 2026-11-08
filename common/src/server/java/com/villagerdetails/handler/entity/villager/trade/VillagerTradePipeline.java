@@ -12,7 +12,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.villager.Villager;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.MerchantOffer;
@@ -85,11 +84,6 @@ public final class VillagerTradePipeline {
      * 同一村民两次「打开交易界面」抓取之间至少间隔多少 tick（100 tick = 5 秒）。
      */
     private static final long TRADE_OPEN_COOLDOWN_TICKS = 100L;
-
-    /**
-     * 防抖表条目的过期时间：6000 tick = 5 分钟没再被触发就清掉。
-     */
-    private static final long CAPTURE_COOLDOWN_EXPIRE_TICKS = 6000L;
 
     // ============================================================
     // 主线程入口
@@ -271,8 +265,10 @@ public final class VillagerTradePipeline {
         ModThreadPool pool = ModContext.getServerPool();
         if (pool == null || pool.isShutdown()) {
             if (POOL_WARNING.compareAndSet(false, true)) {
-                // 停服过程中池子可能已经先关掉了，属于正常收尾；只在第一次提示一下
-                log.debug("服务端线程池不可用，村民交易快照已丢弃（若持续出现请检查 ServerThreadManager.init 的接线）");
+                // 停服过程中池子可能已经先关掉了，属于正常收尾；但"从未初始化"是真故障
+                // —— 快照会被全部丢弃、查询索引永远为空，所以这里用 WARN 且只报一次。
+                log.warn("服务端线程池不可用（未初始化 / 已关闭），交易快照被丢弃"
+                        + "（若在正常运行期出现，请检查 ServerThreadManager.init 是否调用了 ModContext.setServerPool）");
             }
             return;
         }
