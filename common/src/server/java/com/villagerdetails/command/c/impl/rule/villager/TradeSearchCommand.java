@@ -194,8 +194,6 @@ public final class TradeSearchCommand implements RegisterServer {
                 });
                 return;
             }
-            // server.execute(...) 天然就是「下一 tick 执行」：不需要任何延迟机制。
-            // 这里重新按 UUID 取玩家 —— 闭包绝不捕获 ServerPlayer 引用。
             server.execute(() -> {
                 ServerPlayer online = server.getPlayerList().getPlayer(playerId);
                 if (online == null) {
@@ -223,7 +221,6 @@ public final class TradeSearchCommand implements RegisterServer {
         ServerLevel overworld = server.overworld();
         long now = overworld.getGameTime();
         Long last = LAST_QUERY_TICK.get(playerId);
-        // now < last：换存档 / 重开服后 gameTime 归零，视为过期记录，直接放行并刷新
         if (last != null && now >= last && now - last < QUERY_COOLDOWN_TICKS) {
             return false;
         }

@@ -2,6 +2,7 @@ package com.villagerdetails.handler.entity.villager.trade;
 
 import com.villagerdetails.cache.impl.VillagerTradeCache;
 import com.villagerdetails.config.impl.TradeIndexConfig;
+import com.villagerdetails.lang.ServerTranslations;
 import com.villagerdetails.pojo.dto.TradeItemInfo;
 import com.villagerdetails.pojo.dto.VillagerTradeInfo;
 import net.minecraft.core.BlockPos;
@@ -83,11 +84,6 @@ public final class VillagerTradeSearchHandler {
     private static final String K_MORE_OFFERS = "command.villager_trade_search.entry.more";
     private static final String K_HOVER_COPY_COORDS = "command.villager_trade_search.hover.copy_coords";
     private static final String K_HOVER_COPY_UUID = "command.villager_trade_search.hover.copy_uuid";
-
-    /**
-     * 附魔书的物品 id：这类交易归 {@code book} 子命令，{@code item} 子命令里要排除。
-     */
-    private static final String ENCHANTED_BOOK_ID = "minecraft:enchanted_book";
 
     // ============================================================
     // 纯数据载体（唯一允许跨线程传递的东西）
@@ -390,12 +386,15 @@ public final class VillagerTradeSearchHandler {
      */
     private static MutableComponent uuidText(UUID uuid) {
         String full = uuid.toString();
-        String shortId = full.substring(0, 8);
-        return Component.literal("UUID: " + shortId)
+        return Component.literal("UUID: " + uuid)
                 .withStyle(style -> style.withColor(TextColor.fromRgb(0x9CC2E5)))
                 .withStyle(style -> style.withClickEvent(new ClickEvent.CopyToClipboard(full)))
                 .withStyle(style -> style.withHoverEvent(
-                        new HoverEvent.ShowText(Component.translatable(K_HOVER_COPY_UUID))));
+                        new HoverEvent.ShowText(
+                                ServerTranslations.translateComponent(
+                                        Component.translatable(K_HOVER_COPY_UUID))
+                        )
+                ));
     }
 
     /**
@@ -458,7 +457,7 @@ public final class VillagerTradeSearchHandler {
         }
         if (!console) {
             Item item = BuiltInRegistries.ITEM.getValue(id);
-            if (item != null && item != Items.AIR) {
+            if (item != Items.AIR) {
                 // 原版自己知道该用 item. 还是 block. 前缀（BlockItem 走 block.minecraft.*）
                 return Component.translatable(item.getDescriptionId());
             }
@@ -515,7 +514,12 @@ public final class VillagerTradeSearchHandler {
                 .withStyle(style -> style.withColor(TextColor.fromRgb(0x9CC2E5)))
                 .withStyle(style -> style.withClickEvent(new ClickEvent.CopyToClipboard(coords)))
                 .withStyle(style -> style.withHoverEvent(
-                        new HoverEvent.ShowText(Component.translatable(K_HOVER_COPY_COORDS))));
+                        new HoverEvent.ShowText(
+                                ServerTranslations.translateComponent(
+                                        Component.translatable(K_HOVER_COPY_COORDS)
+                                )
+                        )
+                ));
     }
 
     /**
