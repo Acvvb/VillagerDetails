@@ -1,7 +1,5 @@
 package com.villagerdetails.concurrent;
 
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,7 +13,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * <p>只负责调度 {@link SnapshotThreadPool} 和 {@link QueryThreadPool} 的初始化与关闭，
  * 并提供 pre-shutdown 钩子机制，保证配置落盘在关池之前完成。
  */
-@Environment(EnvType.SERVER)
 public final class ServerThreadManager {
 
     private static final Logger log = LoggerFactory.getLogger("VillagerDetails-ThreadManager");

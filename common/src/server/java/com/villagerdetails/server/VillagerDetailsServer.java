@@ -15,7 +15,7 @@ import net.fabricmc.api.ModInitializer;
  *
  * <p>Fabric 的两个入口点：
  * <ul>
- *     <li>{@code server} 入口点 → 只在专用服调用 {@link #onInitializeServer()}（见 {@link DedicatedServerModInitializer}）</li>
+ *     <li>{@code server} 入口点 → 只在专用服调用 {@link #onInitializeServer()}</li>
  *     <li>{@code main} 入口点 → 两端都调用 {@link #onInitialize()}</li>
  * </ul>
  *
@@ -29,7 +29,8 @@ public final class VillagerDetailsServer implements ModInitializer, DedicatedSer
 
     @Override
     public void onInitialize() {
-        init();
+        // 只登记关服钩子，不建池（避免客户端启动阶段就初始化）
+        ServerThreadShutdownTask.registerTaskOnly();
     }
 
     @Override
@@ -38,26 +39,25 @@ public final class VillagerDetailsServer implements ModInitializer, DedicatedSer
     }
 
     private static void init() {
-
         // 服务端线程池
         ServerThreadShutdownTask.register();
 
-        //配置注册
+        // 配置注册
         ConfigManager.registry();
 
-        //接管服务器会话
+        // 接管服务器会话
         ServerSessionStates.register();
 
-        //事件注册
+        // 事件注册
         ServerEventManager.registerAll();
 
-        //优先注册模块
+        // 优先注册模块
         RuleModuleRegistry.initAll();
 
         // 注册指令，必须在规则注册完成之后注册
         RuleCommand.registerHook();
 
-        //网络包注册
+        // 网络包注册
         ServerChannels.registerAll();
     }
 }

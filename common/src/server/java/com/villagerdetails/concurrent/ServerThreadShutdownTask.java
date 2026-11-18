@@ -19,5 +19,8 @@ public class ServerThreadShutdownTask {
         });
     }
 
+    public static void registerTaskOnly() {
+        task();   // 只登记关服钩子，不建池
+    }
 
 }
