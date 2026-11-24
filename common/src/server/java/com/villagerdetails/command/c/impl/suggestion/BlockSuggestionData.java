@@ -2,6 +2,7 @@ package com.villagerdetails.command.c.impl.suggestion;
 
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.villagerdetails.handler.block.pistonPush.CustomPistonPushBlockHandler;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.IdentifierArgument;
@@ -60,6 +61,14 @@ public final class BlockSuggestionData {
      */
     public static final SuggestionProvider<CommandSourceStack> VANILLA_EXPLOSION_RESISTANCE_SUGGESTER =
             vanillaValue(block -> blockKey(block) + "=" + block.getExplosionResistance());
+
+    /**
+     * 方块活塞推动：补全「原版能不能被推」。
+     *
+     * <p>和可采集那条一个用处：设成这个值等于「和原版一致」，命令会直接把配置删掉。
+     */
+    public static final SuggestionProvider<CommandSourceStack> VANILLA_PISTON_PUSHABLE_SUGGESTER =
+            vanillaValue(block -> String.valueOf(CustomPistonPushBlockHandler.vanillaPushable(block)));
 
     private static SuggestionProvider<CommandSourceStack> vanillaValue(Function<Block, String> formatter) {
         return (ctx, builder) -> {

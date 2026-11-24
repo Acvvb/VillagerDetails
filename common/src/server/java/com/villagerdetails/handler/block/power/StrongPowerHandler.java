@@ -21,10 +21,8 @@ public final class StrongPowerHandler {
     /**
      * 这个方块现在算不算红石导体
      */
-    public static boolean isConductor(Block block) {
-        if (!RuleCache.isEnabled(RuleType.BLOCK_STRONG_POWER)) {
-            return false;
-        }
+    public static Boolean isConfigured(Block block) {
+        if (!RuleCache.isEnabled(RuleType.BLOCK_STRONG_POWER)) return null;
         return BlockStrongPowerConfig.INSTANCE.contains(block);
     }
 }

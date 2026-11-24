@@ -353,6 +353,12 @@ public enum RuleType implements RegisterTypeServer {
      */
     BLOCK_STRONG_POWER("BlockStrongPower", "rule.block.strong_power", "rule.block.strong_power.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> BlockStrongPowerServerImpl.INSTANCE, () -> BlockStrongPowerConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR),
 
+
+    /**
+     * 方块推动控制，被配置的方块可以被活塞推动或者不可被推动。
+     */
+    CUSTOM_PISTON_PUSH_BLOCK("CustomPistonPushBlock", "rule.block.custom_piston_push_block", "rule.block.custom_piston_push_block.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> CustomPistonPushBlockServerImpl.INSTANCE, () -> CustomPistonPushBlockConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR),
+
     /**
      * TNT不破坏掉落物。TNT爆炸时不破坏掉落的物品。
      */

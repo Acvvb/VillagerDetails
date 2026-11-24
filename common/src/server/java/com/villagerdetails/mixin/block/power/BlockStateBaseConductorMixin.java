@@ -24,8 +24,9 @@ public abstract class BlockStateBaseConductorMixin {
     private void villagerdetails$isRedstoneConductor(
             BlockGetter level, BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
         BlockBehaviour.BlockStateBase self = (BlockBehaviour.BlockStateBase) (Object) this;
-        if (StrongPowerHandler.isConductor(self.getBlock())) {
-            cir.setReturnValue(true);
+        Boolean strongPower = StrongPowerHandler.isConfigured(self.getBlock());
+        if (strongPower != null) {
+            cir.setReturnValue(strongPower);
         }
     }
 }

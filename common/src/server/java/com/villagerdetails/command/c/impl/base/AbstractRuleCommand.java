@@ -118,25 +118,38 @@ public abstract class AbstractRuleCommand implements RegisterServer {
         Identifier id = IdentifierArgument.getId(ctx, argName());
         String value = StringArgumentType.getString(ctx, VALUE_ARG).trim().toLowerCase(Locale.ROOT);
 
-        boolean enable;
-        if ("true".equals(value)) {
-            enable = true;
-        } else if ("false".equals(value)) {
-            enable = false;
-        } else {
+        if (!"true".equals(value) && !"false".equals(value)) {
             sendOrBroadcast(player, Component.translatable(kInvalidValue(), value));
             return 0;
         }
 
-        if (enable) {
-            add(id);
-        } else {
-            remove(id);
-        }
+        String messageKey = applyValue(id, value);
         BlockRuleSyncChannel.INSTANCE.broadcastAll();
 
-        sendOrBroadcast(player, Component.translatable(enable ? kSet() : kRemove(), id.toString()));
+        sendOrBroadcast(player, Component.translatable(messageKey, id.toString()));
         return 1;
+    }
+
+    /**
+     * 把值落到配置上，返回这次操作该回的提示 key。
+     *
+     * <p>默认语义（纯名单）：{@code true} 加进名单，{@code false} 移出名单。
+     * 子类可以改写成「和原版比较，一致就当没配置」这类形态（见 {@code CustomPistonPushBlockServerImpl}）。
+     */
+    protected String applyValue(Identifier id, String value) {
+        if ("true".equals(value)) {
+            add(id);
+            return kSet();
+        }
+        remove(id);
+        return kRemove();
+    }
+
+    /**
+     * {@code show} 里一行的写法。默认只写 id。
+     */
+    protected Component describeId(Identifier id) {
+        return Component.literal("  " + id);
     }
 
     protected int reset(CommandContext<CommandSourceStack> ctx) {
@@ -157,7 +170,7 @@ public abstract class AbstractRuleCommand implements RegisterServer {
             msg.append("\n").append(Component.translatable(kShowEmpty()));
         } else {
             for (Identifier id : ids) {
-                msg.append("\n").append(Component.literal("  " + id));
+                msg.append("\n").append(describeId(id));
             }
         }
 
