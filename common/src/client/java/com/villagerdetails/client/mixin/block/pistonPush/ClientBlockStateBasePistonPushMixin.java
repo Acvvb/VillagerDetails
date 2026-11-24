@@ -1,9 +1,12 @@
 package com.villagerdetails.client.mixin.block.pistonPush;
 
 import com.villagerdetails.client.handler.block.pistonPush.CustomPistonPushBlockHandler;
+import com.villagerdetails.client.handler.block.pistonPush.CustomStickyPistonPullBlockHandler;
+import com.villagerdetails.client.handler.block.pistonPush.PistonMoveScope;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.piston.PistonBaseBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
@@ -12,9 +15,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 客户端侧的活塞推动判断，和服务端 {@code com.villagerdetails.mixin.block.pistonPush.PistonBaseBlockMixin}
+ * 客户端侧的活塞推动 / 黏回判断，和服务端
+ * {@code com.villagerdetails.mixin.block.pistonPush.PistonBaseBlockMixin}
  * <b>注入同一个目标方法、同一个注入点</b>，读的却是本地镜像
- * （{@link CustomPistonPushBlockHandler} → {@code PistonPushRuleCache}）。
+ * （{@code PistonPushRuleCache} / {@code StickyPistonPullRuleCache}）。
  *
  * <p><b>为什么不共用服务端那份 Mixin</b>：服务端那份读配置文件和规则开关（{@code RuleCache} 在 server
  * 源集），客户端包里根本没有这些类。所以两份 Mixin 各自对着自己那端的 Handler，
@@ -26,7 +30,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * {@code public static boolean PistonBaseBlock.isPushable(BlockState, Level, BlockPos, Direction,
  * boolean, Direction)}。
  *
- * <p>注入点和语义与服务端一致：{@code @At("RETURN")} 拿原版的真实结果，名单里的方块取反。
+ * <p>和服务端一样按 {@link PistonMoveScope} 分流：伸出用推动规则，缩回用黏回规则。
  */
 @Mixin(PistonBaseBlock.class)
 public abstract class ClientBlockStateBasePistonPushMixin {
@@ -45,8 +49,12 @@ public abstract class ClientBlockStateBasePistonPushMixin {
             Direction connectionDirection,
             CallbackInfoReturnable<Boolean> cir
     ) {
-        // null = 名单外 → 不覆盖，原版算出来是什么就是什么
-        if (CustomPistonPushBlockHandler.isConfigured(state.getBlock()) != null) {
+        Block block = state.getBlock();
+        // null = 对应的名单里没有这个方块 → 不覆盖，原版算出来是什么就是什么
+        Boolean override = PistonMoveScope.isExtending()
+                ? CustomPistonPushBlockHandler.isConfigured(block)
+                : CustomStickyPistonPullBlockHandler.isConfigured(block);
+        if (override != null) {
             cir.setReturnValue(!cir.getReturnValue());
         }
     }

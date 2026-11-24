@@ -360,6 +360,14 @@ public enum RuleType implements RegisterTypeServer {
     CUSTOM_PISTON_PUSH_BLOCK("CustomPistonPushBlock", "rule.block.custom_piston_push_block", "rule.block.custom_piston_push_block.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> CustomPistonPushBlockServerImpl.INSTANCE, () -> CustomPistonPushBlockConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR),
 
     /**
+     * 粘性活塞黏回控制，被配置的方块可以被粘性活塞黏回来或者黏不住。
+     *
+     * <p>和「活塞推动控制」是一对：那条管<b>伸出</b>（推），这条管<b>缩回</b>（黏回）。
+     * 原版两段用的是同一个 {@code isPushable}，所以两条规则靠注入时「这次结构扫描是伸出还是缩回」来分流。
+     */
+    CUSTOM_STICKY_PISTON_PULL_BLOCK("CustomStickyPistonPullBlock", "rule.block.custom_sticky_piston_pull_block", "rule.block.custom_sticky_piston_pull_block.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> CustomStickyPistonPullBlockServerImpl.INSTANCE, () -> CustomStickyPistonPullBlockConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR),
+
+    /**
      * TNT不破坏掉落物。TNT爆炸时不破坏掉落的物品。
      */
     TNT_NO_DESTROY_DROPS("TntNoDestroyDrops", "setting.tnt_no_destroy_drops", "setting.tnt_no_destroy_drops.desc", List.of(BLOCK), new ArrayList<>(), null, null, () -> ON_OFF, RuleConfigKind.NONE, FALSE_STR),

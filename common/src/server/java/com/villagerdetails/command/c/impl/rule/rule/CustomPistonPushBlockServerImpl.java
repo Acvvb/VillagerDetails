@@ -5,6 +5,7 @@ import com.villagerdetails.command.c.impl.base.AbstractRuleCommand;
 import com.villagerdetails.command.c.impl.suggestion.BlockSuggestionData;
 import com.villagerdetails.config.impl.section.item.CustomPistonPushBlockConfig;
 import com.villagerdetails.handler.block.pistonPush.CustomPistonPushBlockHandler;
+import com.villagerdetails.handler.block.pistonPush.VanillaPistonRules;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -81,7 +82,7 @@ public final class CustomPistonPushBlockServerImpl extends AbstractRuleCommand {
         }
 
         boolean desired = "true".equals(value);
-        boolean vanilla = CustomPistonPushBlockHandler.vanillaPushable(block);
+        boolean vanilla = VanillaPistonRules.isPushable(block);
         if (desired == vanilla) {
             // 和原版一致 → 不需要配置
             remove(id);
@@ -98,7 +99,7 @@ public final class CustomPistonPushBlockServerImpl extends AbstractRuleCommand {
     @Override
     protected Component describeId(Identifier id) {
         Block block = BuiltInRegistries.BLOCK.getOptional(id).orElse(null);
-        boolean pushable = block != null && !CustomPistonPushBlockHandler.vanillaPushable(block);
+        boolean pushable = block != null && !VanillaPistonRules.isPushable(block);
         return Component.literal("  " + id + " = ")
                 .append(Component.translatable(pushable ? "villagerdetails.ui.yes" : "villagerdetails.ui.no"));
     }

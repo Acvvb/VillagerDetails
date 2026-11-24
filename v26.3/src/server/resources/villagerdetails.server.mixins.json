@@ -9,6 +9,7 @@
     "block.explosionResistance.ExplosionResistanceMixin",
     "block.miningResistance.MiningResistanceMixin",
     "block.pistonPush.PistonBaseBlockMixin",
+    "block.pistonPush.PistonStructureResolverMixin",
     "block.portalBinding.EntityPortalMixin",
     "block.portalPiglinNoSpawn.NetherPortalSpawnMixin",
     "block.power.BlockStateBaseConductorMixin",
