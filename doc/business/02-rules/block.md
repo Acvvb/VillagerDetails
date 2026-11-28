@@ -1,6 +1,6 @@
 # Block Rules (BLOCK)
 
-All ten rules whose primary `RuleType` category is `BLOCK`: what each one changes, how it hooks into vanilla, and where its boundaries lie.
+All eleven rules whose primary `RuleType` category is `BLOCK`: what each one changes, how it hooks into vanilla, and where its boundaries lie.
 
 **[English](#english) | [中文](#中文)**
 
@@ -10,10 +10,10 @@ All ten rules whose primary `RuleType` category is `BLOCK`: what each one change
 
 ## English
 
-> This file covers the **10** rules whose primary `RuleType` category is `BLOCK`.
+> This file covers the **11** rules whose primary `RuleType` category is `BLOCK`.
 >
-> Four "list-config" rules (`BlockMiningResistance`, `BlockCollectable`, `BlockExplosionResistance`,
-> `BlockStrongPower`) share one command shape (see the note at the top of [`entity.md`](entity.md)):
+> Five "list-config" rules (`BlockMiningResistance`, `BlockCollectable`, `BlockExplosionResistance`,
+> `BlockStrongPower`, `CustomPistonPushBlock`) share one command shape (see the note at the top of [`entity.md`](entity.md)):
 > `/ec c <rule> <block id> true|false` (for the numeric rules the value is the resistance number), `reset`, `show`,
 > **all hard-wired to OWNERS** — these subcommands edit a persisted list (or mapping) directly, so hard-wiring
 > OWNERS is deliberate and the rule's tier does not change it.
@@ -99,6 +99,54 @@ All ten rules whose primary `RuleType` category is `BLOCK`: what each one change
 - **Client behaviour**: list page; redstone is computed entirely on the server
 - **Design rules and boundaries**: `isRedstoneConductor` is asked per "block state", so **every state** of the same block becomes a conductor.
   Putting air / fluids on the list is pointless (they never reach this path).
+
+#### `CustomPistonPushBlock` (piston move control)
+
+- **Register name**: `CustomPistonPushBlock` (enum constant `CUSTOM_PISTON_PUSH_BLOCK`)
+- **Category**: `BLOCK` + `COMMAND`
+- **Default value**: `false`
+- **Commands**: `/ec CustomPistonPushBlock` (switch); `/ec c CustomPistonPushBlock <block id> true|false` / `reset` / `show`
+- **Config class**: `CustomPistonPushBlockConfig` (the `CustomPistonPushBlock` section of `config.json`, a block id list of
+  "blocks that behave the opposite of vanilla")
+- **Trigger**: two injection points in `PistonBaseBlock` — RETURN of `isPushable` (flip the result) and
+  `BlockState#getPistonPushReaction()` inside `triggerEvent` (`@Redirect`, the second gate of the retract branch)
+- **How it works**:
+  1. **One vanilla question, three behaviours**: pushing (extending), being pulled back by a sticky piston
+     (retracting) and "can honey / slime blocks stick to it and carry it along" **all ask
+     `PistonBaseBlock#isPushable` first**. A block that cannot be moved is neither pushable, nor pullable, nor
+     carried — so flipping that single answer covers all three, with no direction split and no separate
+     stickiness patch.
+  2. **The second gate**: the retract branch of `triggerEvent` additionally requires the block's `PushReaction`
+     to be "movable" (26.2 `NORMAL` / 26.3 `PUSH_PULL`), otherwise vanilla just retracts the head and never
+     attempts the pull. Blocks on the list are let through as "movable", so the first gate decides.
+  3. **Value equals vanilla → the entry is deleted** (same idea as mining resistance / collectable), so one list
+     expresses both directions: `true` = "make it movable like stone" (only meaningful for blocks vanilla cannot
+     move), `false` = "make it immovable" (only meaningful for blocks vanilla can move).
+  4. **Both sides run it**: the server mixin reads the config and the switch, the client one reads the synced
+     descriptor mirror — in single player the piston logic runs through the **client** mixin (the server mixin
+     config is `environment: server`), so leaving the client out would make the rule look dead in single player.
+- **Key files**: `handler/block/pistonPush/CustomPistonPushBlockHandler.java`,
+  `mixin/block/pistonPush/PistonBaseBlockMixin.java`,
+  `client/mixin/block/pistonPush/ClientBlockStateBasePistonPushMixin.java`,
+  `util/piston/VanillaPistonRules.java`, `util/piston/PistonReactionCompat.java`,
+  `config/impl/section/item/CustomPistonPushBlockConfig.java`,
+  `command/c/impl/rule/rule/CustomPistonPushBlockServerImpl.java`
+- **Dependencies**: `VanillaPistonRules` (block-level vanilla replication, shared by both sides — it decides both
+  "is this value equal to vanilla" and "which gate does this block need"), `PistonReactionCompat` (the
+  `PushReaction` constant renamed in 26.3, resolved by name), `PistonPushRuleCache` (client mirror)
+- **Client behaviour**: list page; the client also runs the same two injections against the mirrored list, so
+  single-player prediction matches what the server does
+- **Design rules and boundaries**:
+  1. **"Movable" is not "sticky"**: vanilla carries a block only when `isPushable` says yes, so a block whose
+     vanilla answer is false (obsidian and friends) is never carried — putting it on the list is exactly what
+     makes it ride along like stone.
+  2. The vanilla answer used by the command is `VanillaPistonRules#isPullable` ("push **and** pull, reaction
+     movable"), so "push-only" blocks (`PUSH_ONLY` / `PUSH`, which vanilla can push but never pull — nor carry)
+     are correctly reported as "cannot be moved".
+  3. Forcing "movable" also makes the block directly pushable / pullable by a piston: that is what "behaves like
+     stone" means, not a side effect to work around.
+  4. If a block is configured here **and** another piston rule would also touch it, this rule wins: it answers
+     "may this block be moved at all", which is the more specific intent.
 
 #### `TntNoDestroyDrops` (TNT does not destroy dropped items)
 
@@ -282,10 +330,10 @@ All ten rules whose primary `RuleType` category is `BLOCK`: what each one change
 
 ## 中文
 
-> 本文件覆盖 `RuleType` 里主分类为 `BLOCK` 的 **10 条**规则。
+> 本文件覆盖 `RuleType` 里主分类为 `BLOCK` 的 **11 条**规则。
 >
-> 四条"逐条配置类"（`BlockMiningResistance`、`BlockCollectable`、`BlockExplosionResistance`、
-> `BlockStrongPower`）共用同一套命令形态（见 [`entity.md`](entity.md) 开头的说明）：
+> 五条"逐条配置类"（`BlockMiningResistance`、`BlockCollectable`、`BlockExplosionResistance`、
+> `BlockStrongPower`、`CustomPistonPushBlock`）共用同一套命令形态（见 [`entity.md`](entity.md) 开头的说明）：
 > `/ec c <规则> <方块id> true|false`（数值类规则的值就是抗性数字）、`reset`、`show`，**全部写死 OWNERS**
 > —— 这些子命令直接改一份持久化的名单，写死 OWNERS 是刻意的，规则档位不会改变这一点。
 > 它们的配置也全部落在 `villagerdetails/config.json` 的**同名节**里。
@@ -376,6 +424,49 @@ All ten rules whose primary `RuleType` category is `BLOCK`: what each one change
 - **客户端行为**：列表页；红石计算完全在服务端
 - **设计约定与边界**：`isRedstoneConductor` 是按"方块状态"问的，所以同一个方块的**所有状态**都会变成导体。
   名单里放空气 / 流体没意义（不会命中这条路径）。
+
+#### `CustomPistonPushBlock`（活塞搬运控制）
+
+- **注册名**：`CustomPistonPushBlock`（枚举常量 `CUSTOM_PISTON_PUSH_BLOCK`）
+- **分类**：`BLOCK` + `COMMAND`
+- **默认值**：`false`
+- **命令**：`/ec CustomPistonPushBlock`（开关）；`/ec c CustomPistonPushBlock <方块id> true|false` / `reset` / `show`
+- **配置类**：`CustomPistonPushBlockConfig`（`config.json` 的 `CustomPistonPushBlock` 节，
+  "与原版行为相反"的方块 id 名单）
+- **触发**：`PistonBaseBlock` 上的两个注入点 —— `isPushable` 的 RETURN（取反）+ `triggerEvent` 里的
+  `BlockState#getPistonPushReaction()`（`@Redirect`，缩回分支的第二道闸）
+- **实现思路**：
+  1. **原版一个问题管三件事**：推动（伸出）、被粘性活塞黏回（缩回）、以及"蜂蜜块 / 史莱姆块能不能黏住它
+     把它带走"**都先问 `PistonBaseBlock#isPushable`**。搬不动的方块既推不动、也黏不回来、更不会被粘性方块
+     带走 —— 所以把这一个结果取反就同时覆盖三件事，不需要按方向分流，也不需要单独改黏连判定。
+  2. **第二道闸**：`triggerEvent` 的缩回分支还要求这一块的 `PushReaction` 是"能推能拉"
+     （26.2 `NORMAL` / 26.3 `PUSH_PULL`），否则原版只把活塞头收回来、根本不去黏。
+     名单里的方块在这一处按"能推能拉"放行，交给第 1 道闸决定。
+  3. **值等于原版就不落库**（和挖掘抗性 / 可采集同一套理念），所以一份名单同时表达两个方向：
+     `true` = 让它像石头一样能被搬（只对原版搬不动的方块有意义），`false` = 让它搬不动
+     （只对原版能搬的方块有意义）。
+  4. **两端都要有**：服务端那份读配置与开关，客户端那份读同步下来的描述符镜像 ——
+     单人游戏里活塞逻辑走的是**客户端**那份注入（服务端 mixin 配的是 `environment: server`），
+     少一边单人里就会"配了没反应"。
+- **关键文件**：`handler/block/pistonPush/CustomPistonPushBlockHandler.java`、
+  `mixin/block/pistonPush/PistonBaseBlockMixin.java`、
+  `client/mixin/block/pistonPush/ClientBlockStateBasePistonPushMixin.java`、
+  `util/piston/VanillaPistonRules.java`、`util/piston/PistonReactionCompat.java`、
+  `config/impl/section/item/CustomPistonPushBlockConfig.java`、
+  `command/c/impl/rule/rule/CustomPistonPushBlockServerImpl.java`
+- **依赖**：`VanillaPistonRules`（两端共用的方块级原版复刻，既回答"这个值是不是等于原版"，
+  也决定"这个方块该走哪道闸"）、`PistonReactionCompat`（26.3 改了名字的 `PushReaction` 常量，按名字取）、
+  `PistonPushRuleCache`（客户端镜像）
+- **客户端行为**：列表页；客户端也用镜像名单跑同样两处注入，单人里才能和服务端算出同一条移动链
+- **设计约定与边界**：
+  1. **"能搬"不等于"能黏"**：原版只有在 `isPushable` 为真时才会把方块带进移动组，所以原版搬不动的方块
+     （黑曜石之类）永远不会被带走 —— 把它写进名单，才是"像石头一样被粘走"的那一步。
+  2. 命令侧判"原版值"用的是 `VanillaPistonRules#isPullable`（"能推**且**能拉、反应可移动"），
+     这样"只推不拉"的方块（`PUSH_ONLY` / `PUSH`，原版推得动却永远黏不回来、也带不走）会被正确地
+     判成"原版搬不动"。
+  3. 强制"能搬"也意味着它同时能被活塞直接推 / 拉 —— 这就是"和石头一样"的含义，不是需要绕开的副作用。
+  4. 同一个方块如果既配在这条规则里、又被别的活塞规则翻转过，**这条优先**：它回答的是
+     "这个方块整体该不该被搬"，意图更具体。
 
 #### `TntNoDestroyDrops`（TNT 不炸掉落物）
 

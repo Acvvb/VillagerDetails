@@ -38,7 +38,7 @@
 | [`05-rule-framework.md`](05-rule-framework.md) | `RuleType`'s 10 parameters, the five `RuleCache` methods, the permission chain, the two validation gates, the two notification chains, descriptors |
 | [`06-command-framework.md`](06-command-framework.md) | The static `/ec` tree plus the enum-driven `/ec c`, startup self-checks, permission filtering for completion, the three base classes |
 | [`07-network-framework.md`](07-network-framework.md) | Payload type → channel → receiver → main-thread dispatch, muting, handshake, the client peer |
-| [`08-mixin-inventory.md`](08-mixin-inventory.md) | 40+ injection points grouped by target class, accessors / invokers listed separately, risk levels |
+| [`08-mixin-inventory.md`](08-mixin-inventory.md) | 41+ injection points grouped by target class, accessors / invokers listed separately, risk levels |
 | [`09-version-adapter.md`](09-version-adapter.md) | 26.2↔26.3 per-class differences, what belongs in the version layer, the upgrade order |
 | [`10-glossary.md`](10-glossary.md) | **The definition of record for framework terms** (the business docs only link here) |
 
@@ -77,7 +77,7 @@
 | [`05-rule-framework.md`](05-rule-framework.md) | `RuleType` 10 个参数、`RuleCache` 五个方法、权限链、两道校验、两条通知链、描述符 |
 | [`06-command-framework.md`](06-command-framework.md) | `/ec` 静态树 + `/ec c` 枚举驱动、启动自检、补全权限过滤、三个基类 |
 | [`07-network-framework.md`](07-network-framework.md) | 包类型 → 通道 → 收包 → 主线程派发、静音、握手、客户端对端 |
-| [`08-mixin-inventory.md`](08-mixin-inventory.md) | 40+ 注入点按目标类分组、accessor / invoker 单列、风险分级 |
+| [`08-mixin-inventory.md`](08-mixin-inventory.md) | 41+ 注入点按目标类分组、accessor / invoker 单列、风险分级 |
 | [`09-version-adapter.md`](09-version-adapter.md) | 26.2↔26.3 逐类差异、该不该下沉、升级顺序 |
 | [`10-glossary.md`](10-glossary.md) | **框架术语定义方**（业务文档只链接这里） |
 

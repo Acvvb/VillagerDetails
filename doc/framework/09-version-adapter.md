@@ -111,6 +111,29 @@ They do not touch a changed API directly, but they depend on the field shape of 
 layer — so they go along. **This is a chain descent caused by "depending on a version-layer accessor"**, not an
 incompatibility of their own.
 
+#### ⑥ Constants and enums that were renamed (absorbed in `common`, not sent down to the version layer)
+
+Two examples that are easy to get wrong, because they **compile fine against the version you are sitting on** and
+only break the other one:
+
+| Where | 26.2 | 26.3 |
+|---|---|---|
+| `PushReaction` enum constants | `NORMAL` / `BLOCK` | `PUSH_PULL` / `IMMOVEABLE` |
+| Left mouse button value (`MouseButtonInfo#button()`) | `0` | `1` |
+
+The rule for both: **do not reference the constant / number directly in shared code.**
+
+- `util/piston/PistonReactionCompat` resolves "the movable reaction" by `PushReaction.name()` between
+  `PUSH_PULL` and `NORMAL`, with `Blocks.STONE`'s reaction as the last-resort fallback. The piston rule needs that
+  constant because vanilla's retract branch compares the block's reaction against it.
+- Widget code must ask `AbstractWidget#isValidClickButton(event.buttonInfo())` instead of writing
+  `event.button() == 0`. That hook is version-correct by construction; a hardcoded `0` silently stops working on
+  26.3 (the scrollbar then refuses every click and can never be dragged).
+
+> These are **not** version-layer classes: the difference is flattened inside `common`, so there is nothing to
+> copy down. The price is that the next version bump must re-check the two rows above (see the upgrade checklist
+> in §5).
+
 ---
 
 ### 4. Recommended order for upgrading to 26.4
@@ -282,6 +305,25 @@ vs `swing(hand, boolean)`；`InputConstants.Type.KEYBOARD` vs `KEYSYM`、`isKeyD
 它们本身不直接碰“变化的 API”，但依赖 `VillagerTrade` 的字段形状（`wants` / `additionalWants` / `gives` /
 `givenItemModifier`），而读这些字段的 accessor 在版本层 —— 所以一起放。**这是“依赖版本层 accessor”导致的连锁下沉**，
 不是它们自己不可兼容。
+
+#### ⑥ 改名了的常量 / 枚举（在 `common` 里消化，不下沉到版本层）
+
+有两个最容易栽的，因为它们在**你当前那个版本上编译完全正常**，只在另一个版本炸：
+
+| 位置 | 26.2 | 26.3 |
+|---|---|---|
+| `PushReaction` 枚举常量 | `NORMAL` / `BLOCK` | `PUSH_PULL` / `IMMOVEABLE` |
+| 鼠标左键的 `MouseButtonInfo#button()` 值 | `0` | `1` |
+
+两条的规矩一样：**共享代码里不要直接引用那个常量 / 数字**。
+
+- `util/piston/PistonReactionCompat` 按 `PushReaction.name()` 在 `PUSH_PULL` / `NORMAL` 之间探“能推能拉”
+  那个常量，兜底用 `Blocks.STONE` 的反应值。活塞规则要它，因为原版缩回分支拿方块的反应和这个常量做相等比较。
+- 控件里一律用 `AbstractWidget#isValidClickButton(event.buttonInfo())`，**不要写 `event.button() == 0`**。
+  这个钩子天然跟着版本走；写死 `0` 在 26.3 上会静默失效（滚动条会拒绝每一次点击，永远拖不动）。
+
+> 它们**不是**版本层类：差异在 `common` 里就抹平了，没有东西要复制到 `v26.2/` / `v26.3/`。
+> 代价是下次升版本时必须回来重看上面这两行（见 §5 的人工 checklist）。
 
 ---
 

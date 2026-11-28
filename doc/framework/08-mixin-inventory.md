@@ -11,10 +11,11 @@ The full inventory of injection points, grouped by target class, with accessors 
 ## English
 
 > Source of the inventory: `v26.2/src/server/resources/villagerdetails.server.mixins.json` (45 entries) and
-> `v26.3/src/server/resources/villagerdetails.server.mixins.json` (46 entries);
-> the client's `villagerdetails.client.mixins.json` has an empty `client` / `mixins` array (**zero client mixins**).
+> `v26.3/src/server/resources/villagerdetails.server.mixins.json` (47 entries);
+> the client's `villagerdetails.client.mixins.json` carries **exactly one** client mixin
+> (`ClientBlockStateBasePistonPushMixin` — the piston rule's mirror; everything else is shared/common).
 >
-> **40 common + 5 version-specific (+ the 1 that 26.3 alone has)**. The 6 version-specific entries are compared
+> **41 common + 5 version-specific (+ the 1 that 26.3 alone has)**. The 6 version-specific entries are compared
 > in [09](09-version-adapter.md); this chapter only lists **what is injected**.
 
 ---
@@ -37,7 +38,7 @@ The single legitimate difference between the two lists is 26.3's `SequenceFuncti
 
 ---
 
-### 2. Grouped by target vanilla class (the 40 common ones)
+### 2. Grouped by target vanilla class (the 41 common ones)
 
 #### 2.1 `BlockBehaviour` / `BlockBehaviour.BlockStateBase`
 
@@ -115,6 +116,13 @@ The single legitimate difference between the two lists is 26.3's `SequenceFuncti
 | `entity.blockSitting.SeatBuildLimitMessageMixin` | `sendBuildLimitMessage` inside `handleUseItemOn` | `@Redirect` | Swallows the spurious "build height limit" message fired at the moment of sitting down | `PLAYER_BLOCK_SITTING` |
 | `player.playerHeadSitting.EntityStartRidingMixin` | `canSerialize()` inside `startRiding(Entity, ZZ)` | `@Redirect` | Allows a "player / seat entity" to act as a vehicle | `PLAYER_HEAD_SITTING` / `PLAYER_BLOCK_SITTING` |
 | `player.playerHeadSitting.EntityPlayerVehiclePassengersMixin` | `addPassenger` / `removePassenger` | TAIL ×2 | Sends the passenger list to "the player vehicle itself" (vanilla does not send it there) | `PLAYER_HEAD_SITTING` |
+| `block.pistonPush.PistonBaseBlockMixin` | `isPushable` (RETURN, flip) + `triggerEvent`'s `getPistonPushReaction()` (`@Redirect`) | two sites | Flips "can a piston move this block" (push / sticky pull / carried by honey & slime), and lets listed blocks through the retract branch's `PushReaction` gate | `CUSTOM_PISTON_PUSH_BLOCK` |
+
+The piston rule is the one place where **the client mixin is not optional**: the piston structure scan also runs
+on the client (`triggerEvent` → `moveBlocks` → `resolve`, for the animation), and in single player the server
+mixin config is `environment: server`, so the logic actually executed there is
+`villagerdetails.client.mixins.json`'s `block.pistonPush.ClientBlockStateBasePistonPushMixin` — the same two
+injection points, reading the synced list mirror (`PistonPushRuleCache`) instead of the config file.
 
 `EntityUUIDWarningMixin` lives in `mixin/fix/log/` (package `com.villagerdetails.mixin.fix.log`) and is listed
 as `fix.log.EntityUUIDWarningMixin` in both version layers' `villagerdetails.server.mixins.json`. It only
@@ -176,11 +184,12 @@ reported nothing at startup.
 
 ## 中文
 
-> 清单来源：`v26.2/src/server/resources/villagerdetails.server.mixins.json`（45 条）与
-> `v26.3/src/server/resources/villagerdetails.server.mixins.json`（46 条）；
-> 客户端 `villagerdetails.client.mixins.json` 的 `client` / `mixins` 都是空数组（**客户端零 mixin**）。
+> 清单来源：`v26.2/src/server/resources/villagerdetails.server.mixins.json`（46 条）与
+> `v26.3/src/server/resources/villagerdetails.server.mixins.json`（47 条）；
+> 客户端 `villagerdetails.client.mixins.json` 里**只有 1 个**客户端 mixin
+> （`ClientBlockStateBasePistonPushMixin` —— 活塞规则的镜像，其余全是两端共用的）。
 >
-> **common 40 个 + 版本专属 5 个（+ 26.3 独有的 1 个）**。版本专属的 6 个在 [09](09-version-adapter.md) 里讲差异，本篇只列“注入了什么”。
+> **common 41 个 + 版本专属 5 个（+ 26.3 独有的 1 个）**。版本专属的 6 个在 [09](09-version-adapter.md) 里讲差异，本篇只列“注入了什么”。
 
 ---
 
@@ -200,7 +209,7 @@ reported nothing at startup.
 
 ---
 
-### 2. 按目标原版类分组（common 40 个）
+### 2. 按目标原版类分组（common 41 个）
 
 #### 2.1 `BlockBehaviour` / `BlockBehaviour.BlockStateBase`
 
@@ -278,6 +287,13 @@ reported nothing at startup.
 | `entity.blockSitting.SeatBuildLimitMessageMixin` | `handleUseItemOn` 里的 `sendBuildLimitMessage` | `@Redirect` | 吞掉坐下瞬间误发的“建筑高度上限” | `PLAYER_BLOCK_SITTING` |
 | `player.playerHeadSitting.EntityStartRidingMixin` | `startRiding(Entity, ZZ)` 里的 `canSerialize()` | `@Redirect` | 允许“玩家 / 座位实体”当载具 | `PLAYER_HEAD_SITTING` / `PLAYER_BLOCK_SITTING` |
 | `player.playerHeadSitting.EntityPlayerVehiclePassengersMixin` | `addPassenger` / `removePassenger` | TAIL ×2 | 把乘客表补发给“玩家载具本人”（原版不发给他） | `PLAYER_HEAD_SITTING` |
+| `block.pistonPush.PistonBaseBlockMixin` | `isPushable`（RETURN，取反）+ `triggerEvent` 里的 `getPistonPushReaction()`（`@Redirect`） | 两处 | 把「活塞能不能搬动它」取反（推 / 黏回 / 被蜂蜜块与史莱姆块带走），并让名单内方块通过缩回分支的 `PushReaction` 闸 | `CUSTOM_PISTON_PUSH_BLOCK` |
+
+活塞这条规则是**客户端那份 mixin 不能省**的唯一一处：活塞结构扫描在客户端也会跑
+（`triggerEvent` → `moveBlocks` → `resolve`，动画要用），而单人游戏里服务端那份 mixin 配置是
+`environment: server`，真正执行的是 `villagerdetails.client.mixins.json` 里的
+`block.pistonPush.ClientBlockStateBasePistonPushMixin` —— 同样两处注入点，读的是同步下来的
+名单镜像（`PistonPushRuleCache`）而不是配置文件。
 
 `EntityUUIDWarningMixin` 放在 `mixin/fix/log/`（包名 `com.villagerdetails.mixin.fix.log`），
 两份版本层的 `villagerdetails.server.mixins.json` 都登记为 `fix.log.EntityUUIDWarningMixin`。

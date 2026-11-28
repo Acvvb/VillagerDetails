@@ -82,7 +82,7 @@ When this document mentions such a class it always writes the package path witho
 |---|---|---|
 | `rule/type/` | `RuleType` (the master rule list), categories, config kinds | This chapter + the [rule index](01-rule-index.md) |
 | `handler/` | The business logic itself (39 classes) | `02-rules/*`, `03-deep-dives/*` |
-| `mixin/` | Injection points into vanilla classes (40) | The "key files" field of each rule; inventory in [framework 08](../framework/08-mixin-inventory.md) |
+| `mixin/` | Injection points into vanilla classes (41) | The "key files" field of each rule; inventory in [framework 08](../framework/08-mixin-inventory.md) |
 | `event/impl/register/` | Fabric event wiring (auto-registered by package scanning) | The "trigger" field of each rule |
 | `command/c/impl/` | The `/ec c <rule> ...` subcommand tree | The "command" field of each rule |
 | `config/impl/` | The per-rule detail config sections | The "config class" field of each rule |
@@ -109,7 +109,7 @@ see [framework 05](../framework/05-rule-framework.md)):
 | `reloadableConfig` | The detail config class; `null` = no extra config section | → `NoSqueezeConfig` |
 | `stateValidator` | Format / range validator for the state value; `null` = no validation | `numericRange(0, 20)` |
 
-**There are currently 40 rules.** The enum is the single source of truth: run
+**There are currently 41 rules.** The enum is the single source of truth: run
 `RuleType.values()` (or `/ec list`) whenever you need the exact number.
 
 ---
@@ -249,7 +249,7 @@ implements `ServerEventRegisterServer` gets its `register()` called by the packa
 events = adding one class, with no registration code to touch.
 (Scanning mechanics: [framework 04](../framework/04-session-state.md) and [framework 01](../framework/01-threading.md).)
 
-There are 40 mixins, in four groups:
+There are 41 mixins, in four groups:
 
 1. **Behaviour interception / rewrite** (the majority): `@Inject` + `cancellable`, or `@Redirect` to swap a call;
 2. **`@Accessor` / `@Invoker`**: expose vanilla private fields / methods to business code
@@ -297,6 +297,16 @@ the `Language` rule), while text in the settings UI uses **the client's own GUI 
 its language, the server translates into it and sends the strings down). So an admin on a Chinese server with
 an English client sees "command replies in Chinese, UI in English".
 
+**How the settings screen is scrolled (a UI contract worth knowing)**: the list geometry lives in
+`RowListPage` (rows per page, scroll position, the scrollbar widget), but **the input is owned by the screen**,
+not by the scrollbar widget — the screens forward press / drag / release to the page
+(`RowListPage#mousePressedScrollBar` / `mouseDraggedScrollBar` / `mouseReleasedScrollBar`), and the "which pixel
+of the thumb did I grab" state lives on the page component. Two reasons: 26.x only forwards `mouseDragged` to
+the **focused** child while `isDragging()` is set, and `rebuildWidgets()` (rule sync / search box) replaces the
+widget and clears focus — a widget-owned drag therefore dies halfway through. Detail pages additionally measure
+the description's real wrapped height and push the config area down by a fixed gap, so long descriptions never
+run into the list.
+
 ---
 
 ### 9. Design rules and boundaries
@@ -305,7 +315,7 @@ These are deliberate behaviours, not open items. Read them as the contract the m
 
 | # | Observation | Design rule |
 |---|---|---|
-| 1 | Rule count | 40. `RuleType.values()` is the only source of truth; every doc, command listing and self-check derives from it |
+| 1 | Rule count | 41. `RuleType.values()` is the only source of truth; every doc, command listing and self-check derives from it |
 | 2 | `/ec c PortalBindingEnhanced` does not exist | **One rule, one command object.** Both portal-binding rules would otherwise register the same subcommand literal; Brigadier silently merges duplicates and drops the permission predicate, so `PortalBindingEnhanced` deliberately has no command. Toggle it with `/ec PortalBindingEnhanced <state>` |
 | 3 | `/ec Language <anything>` succeeds | `Language`'s candidates are language codes, so the rule is classified as a custom list and arbitrary text passes. An invalid code makes server replies fall back to raw translation keys — always use a code the client bundle actually ships |
 | 4 | A list-config rule set to `true` still refuses ordinary players | By design: for `RuleConfigKind.LIST` the `/ec c` subcommand is hard-wired to owner, because it edits persistent name lists |
@@ -321,7 +331,7 @@ These are deliberate behaviours, not open items. Read them as the contract the m
 
 | File | Contents |
 |---|---|
-| [`01-rule-index.md`](01-rule-index.md) | Index of all 40 rules (register name / categories / default / one-liner) |
+| [`01-rule-index.md`](01-rule-index.md) | Index of all 41 rules (register name / categories / default / one-liner) |
 | [`02-rules/`](02-rules/) | One file per category: `settings` `fix` `entity` `monster` `plant` `animal` `player` `villager` `block` |
 | [`03-deep-dives/`](03-deep-dives/) | Seven deep dives: `auto-trader` `trade-search` `portal-binding` `tab-completion` `villager-binding` `furnace-dirty` `player-sitting` |
 | [`04-glossary.md`](04-glossary.md) | Business glossary (paired terracotta, 331a/331b, locked trade, snapshot, …) |
@@ -409,7 +419,7 @@ v26.3/src/server/java/com/villagerdetails/...   ← 26.3 专用（多一个 Sequ
 |---|---|---|
 | `rule/type/` | `RuleType`（规则总清单）、分类、配置类型 | 本篇 + [规则总索引](01-rule-index.md) |
 | `handler/` | 业务逻辑主体（39 个类） | `02-rules/*`、`03-deep-dives/*` |
-| `mixin/` | 对原版类的注入点（40 个） | 每条规则的「关键文件」；清单见[框架 08](../framework/08-mixin-inventory.md) |
+| `mixin/` | 对原版类的注入点（41 个） | 每条规则的「关键文件」；清单见[框架 08](../framework/08-mixin-inventory.md) |
 | `event/impl/register/` | Fabric 事件接线（扫包自动注册） | 每条规则的「触发」 |
 | `command/c/impl/` | `/ec c <规则> ...` 子命令树 | 每条规则的「命令」 |
 | `config/impl/` | 各规则的细项配置节 | 每条规则的「配置类」 |
@@ -435,7 +445,7 @@ v26.3/src/server/java/com/villagerdetails/...   ← 26.3 专用（多一个 Sequ
 | `reloadableConfig` | 细项配置类；`null` = 没有额外配置节 | → `NoSqueezeConfig` |
 | `stateValidator` | 状态值的格式 / 范围校验器；`null` = 不校验 | `numericRange(0, 20)` |
 
-**当前一共 40 条规则**。`RuleType` 枚举是唯一真相来源 —— 需要确切条数时用 `RuleType.values()` 或 `/ec list`。
+**当前一共 41 条规则**。`RuleType` 枚举是唯一真相来源 —— 需要确切条数时用 `RuleType.values()` 或 `/ec list`。
 
 ---
 
@@ -568,7 +578,7 @@ v26.3/src/server/java/com/villagerdetails/...   ← 26.3 专用（多一个 Sequ
 会被扫包自动调 `register()`。加一组事件 = 新建一个类，不改任何注册代码。
 （扫包机制的实现细节见[框架 04](../framework/04-session-state.md) 与[框架 01](../framework/01-threading.md)。）
 
-Mixin 一共 40 个，分四类：
+Mixin 一共 41 个，分四类：
 
 1. **行为拦截 / 改写**（多数）：`@Inject` + `cancellable`，或 `@Redirect` 换掉某个调用；
 2. **`@Accessor` / `@Invoker`**：把原版私有字段 / 私有方法暴露给业务代码
@@ -613,6 +623,14 @@ Mixin 一共 40 个，分四类：
 而设置界面里的文字走**客户端自己的界面语言**（客户端把语言报上来，服务端按那份语言翻译后下发）。
 所以一个中文服务端 + 英文客户端的管理员，看到的是"命令回复中文、界面英文"。
 
+**设置界面是怎么滚动的（一条值得知道的界面契约）**：列表几何在 `RowListPage` 里
+（一页几行 / 滚动位置 / 滚动条控件），但**输入由屏幕接管、不归滚动条控件** ——
+屏幕把按下 / 拖动 / 松手转给页面（`RowListPage#mousePressedScrollBar` / `mouseDraggedScrollBar` /
+`mouseReleasedScrollBar`），"我按在滑块的哪个像素上"这份状态挂在页面组件上。两个原因：
+26.x 的 `mouseDragged` 只转给**有焦点且 `isDragging()`** 的子控件，而 `rebuildWidgets()`
+（规则同步 / 搜索框变化）会换掉控件实例并清空焦点 —— 控件自己管拖动就会拖到一半断掉。
+详情页还会按说明文字的**真实换行行数**把配置区整体下移一段固定间距，长描述不会压到列表上。
+
 ---
 
 ### 9. 设计约定与边界
@@ -621,7 +639,7 @@ Mixin 一共 40 个，分四类：
 
 | # | 你会观察到的现象 | 设计约定 |
 |---|---|---|
-| 1 | 规则条数 | 40 条。`RuleType.values()` 是唯一真相来源，所有文档、命令列表与自检都由它推导 |
+| 1 | 规则条数 | 41 条。`RuleType.values()` 是唯一真相来源，所有文档、命令列表与自检都由它推导 |
 | 2 | `/ec c PortalBindingEnhanced` 不存在 | **一条规则一个命令对象。** 两条传送门绑定规则若各自注册同名子命令，Brigadier 会静默合并并丢掉权限条件，因此 `PortalBindingEnhanced` 故意不给命令。开关用 `/ec PortalBindingEnhanced <状态>` |
 | 3 | `/ec Language <随便写>` 也返回成功 | `Language` 的候选是语言码 → 被判成自定义列表 → 任意文本放行。写错语言码会让服务端文案退回原始翻译键，请只用客户端确实内置的语言码 |
 | 4 | 逐条配置类规则设成 `true`，普通玩家还是改不了名单 | 设计如此：`RuleConfigKind.LIST` 的 `/ec c` 子命令写死 owner，因为它改的是要落盘的名单 |
@@ -637,7 +655,7 @@ Mixin 一共 40 个，分四类：
 
 | 文件 | 内容 |
 |---|---|
-| [`01-rule-index.md`](01-rule-index.md) | 40 条规则总索引（注册名 / 分类 / 默认值 / 一句话） |
+| [`01-rule-index.md`](01-rule-index.md) | 41 条规则总索引（注册名 / 分类 / 默认值 / 一句话） |
 | [`02-rules/`](02-rules/) | 按分类逐条写：`settings` `fix` `entity` `monster` `plant` `animal` `player` `villager` `block` |
 | [`03-deep-dives/`](03-deep-dives/) | 7 篇深度剖析：`auto-trader` `trade-search` `portal-binding` `tab-completion` `villager-binding` `furnace-dirty` `player-sitting` |
 | [`04-glossary.md`](04-glossary.md) | 业务术语表（陶瓦成对、331a/331b、锁定交易、快照…） |

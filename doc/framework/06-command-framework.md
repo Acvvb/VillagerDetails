@@ -39,7 +39,7 @@ How the command tree is built from registries: the static `/ec` tree plus the en
 
 | Layer | Completion source | Why |
 |---|---|---|
-| `/ec <rule>` | `RuleType.allRegisterNames()` — **all 40** | `/ec <rule> <state>` is valid for every rule; listing only the rules with subcommands would make people think the others have no switch |
+| `/ec <rule>` | `RuleType.allRegisterNames()` — **all 41** | `/ec <rule> <state>` is valid for every rule; listing only the rules with subcommands would make people think the others have no switch |
 | `/ec c <rule>` | only rules with `getCommandObject() != null` | when `register()` is `null` there is simply no subtree to attach (for example `PortalBindingEnhanced`) |
 
 On rules that do have commands the two names are kept identical by a **startup self-check**; the difference is by design, not a missing entry.
@@ -192,7 +192,7 @@ An invalid name → message + return `0`; a reload that throws → caught and `e
 
 | 层 | 补全来源 | 为什么 |
 |---|---|---|
-| `/ec <rule>` | `RuleType.allRegisterNames()` —— **全部 40 条** | `/ec <规则> <状态>` 对每条规则都成立；只列"有子命令的"会让人以为别的规则没开关 |
+| `/ec <rule>` | `RuleType.allRegisterNames()` —— **全部 41 条** | `/ec <规则> <状态>` 对每条规则都成立；只列"有子命令的"会让人以为别的规则没开关 |
 | `/ec c <rule>` | 只有 `getCommandObject() != null` 的规则 | `register()` 为 `null` 时根本没有可挂的子树（例如 `PortalBindingEnhanced`） |
 
 两个名字在"有命令"的规则上由**启动期自检**保证一致；差集是设计如此，不是漏项。

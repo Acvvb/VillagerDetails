@@ -1,6 +1,6 @@
 # Rule Index
 
-The complete index of all 40 rules: register name, category, default value and a one-liner for each.
+The complete index of all 41 rules: register name, category, default value and a one-liner for each.
 
 **[English](#english) | [中文](#中文)**
 
@@ -11,7 +11,7 @@ The complete index of all 40 rules: register name, category, default value and a
 ## English
 
 > Data source: `common/src/server/java/com/villagerdetails/rule/type/RuleType.java` (the enum declaration, read entry by entry).
-> **40 rules in total.** "Default value" = the `state` argument in the enum, i.e. the state of a rule that has never been changed.
+> **41 rules in total.** "Default value" = the `state` argument in the enum, i.e. the state of a rule that has never been changed.
 > The "one-liner" only answers "what does it do"; implementation details live in the matching category file.
 
 ---
@@ -26,7 +26,7 @@ The complete index of all 40 rules: register name, category, default value and a
 - [Animals](02-rules/animal.md) — 1 rule
 - [Players](02-rules/player.md) — 2 rules
 - [Villagers](02-rules/villager.md) — 14 rules
-- [Blocks](02-rules/block.md) — 10 rules
+- [Blocks](02-rules/block.md) — 11 rules
 
 > Attribution rule: a rule is written up in detail only in its **primary category** file, and the other categories it belongs to just get one line (the enum categories of `NoSqueeze` are `ENTITY + VILLAGER` while its full text is in `entity.md`; `ZombieVillagerHelp` is `VILLAGER + MONSTER` with its full text also in `entity.md`).
 
@@ -102,7 +102,7 @@ The complete index of all 40 rules: register name, category, default value and a
 | `VillagerEmeraldDecompose` | VILLAGER | `false` | Allows paying with emerald blocks; they are split into emeralds on settlement |
 | `VillagerBookshelfDecompose` | VILLAGER | `false` | Allows paying with bookshelves; they are split into books on settlement |
 
-### BLOCK (10 rules) → [block.md](02-rules/block.md)
+### BLOCK (11 rules) → [block.md](02-rules/block.md)
 
 | Register name | Category | Default value | One-liner |
 |---|---|---|---|
@@ -110,6 +110,7 @@ The complete index of all 40 rules: register name, category, default value and a
 | `BlockCollectable` | BLOCK + COMMAND | `false` | Blocks on the list become "collectable" (even ones that drop nothing in vanilla do drop) |
 | `BlockExplosionResistance` | BLOCK + COMMAND | `false` | Blocks on the list get a custom explosion resistance |
 | `BlockStrongPower` | BLOCK + COMMAND | `false` | Blocks on the list count as redstone conductors and take part in redstone strong powering |
+| `CustomPistonPushBlock` | BLOCK + COMMAND | `false` | Blocks on the list flip the vanilla "can a piston move this block" answer; that single answer covers push, sticky pull and being carried along by honey / slime blocks |
 | `TntNoDestroyDrops` | BLOCK | `false` | TNT explosions no longer destroy item drops lying on the ground |
 | `BoxCrafting` | BLOCK | `false` | A shulker box filled with one and the same item counts as "27 full stacks" when crafting |
 | `PortalBinding` | BLOCK | `false` | Binds one region to another nether portal; walking in sends you to the bound target by force (the tier = who can be teleported by force) |
@@ -131,8 +132,8 @@ The complete index of all 40 rules: register name, category, default value and a
 | `ANIMAL` | 1 | |
 | `PLAYER` | 2 | |
 | `VILLAGER` | 14 | The most complex category, see [villager.md](02-rules/villager.md) |
-| `BLOCK` | 10 | |
-| `COMMAND` | 9 | Not a functional domain: a hand-assigned marker so that `/ec list command` shows the rules the maintainers decided belong there (**counted again** on top of the categories above). Because the marker is assigned by hand, a rule can carry a `/ec c` subcommand without it — `PortalBinding` and `PortalBindingEnhanced` are tagged `BLOCK` only<br>`MobNoSpawn`, `PortalPiglinNoSpawn`, `VillagerBatchBedBinding`, `TradeSearch`, the four block list rules, `EndPortalGravityBlock` |
+| `BLOCK` | 11 | |
+| `COMMAND` | 10 | Not a functional domain: a hand-assigned marker so that `/ec list command` shows the rules the maintainers decided belong there (**counted again** on top of the categories above). Because the marker is assigned by hand, a rule can carry a `/ec c` subcommand without it — `PortalBinding` and `PortalBindingEnhanced` are tagged `BLOCK` only<br>`MobNoSpawn`, `PortalPiglinNoSpawn`, `VillagerBatchBedBinding`, `TradeSearch`, the five block list rules, `EndPortalGravityBlock` |
 
 ### Enum constant ↔ register name (for digging through the code)
 
@@ -157,7 +158,7 @@ The following ones **are not**, so a grep easily comes up empty:
 | Complexity | Rules | How it is handled |
 |---|---|---|
 | Simple | 20 | 10~20 lines in the category file |
-| Medium | 14 | 30~50 lines in the category file |
+| Medium | 15 | 30~50 lines in the category file |
 | Complex | 6 | only a summary in the category file; the full text lives in [`03-deep-dives/`](03-deep-dives/) |
 
 Complex rules: `VillagerAutoTrader`, `TradeSearch`, `PortalBinding`, `PlayerHeadSitting`, `BoxCrafting`,
@@ -170,7 +171,7 @@ Complex rules: `VillagerAutoTrader`, `TradeSearch`, `PortalBinding`, `PlayerHead
 ## 中文
 
 > 数据来源：`common/src/server/java/com/villagerdetails/rule/type/RuleType.java`（逐条读完的枚举声明）。
-> **一共 40 条**。「默认值」= 枚举里的 `state` 参数，也就是「这条规则从未被改过时」的状态。
+> **一共 41 条**。「默认值」= 枚举里的 `state` 参数，也就是「这条规则从未被改过时」的状态。
 > 「一句话说明」只回答"它干什么"，实现细节点进对应分类文件。
 
 ---
@@ -185,7 +186,7 @@ Complex rules: `VillagerAutoTrader`, `TradeSearch`, `PortalBinding`, `PlayerHead
 - [动物 animal.md](02-rules/animal.md) — 1 条
 - [玩家 player.md](02-rules/player.md) — 2 条
 - [村民 villager.md](02-rules/villager.md) — 14 条
-- [方块 block.md](02-rules/block.md) — 10 条
+- [方块 block.md](02-rules/block.md) — 11 条
 
 > 归属原则：一条规则只在**主分类**文件里详细写，其它关联分类用一句话带过（`NoSqueeze` 的枚举分类是
 > `ENTITY + VILLAGER`，正文在 `entity.md`；`ZombieVillagerHelp` 是 `VILLAGER + MONSTER`，正文在 `entity.md`）。
@@ -262,7 +263,7 @@ Complex rules: `VillagerAutoTrader`, `TradeSearch`, `PortalBinding`, `PlayerHead
 | `VillagerEmeraldDecompose` | VILLAGER | `false` | 允许用绿宝石块付款，结算时自动拆成绿宝石 |
 | `VillagerBookshelfDecompose` | VILLAGER | `false` | 允许用书架付款，结算时自动拆成书 |
 
-### BLOCK（10 条）→ [block.md](02-rules/block.md)
+### BLOCK（11 条）→ [block.md](02-rules/block.md)
 
 | 注册名 | 分类 | 默认值 | 一句话说明 |
 |---|---|---|---|
@@ -270,6 +271,7 @@ Complex rules: `VillagerAutoTrader`, `TradeSearch`, `PortalBinding`, `PlayerHead
 | `BlockCollectable` | BLOCK + COMMAND | `false` | 名单里的方块变得"可采集"（连原版不掉落的也掉） |
 | `BlockExplosionResistance` | BLOCK + COMMAND | `false` | 名单里的方块拥有自定义爆炸抗性 |
 | `BlockStrongPower` | BLOCK + COMMAND | `false` | 名单里的方块当作红石导体，参与红石强充能 |
+| `CustomPistonPushBlock` | BLOCK + COMMAND | `false` | 名单里的方块把原版「活塞能不能搬动它」的判定取反：推 / 拉 / 被蜂蜜块与史莱姆块带走三件事一次覆盖 |
 | `TntNoDestroyDrops` | BLOCK | `false` | TNT 爆炸不炸毁地上的掉落物 |
 | `BoxCrafting` | BLOCK | `false` | 装满同一物品的潜影盒可以当"27 个满堆"参与合成 |
 | `PortalBinding` | BLOCK | `false` | 把一块区域绑到另一扇下界门，进门强制送到绑定目标（档位 = 谁能被强制传送） |
@@ -291,8 +293,8 @@ Complex rules: `VillagerAutoTrader`, `TradeSearch`, `PortalBinding`, `PlayerHead
 | `ANIMAL` | 1 | |
 | `PLAYER` | 2 | |
 | `VILLAGER` | 14 | 最复杂的一类，见 [villager.md](02-rules/villager.md) |
-| `BLOCK` | 10 | |
-| `COMMAND` | 9 | 不是功能域：是手工指定的标记，让 `/ec list command` 列出维护者认定属于这一类的规则（与上面的分类**重复计数**）。因为是手工指定，带 `/ec c` 子命令的规则不一定带这个标记 —— `PortalBinding`、`PortalBindingEnhanced` 只归 `BLOCK`<br>`MobNoSpawn`、`PortalPiglinNoSpawn`、`VillagerBatchBedBinding`、`TradeSearch`、四条方块名单类、`EndPortalGravityBlock` |
+| `BLOCK` | 11 | |
+| `COMMAND` | 10 | 不是功能域：是手工指定的标记，让 `/ec list command` 列出维护者认定属于这一类的规则（与上面的分类**重复计数**）。因为是手工指定，带 `/ec c` 子命令的规则不一定带这个标记 —— `PortalBinding`、`PortalBindingEnhanced` 只归 `BLOCK`<br>`MobNoSpawn`、`PortalPiglinNoSpawn`、`VillagerBatchBedBinding`、`TradeSearch`、五条方块名单类、`EndPortalGravityBlock` |
 
 ### 枚举常量 ↔ 注册名（挖代码用）
 
@@ -317,7 +319,7 @@ Complex rules: `VillagerAutoTrader`, `TradeSearch`, `PortalBinding`, `PlayerHead
 | 复杂度 | 条数 | 处理方式                                                      |
 |--------|------|---------------------------------------------------------------|
 | 简单   | 20   | 分类文件里 10~20 行                                           |
-| 中等   | 14   | 分类文件里 30~50 行                                           |
+| 中等   | 15   | 分类文件里 30~50 行                                           |
 | 复杂   | 6    | 分类文件里只给摘要，正文进 [`03-deep-dives/`](03-deep-dives) |
 
 复杂规则：`VillagerAutoTrader`、`TradeSearch`、`PortalBinding`、`PlayerHeadSitting`、`BoxCrafting`、

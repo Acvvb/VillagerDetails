@@ -29,7 +29,7 @@
 | File | Contents |
 |---|---|
 | [`00-overview.md`](00-overview.md) | Positioning, where the code lives, the four pillars of the rule system (categories / state values / two permission layers / four config files), the timing of a rule change, the three wiring styles, the async boundary, the client's share, design rules and boundaries |
-| [`01-rule-index.md`](01-rule-index.md) | **Index of all 40 rules** (register name / categories / default / one-liner) + category distribution check + enum constant cross-reference |
+| [`01-rule-index.md`](01-rule-index.md) | **Index of all 41 rules** (register name / categories / default / one-liner) + category distribution check + enum constant cross-reference |
 | [`04-glossary.md`](04-glossary.md) | Business glossary (framework terms are placeholders pointing at `doc/framework/`) |
 | [`02-rules/settings.md`](02-rules/settings.md) | `Language`, `RuleCommand` |
 | [`02-rules/fix.md`](02-rules/fix.md) | `GlobalSpeedBypass`, `HappyGhastSpeed` |
@@ -39,7 +39,7 @@
 | [`02-rules/animal.md`](02-rules/animal.md) | `InfiniteShear` |
 | [`02-rules/player.md`](02-rules/player.md) | `PlayerHeadSitting`, `PlayerBlockSitting` |
 | [`02-rules/villager.md`](02-rules/villager.md) | The 14 villager rules (binding tools / batch bed binding / trade refresh / trade search and payment) |
-| [`02-rules/block.md`](02-rules/block.md) | The 10 block rules (four list-driven rules / TNT / box crafting / both portal-binding rules / end gravity / dirty furnace) |
+| [`02-rules/block.md`](02-rules/block.md) | The 11 block rules (five list-driven rules / TNT / box crafting / both portal-binding rules / end gravity / dirty furnace) |
 | [`03-deep-dives/auto-trader.md`](03-deep-dives/auto-trader.md) | Auto trade refresh: trigger → parse → producibility → frame slicing → write back |
 | [`03-deep-dives/trade-search.md`](03-deep-dives/trade-search.md) | Trade search: the write side / the read side, the five gates, flush and clear ordering |
 | [`03-deep-dives/portal-binding.md`](03-deep-dives/portal-binding.md) | Portal binding: the region model, the scan budget, multi-hit arbitration, enhanced mode |
@@ -48,7 +48,7 @@
 | [`03-deep-dives/furnace-dirty.md`](03-deep-dives/furnace-dirty.md) | Dirty furnace: the global dirty table, per-view-distance deltas, the prune order |
 | [`03-deep-dives/player-sitting.md`](03-deep-dives/player-sitting.md) | Player sitting: cleanup responsibility for `noSave` vehicles, re-sending the passenger list, swallowed false alarms |
 
-**19 files in total**; `02-rules/` covers **40/40** of `RuleType.values()`.
+**19 files in total**; `02-rules/` covers **41/41** of `RuleType.values()`.
 
 ### Division of labour with the framework docs
 
@@ -82,7 +82,7 @@ Framework docs entry point: [`doc/framework/README.md`](../framework/README.md)
 | 文件 | 内容 |
 |---|---|
 | [`00-overview.md`](00-overview.md) | 项目定位、代码在哪、规则系统的四根支柱（分类 / 状态值 / 两层权限 / 四份配置）、改规则的时序、三种接线方式、异步边界、客户端分工、设计约定与边界 |
-| [`01-rule-index.md`](01-rule-index.md) | **40 条规则总索引**（注册名 / 分类 / 默认值 / 一句话）+ 分类分布核对 + 枚举常量对照 |
+| [`01-rule-index.md`](01-rule-index.md) | **41 条规则总索引**（注册名 / 分类 / 默认值 / 一句话）+ 分类分布核对 + 枚举常量对照 |
 | [`04-glossary.md`](04-glossary.md) | 业务术语表（框架术语为占位，指向 `doc/framework/`） |
 | [`02-rules/settings.md`](02-rules/settings.md) | `Language`、`RuleCommand` |
 | [`02-rules/fix.md`](02-rules/fix.md) | `GlobalSpeedBypass`、`HappyGhastSpeed` |
@@ -92,7 +92,7 @@ Framework docs entry point: [`doc/framework/README.md`](../framework/README.md)
 | [`02-rules/animal.md`](02-rules/animal.md) | `InfiniteShear` |
 | [`02-rules/player.md`](02-rules/player.md) | `PlayerHeadSitting`、`PlayerBlockSitting` |
 | [`02-rules/villager.md`](02-rules/villager.md) | 村民 14 条（绑定工具 / 批量绑床 / 交易刷新 / 交易查询与支付） |
-| [`02-rules/block.md`](02-rules/block.md) | 方块 10 条（四条名单类 / TNT / 盒子合成 / 传送门绑定两条 / 末地重力 / 脏熔炉） |
+| [`02-rules/block.md`](02-rules/block.md) | 方块 11 条（五条名单类 / TNT / 盒子合成 / 传送门绑定两条 / 末地重力 / 脏熔炉） |
 | [`03-deep-dives/auto-trader.md`](03-deep-dives/auto-trader.md) | 自动刷新交易：触发 → 解析 → 可产性 → 分帧 → 写回 |
 | [`03-deep-dives/trade-search.md`](03-deep-dives/trade-search.md) | 交易查询：写入侧 / 读取侧、五道闸、落盘与清空时序 |
 | [`03-deep-dives/portal-binding.md`](03-deep-dives/portal-binding.md) | 传送门绑定：区域模型、扫描预算、多命中仲裁、增强模式 |
@@ -101,7 +101,7 @@ Framework docs entry point: [`doc/framework/README.md`](../framework/README.md)
 | [`03-deep-dives/furnace-dirty.md`](03-deep-dives/furnace-dirty.md) | 脏熔炉：全局脏表 + 按视距增量 + prune 顺序 |
 | [`03-deep-dives/player-sitting.md`](03-deep-dives/player-sitting.md) | 玩家乘坐：`noSave` 载具的清理责任、乘客表补发、误报吞掉 |
 
-**合计 19 个文件**；`02-rules/` 覆盖 `RuleType.values()` 全部 **40/40** 条。
+**合计 19 个文件**；`02-rules/` 覆盖 `RuleType.values()` 全部 **41/41** 条。
 
 ### 与框架文档的分工
 

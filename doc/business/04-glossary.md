@@ -133,7 +133,7 @@ The words in this table are **used without explanation** when they show up in th
 
 | 术语 | 含义 | 出现在哪 |
 |---|---|---|
-| **规则（rule）** | `RuleType` 枚举里的一条，是"一个可独立开关的功能"的最小单位。当前 40 条 | [`01-rule-index.md`](01-rule-index.md) |
+| **规则（rule）** | `RuleType` 枚举里的一条，是"一个可独立开关的功能"的最小单位。当前 41 条 | [`01-rule-index.md`](01-rule-index.md) |
 | **注册名（registerName）** | 规则在命令里的名字，也是落盘用的键。例：`InfiniteShear` | 每条规则的「注册名」 |
 | **状态值（state）** | 规则的当前取值，**永远是一个字符串**。`false` = 关，其余都算开 | [`00-overview.md`](00-overview.md) §4.2 |
 | **档位（permission tier）** | 状态值取 `true / ops / master / admin / owner` 时的那个等级。它**同时**是开关和"谁能触发" | [`00-overview.md`](00-overview.md) §4.3 |

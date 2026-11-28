@@ -121,7 +121,7 @@ batch(action)                          // nestable
   }
 ```
 
-- **Every `flush()` inside the block is suppressed**: otherwise one `RuleSwitchConfig` replay of 40 rules would rewrite the whole file 40 times.
+- **Every `flush()` inside the block is suppressed**: otherwise one `RuleSwitchConfig` replay of 41 rules would rewrite the whole file 41 times.
 - **An exception inside the block still submits**: the `finally` guarantees "changed means not lost".
 - Only the outermost level submits — an inner `flush` is stopped by `batchDepth > 0`.
 - `batchDepth` is only ever read and written on the config-owner (main) thread. The `AtomicInteger` type is defensive, not a promise of thread safety: `flush()` is a main-thread-only operation, and the `batchDepth.get() > 0` check in it is a plain check-then-act.
@@ -263,7 +263,7 @@ batch(action)                          // 可嵌套
   }
 ```
 
-- **块内 `flush()` 一律被压住**：否则 `RuleSwitchConfig` 一次回灌 40 条规则就会整份重写 40 次。
+- **块内 `flush()` 一律被压住**：否则 `RuleSwitchConfig` 一次回灌 41 条规则就会整份重写 41 次。
 - **块内抛异常仍会提交**：`finally` 保证了"改了就不会丢"。
 - 嵌套只有最外层提交 —— 内层 `flush` 被 `batchDepth > 0` 挡住。
 - `batchDepth` 只在配置所有者（主线程）上读写。原子类型是防御性的，不是线程安全承诺：

@@ -282,7 +282,7 @@ The one-to-one mapping:
 |---|---|---|
 | `canSendTo` | sub-microsecond to a microsecond | one mute-table lookup + one Fabric capability probe; even the dirty-furnace pattern of "every tick × every player" holds up |
 | `sendTo` | microseconds | build the payload + write the connection; a failure is only logged, never retried |
-| full descriptor packet (`build`) | milliseconds | 40 rules × translation + list data; sent only on JOIN / rule change / request |
+| full descriptor packet (`build`) | milliseconds | 41 rules × translation + list data; sent only on JOIN / rule change / request |
 | `buildOptions` | milliseconds | enum registry ids (which can reach tens of thousands), capped by `MAX_OPTION_IDS = 20_000` |
 
 Failure semantics: **if it cannot be sent, it is not sent** (no queueing, no retry, no throw). Sync is
@@ -544,7 +544,7 @@ Fabric 的收包回调跑在网络线程上（`handleClientTickEnd` / netty 线�
 |---|---|---|
 | `canSendTo` | 亚微秒~微秒 | 一次静音表查找 + Fabric 能力探测；脏熔炉那种“每 tick × 每玩家”的调用也扛得住 |
 | `sendTo` | 微秒级 | 组包 + 写连接；失败只记日志不重试 |
-| 描述符整包（`build`） | 毫秒级 | 40 条规则 × 翻译 + 列表数据；只在 JOIN / 规则变化 / 请求时发 |
+| 描述符整包（`build`） | 毫秒级 | 41 条规则 × 翻译 + 列表数据；只在 JOIN / 规则变化 / 请求时发 |
 | `buildOptions` | 毫秒级 | 枚举注册表 id（可达上万条），`MAX_OPTION_IDS = 20_000` 封顶 |
 
 失败语义：**发不出去就算了**（不排队、不重试、不抛）。同步是“尽力而为”的——
