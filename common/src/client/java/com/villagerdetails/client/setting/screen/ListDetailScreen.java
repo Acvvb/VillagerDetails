@@ -108,7 +108,7 @@ public class ListDetailScreen extends AbstractDetailScreen {
     }
 
     @Override
-    protected int rowsTop() {
+    protected int rowsTopMinimum() {
         return DETAIL_LIST_TOP;
     }
 
@@ -218,7 +218,7 @@ public class ListDetailScreen extends AbstractDetailScreen {
             this.addBox = null;
             this.addText = "";
             popup.reset();
-            widgets.add(RowListPage.at(addWidget(Button.builder(Component.literal("+"), button -> startAdd())
+            widgets.add(RowListPage.at(addWidget(Button.builder(Component.literal("+"), _ -> startAdd())
                     .bounds(contentX(), y, rowsRight() - contentX(), WIDGET_HEIGHT)
                     .build())));
             return widgets;

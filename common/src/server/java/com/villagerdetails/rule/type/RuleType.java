@@ -355,17 +355,23 @@ public enum RuleType implements RegisterTypeServer {
 
 
     /**
-     * 方块推动控制，被配置的方块可以被活塞推动或者不可被推动。
+     * 活塞搬运控制：名单里的方块把原版「活塞能不能搬动它」的结果<b>取反</b>。
+     *
+     * <p>一条规则管三件事，因为原版这三件事<b>都先问同一个入口</b>
+     * （{@code PistonBaseBlock#isPushable}）：
+     * <ol>
+     *     <li>活塞能不能<b>推动</b>它（伸出）；</li>
+     *     <li>粘性活塞能不能把它<b>黏回来</b>（缩回）；</li>
+     *     <li>蜂蜜块 / 史莱姆块能不能<b>黏住它、把它带走</b>（两个方向都会问）。</li>
+     * </ol>
+     * 搬不动的方块既推不动、也黏不回来、更不会被粘性方块带着走，所以「取反」只落在
+     * {@code isPushable} 一处就同时覆盖三件事，不需要按方向分流，也不需要单独改黏连判定。
+     *
+     * <p>另有一处必须一起放行：{@code PistonBaseBlock#triggerEvent} 缩回分支里的
+     * {@code PushReaction} 闸（要求「能推能拉」），否则「让黑曜石能被粘性活塞黏回来」
+     * 会在第一道闸通过之后又被挡回去。见 {@code PistonBaseBlockMixin}。
      */
     CUSTOM_PISTON_PUSH_BLOCK("CustomPistonPushBlock", "rule.block.custom_piston_push_block", "rule.block.custom_piston_push_block.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> CustomPistonPushBlockServerImpl.INSTANCE, () -> CustomPistonPushBlockConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR),
-
-    /**
-     * 粘性活塞黏回控制，被配置的方块可以被粘性活塞黏回来或者黏不住。
-     *
-     * <p>和「活塞推动控制」是一对：那条管<b>伸出</b>（推），这条管<b>缩回</b>（黏回）。
-     * 原版两段用的是同一个 {@code isPushable}，所以两条规则靠注入时「这次结构扫描是伸出还是缩回」来分流。
-     */
-    CUSTOM_STICKY_PISTON_PULL_BLOCK("CustomStickyPistonPullBlock", "rule.block.custom_sticky_piston_pull_block", "rule.block.custom_sticky_piston_pull_block.desc", List.of(BLOCK, COMMAND), new ArrayList<>(), () -> CustomStickyPistonPullBlockServerImpl.INSTANCE, () -> CustomStickyPistonPullBlockConfig.INSTANCE, () -> ON_OFF, RuleConfigKind.LIST, FALSE_STR),
 
     /**
      * TNT不破坏掉落物。TNT爆炸时不破坏掉落的物品。

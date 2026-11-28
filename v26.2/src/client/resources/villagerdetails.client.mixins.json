@@ -10,7 +10,6 @@
 		"requireAnnotations": true
 	},
 	"mixins": [
-		"block.pistonPush.ClientBlockStateBasePistonPushMixin",
-		"block.pistonPush.ClientPistonStructureResolverMixin"
+		"block.pistonPush.ClientBlockStateBasePistonPushMixin"
 	]
 }

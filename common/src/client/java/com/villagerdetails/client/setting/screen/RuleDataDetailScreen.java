@@ -161,7 +161,7 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     }
 
     @Override
-    protected int rowsTop() {
+    protected int rowsTopMinimum() {
         return RULE_DATA_LIST_TOP;
     }
 
@@ -695,10 +695,16 @@ public class RuleDataDetailScreen extends AbstractDetailScreen {
     }
 
     /**
-     * 点击：命中补全候选就填进 id 输入框；否则点列表区空白处（不含输入框/开关自身）= 提交新增；其余交给原版
+     * 点击：右侧滚动条 → 补全候选 → 列表空白处（提交新增）→ 原版。
+     *
+     * <p>滚动条必须排在最前面：它的那一列在 {@code isMouseOverRows} 的横向范围之内，
+     * 先判「点空白 = 提交新增」会把按住滚动条的动作当成点空白，把正在填的那一行提交掉。
      */
     @Override
     protected boolean mouseClickedScaled(@NonNull MouseButtonEvent event, boolean doubleClick) {
+        if (page.mousePressedScrollBar(event.x(), event.y())) {
+            return true;
+        }
         if (adding) {
             int hit = popup.hitTest(popupBounds(), event.x(), event.y());
             if (hit >= 0) {

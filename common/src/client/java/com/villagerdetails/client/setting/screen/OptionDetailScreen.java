@@ -91,7 +91,12 @@ public class OptionDetailScreen extends ScaledScreen {
         this.contentWidth = Math.min(DETAIL_CONTENT_MAX_WIDTH, uiWidth() - DETAIL_CONTENT_SIDE_MARGIN * 2);
         this.contentX = (uiWidth() - contentWidth) / 2;
 
-        int y = DETAIL_SLIDER_TOP;
+        // 说明文字更长时整块往下让（算法和 AbstractDetailScreen#rowsTop 一致，这一页没有面板，
+        // 所以不用再补 PANEL_PADDING）：换行行数用 Font#split 现算，宽度和绘制说明时一致。
+        int descLines = Math.max(1, this.font.split(entry.getDisplayInfo(), contentWidth).size());
+        int descBottom = DETAIL_DESC_TOP + descLines * this.font.lineHeight;
+
+        int y = Math.max(DETAIL_SLIDER_TOP, descBottom + DETAIL_DESC_CONTENT_GAP);
         this.redSlider = channelSlider(y, "red", 16);
         addRenderableWidget(redSlider);
         y += DETAIL_SLIDER_STEP;

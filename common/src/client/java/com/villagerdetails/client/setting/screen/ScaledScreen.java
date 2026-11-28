@@ -213,19 +213,48 @@ public abstract class ScaledScreen extends Screen {
     }
 
     /**
-     * 松手：同样换算坐标（拖拽结束时要用对位置）
+     * 松手：同样换算坐标（拖拽结束时要用对位置）。
+     *
+     * <p>先给子类一次机会（{@link #mouseReleasedScaled}，滚动条拖动就靠它收尾），
+     * 再走原版的分发。子类处理完请返回 {@code false}：原版那边还要把
+     * {@code isDragging} / 焦点的账做平，不能替它省掉。
      */
     @Override
     public final boolean mouseReleased(@NonNull MouseButtonEvent event) {
-        return super.mouseReleased(toUi(event));
+        MouseButtonEvent uiEvent = toUi(event);
+        mouseReleasedScaled(uiEvent);
+        return super.mouseReleased(uiEvent);
     }
 
     /**
-     * 拖拽：坐标和位移一起换算，滚动条拖动手感才和缩放比例一致
+     * 子类要处理松手就覆盖这个（事件坐标已是基准空间）；返回值只表示「要不要再往下传」，
+     * 默认放行（{@code mouseReleased} 一律会继续走原版）。
+     */
+    protected void mouseReleasedScaled(@NonNull MouseButtonEvent event) {
+    }
+
+    /**
+     * 拖拽：坐标和位移一起换算，滚动条拖动手感才和缩放比例一致。
+     *
+     * <p>先给子类一次机会（{@link #mouseDraggedScaled}）：滚动条的拖动状态挂在页面组件上，
+     * 不依赖原版「焦点 + isDragging」那套转发，所以界面重建 / 焦点被抢都不会把手感打断。
      */
     @Override
     public final boolean mouseDragged(@NonNull MouseButtonEvent event, double dragX, double dragY) {
-        return super.mouseDragged(toUi(event), dragX / scale, dragY / scale);
+        MouseButtonEvent uiEvent = toUi(event);
+        if (mouseDraggedScaled(uiEvent, dragX / scale, dragY / scale)) {
+            return true;
+        }
+        return super.mouseDragged(uiEvent, dragX / scale, dragY / scale);
+    }
+
+    /**
+     * 子类要处理拖拽就覆盖这个（事件坐标已是基准空间）。
+     *
+     * @return true = 已处理（界面不要再往下传）
+     */
+    protected boolean mouseDraggedScaled(@NonNull MouseButtonEvent event, double dragX, double dragY) {
+        return false;
     }
 
     /**

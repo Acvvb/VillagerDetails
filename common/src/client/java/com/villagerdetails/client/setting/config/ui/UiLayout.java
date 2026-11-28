@@ -289,6 +289,18 @@ public final class UiLayout {
      */
     public static final int DETAIL_DESC_TOP = 56;
     /**
+     * 详情页「说明文字最后一行底部」到「配置区」之间留的固定视觉间距。
+     *
+     * <p><b>为什么要有它</b>：说明文字会按内容宽自动换行，行数不定（规则的描述有的两行、
+     * 有的七八行）。配置区的「设计位置」（{@code DETAIL_LIST_TOP} 之类）只是一个<b>最小</b>
+     * 上边界 —— 说明更高时配置区整体<b>向下平移</b>，把位置让给说明，绝不叠在文字上。
+     *
+     * <p>带半透明面板的那几页（列表 / 键值列表）会再加一个 {@link #PANEL_PADDING}：
+     * 这 8 像素是「文字底部到面板外框」的可见间距，面板自己的内边距不算在内。
+     * 具体算法见 {@code AbstractDetailScreen#rowsTop()}。
+     */
+    public static final int DETAIL_DESC_CONTENT_GAP = 8;
+    /**
      * 详情页第一条（红）滑条的上边界
      */
     public static final int DETAIL_SLIDER_TOP = 96;

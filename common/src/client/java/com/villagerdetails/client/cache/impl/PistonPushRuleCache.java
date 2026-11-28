@@ -5,7 +5,8 @@ import com.villagerdetails.client.cache.base.ClientRuleBlockSet;
 import net.minecraft.world.level.block.Block;
 
 /**
- * 「活塞推动控制」规则在本地的镜像：<b>与原版判定不同的方块集合</b>（只管伸出那一段）。
+ * 「活塞搬运控制」规则在本地的镜像：<b>与原版判定不同的方块集合</b>
+ * （推、拉、被蜂蜜块 / 史莱姆块带走，三件事共用这一份）。
  *
  * <p>数据从描述符全量同步里取（见 {@link ClientRuleBlockSet}），不订阅 {@code block_rule_sync} ——
  * 那条是会被客户端静音的业务通道，拿它当判定依据，玩家一关掉开关本地判定就静默失效。

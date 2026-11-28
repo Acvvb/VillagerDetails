@@ -1001,12 +1001,33 @@ public class BaseConfigScreen extends ScaledScreen {
      */
     @Override
     protected boolean mouseClickedScaled(@NonNull MouseButtonEvent event, boolean doubleClick) {
+        // 右侧滚动条：先接管（抓取状态挂在 page 上，不依赖原版「焦点 + isDragging」转发）
+        if (page.mousePressedScrollBar(event.x(), event.y())) {
+            return true;
+        }
         for (KeyBindButton button : keyBindButtons) {
             if (button.isListening() && !button.isMouseOver(event.x(), event.y())) {
                 button.confirmListening();
             }
         }
         return super.mouseClickedScaled(event, doubleClick);
+    }
+
+    /**
+     * 拖拽：正在拖滚动条时只更新滑块位置（不走原版那套「焦点 + isDragging」转发，
+     * 界面重建 / 焦点被抢都不会把拖动打断）。
+     */
+    @Override
+    protected boolean mouseDraggedScaled(@NonNull MouseButtonEvent event, double dragX, double dragY) {
+        return page.mouseDraggedScrollBar(event.y());
+    }
+
+    /**
+     * 松手：结束滚动条拖动（其余记账仍由原版 {@code mouseReleased} 完成）
+     */
+    @Override
+    protected void mouseReleasedScaled(@NonNull MouseButtonEvent event) {
+        page.mouseReleasedScrollBar();
     }
 
     /**

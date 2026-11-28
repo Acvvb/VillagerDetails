@@ -227,6 +227,55 @@ public final class RowListPage {
         return scroll.scroll();
     }
 
+    // ---------------- 滚动条输入（由界面转发进来的） ----------------
+
+    /**
+     * 按下：命中右侧滚动条就接管。
+     *
+     * <p><b>为什么输入不交给 {@link ScrollBar} 控件自己</b>：26.x 的拖拽靠
+     * {@code ContainerEventHandler} 按「焦点 + isDragging」转发，而配置界面在规则同步 /
+     * 搜索词变化时会整页重建 —— 滚动条是新实例、焦点被清空，拖到一半事件就断了。
+     * 抓取状态挂在长生命周期的本组件上（界面重建不会换掉它），屏幕直接转发，最稳。
+     *
+     * @return true = 这次按下属于滚动条（界面应当吃掉这个点击）
+     */
+    public boolean mousePressedScrollBar(double mouseX, double mouseY) {
+        if (scrollBar == null) {
+            return false;
+        }
+        if (scrollBar.grabAt(mouseX, mouseY)) {
+            return true;
+        }
+        // 按在别处：顺手结束上一次可能没收到松手的拖动（比如窗口失焦把 mouseReleased 丢了）
+        scrollBar.endDrag();
+        return false;
+    }
+
+    /**
+     * 拖动：正在拖滚动条时滚动到对应位置。
+     *
+     * @return true = 这次拖拽属于滚动条（界面应当吃掉）
+     */
+    public boolean mouseDraggedScrollBar(double mouseY) {
+        return scrollBar != null && scrollBar.dragTo(mouseY);
+    }
+
+    /**
+     * 松手：结束滚动条拖动（没在拖时是空操作）
+     */
+    public void mouseReleasedScrollBar() {
+        if (scrollBar != null) {
+            scrollBar.endDrag();
+        }
+    }
+
+    /**
+     * 现在是不是正按着滚动条拖
+     */
+    public boolean isDraggingScrollBar() {
+        return scrollBar != null && scrollBar.isGrabbed();
+    }
+
     // ---------------- 滚动 ----------------
 
     /**
@@ -235,10 +284,13 @@ public final class RowListPage {
      * <p>滚动条必须在行控件<b>之后</b>登记，这样它画在行控件上面。
      */
     public void installScrollBar(Consumer<ScrollBar> registrar) {
+        ScrollBar previous = this.scrollBar;
         this.scrollBar = new ScrollBar(scrollBarX(), rowsTop, SCROLLBAR_WIDTH,
                 Math.max(1, viewportBottom() - rowsTop),
                 totalRows, this::rowsPerPage,
                 () -> (double) scroll.scroll(), this::setScroll);
+        // 重建界面时把「正在拖」接手过来：拖着拖着界面一刷新就断开，是以前最难复现的那个 bug
+        this.scrollBar.adoptGrabFrom(previous);
         registrar.accept(scrollBar);
     }
 
